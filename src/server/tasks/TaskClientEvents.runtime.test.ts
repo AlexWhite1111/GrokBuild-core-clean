@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { createTaskSnapshotFixture } from "../../shared/taskTestFixtures.js";
 import type { OfficialAcpClient, ReverseRequestEvent } from "../acp/OfficialAcpClient.js";
 import { XAI_METHODS } from "../acp/XaiMethodRegistry.js";
+import { JsonStateStore } from "../storage/JsonStateStore.js";
 import { PromptEchoQueue } from "./PromptEchoQueue.js";
 import { wireTaskClientEvents } from "./TaskClientEvents.js";
 import type { TaskRuntimeContext } from "./TaskRuntimeContext.js";
-import type { TaskRuntimeProjection } from "./TaskRuntimeProjection.js";
+import { TaskRuntimeProjection } from "./TaskRuntimeProjection.js";
 import { createTaskRuntimeContext } from "./taskActorRuntimeContext.js";
 
 test("child questions and Plan reviews enter the existing Gate queue", () => {
@@ -21,23 +25,7 @@ test("child questions and Plan reviews enter the existing Gate queue", () => {
       snapshot.gates.push(gate);
     },
   } as unknown as TaskRuntimeProjection;
-  wireTaskClientEvents({
-    client: client as unknown as OfficialAcpClient,
-    projection,
-    projectPath: "/tmp",
-    activeTurnId: () => null,
-    latestTurnId: () => null,
-    isStopped: () => false,
-    claimUserEcho: () => undefined,
-    promptReceiptsFromQueue: () => [],
-    completionReceipt: () => ({ requestIds: [], turnId: null }),
-    acceptPending: () => undefined,
-    settleTurn: () => undefined,
-    refreshContextWindow: () => false,
-    touch: () => undefined,
-    change: () => undefined,
-    disconnect: () => undefined,
-  });
+  wireClient(client, projection);
 
   for (const event of [
     {
@@ -98,3 +86,89 @@ test("terminal receipts match an exact active turn and never guess among several
   activeTurns.delete("turn-b");
   assert.equal(context.completionReceipt({}).turnId, "turn-a");
 });
+
+test("the official underscore session update projects a live subagent", (t) => {
+  const { client, projection } = liveProjection(t);
+  client.emit("notification", {
+    method: "_x.ai/session/update",
+    params: {
+      sessionId: "parent-session",
+      update: {
+        sessionUpdate: "subagent_spawned",
+        subagent_id: "child-session",
+        child_session_id: "child-session",
+        description: "goal achievement skeptic",
+      },
+    },
+  });
+
+  assert.deepEqual(projection.detail().context.activeWork.map((item) => ({
+    id: item.id,
+    childSessionId: item.childSessionId,
+    status: item.status,
+    title: item.title,
+  })), [{
+    id: "child-session",
+    childSessionId: "child-session",
+    status: "running",
+    title: "goal achievement skeptic",
+  }]);
+});
+
+test("late chunks from one official prompt stay in one assistant message", (t) => {
+  const { client, projection } = liveProjection(t);
+  for (const text of ["收", "尾"]) {
+    client.emit("notification", {
+      method: "session/update",
+      params: {
+        sessionId: "parent-session",
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text },
+        },
+        _meta: {
+          promptId: "interject-fallback",
+          turnStartMs: 1_000,
+          streamStartMs: 2_000,
+        },
+      },
+    });
+  }
+
+  assert.deepEqual(projection.detail().messages.map((message) => message.text), ["收尾"]);
+});
+
+function liveProjection(t: { after(callback: () => void): void }) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-live-projection-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const snapshot = createTaskSnapshotFixture("project-fixture");
+  snapshot.sessionId = "parent-session";
+  const projection = new TaskRuntimeProjection(
+    snapshot,
+    new JsonStateStore(path.join(root, "state.json")),
+    {},
+  );
+  const client = new EventEmitter();
+  wireClient(client, projection);
+  return { client, projection };
+}
+
+function wireClient(client: EventEmitter, projection: TaskRuntimeProjection): void {
+  wireTaskClientEvents({
+    client: client as unknown as OfficialAcpClient,
+    projection,
+    projectPath: "/tmp",
+    activeTurnId: () => null,
+    latestTurnId: () => null,
+    isStopped: () => false,
+    claimUserEcho: () => undefined,
+    promptReceiptsFromQueue: () => [],
+    completionReceipt: () => ({ requestIds: [], turnId: null }),
+    acceptPending: () => undefined,
+    settleTurn: () => undefined,
+    refreshContextWindow: () => false,
+    touch: () => undefined,
+    change: () => undefined,
+    disconnect: () => undefined,
+  });
+}

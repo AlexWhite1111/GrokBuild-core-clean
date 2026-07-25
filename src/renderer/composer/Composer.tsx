@@ -180,6 +180,14 @@ export function Composer(props: ComposerProps) {
     try { await props.onGoalAction({ action }); }
     catch { /* Task page owns the visible error. */ }
   };
+  const exitPlanMode = async () => {
+    if (!props.onExitPlanMode || interactionLocked || submittingIntent) return;
+    setUpPanel(null);
+    setSubmittingIntent("plan");
+    try { await props.onExitPlanMode(); }
+    catch { /* Task page owns the visible error. */ }
+    finally { setSubmittingIntent(null); }
+  };
 
   const submit = async (intent: "send" | "queue" | "interject" = "send") => {
     if (props.disabled || interactionLocked || submittingIntent) return;
@@ -284,7 +292,9 @@ export function Composer(props: ComposerProps) {
       {upPanel === "add" ? <>
         <Control recipe="menu" onClick={() => { setUpPanel(null); void choose("files"); }}><File size={14} />{t("chooseFiles")}</Control>
         <Control recipe="menu" onClick={() => { setUpPanel(null); void choose("folder"); }}><FolderOpen size={14} />{t("chooseFromFolder")}</Control>
-        <Control recipe="menu" selected={composerMode === "plan"} disabled={Boolean(props.planActive || goalEditing || waiting || submittingIntent || replacementSource)} onClick={() => { setComposerMode("plan"); setUpPanel(null); requestAnimationFrame(() => editor.current?.focus()); }}><ListChecks size={14} />{t("plan")}</Control>
+        {props.planActive
+          ? <Control recipe="menu" selected disabled={Boolean(!props.onExitPlanMode || goalEditing || waiting || submittingIntent || replacementSource)} onClick={() => void exitPlanMode()}><ListChecks size={14} />{t("exitPlanMode")}</Control>
+          : <Control recipe="menu" selected={composerMode === "plan"} disabled={Boolean(goalEditing || waiting || submittingIntent || replacementSource)} onClick={() => { setComposerMode("plan"); setUpPanel(null); requestAnimationFrame(() => editor.current?.focus()); }}><ListChecks size={14} />{t("plan")}</Control>}
         {goalAvailable && <Control recipe="menu" selected={composerMode === "goal" || goalEditing} disabled={Boolean(props.planActive || waiting || submittingIntent || replacementSource)} onClick={() => { if (activeGoal) beginGoalEdit(); else { setComposerMode("goal"); setUpPanel(null); requestAnimationFrame(() => editor.current?.focus()); } }}><Target size={14} />{t("goal")}</Control>}
       </> : upPanel === "model" ? <>
         <Text as="span" tone="secondary" size="caption" className={styles.panelLabel}>Model</Text>

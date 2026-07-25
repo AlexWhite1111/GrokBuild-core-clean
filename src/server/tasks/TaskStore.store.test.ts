@@ -21,6 +21,7 @@ test("TaskStore reads only official Grok session files", (t) => {
   fs.writeFileSync(path.join(sessionPath, "summary.json"), JSON.stringify({
     info: { id: sessionId, cwd: projectPath },
     generated_title: "Official task",
+    agent_name: "grok-build-plan",
     created_at: "2026-07-24T00:00:00.000Z",
     updated_at: "2026-07-24T00:01:00.000Z",
     current_model_id: "grok-4.5",
@@ -43,6 +44,7 @@ test("TaskStore reads only official Grok session files", (t) => {
   const detail = store.readDetail(sessionId);
 
   assert.equal(detail?.snapshot.projectId, project.projectId);
+  assert.equal(detail?.snapshot.workMode, "normal");
   assert.deepEqual(detail?.messages.map(({ role, text }) => [role, text]), [
     ["user", "唯一官方来源"],
     ["assistant", "完成"],
@@ -109,6 +111,9 @@ test("TaskStore restores official work history through the runtime projection", 
       status: "completed",
       _meta: { "x.ai/tool": { name: "read_file" } },
     }, { promptId: "prompt-0", turnStartMs: startedAt, streamStartMs: startedAt + 900 }),
+    officialUpdate(sessionId, startedAt + 3_250, "current_mode_update", {
+      currentModeId: "plan",
+    }),
     officialUpdate(sessionId, startedAt + 3_500, "goal_updated", {
       goal_id: "goal-official",
       status: "active",
@@ -141,15 +146,17 @@ test("TaskStore restores official work history through the runtime projection", 
   assert.deepEqual(detail?.events.map((event) => event.method), [
     "session/update:tool_call",
     "session/update:tool_call_update",
+    "session/update:current_mode_update",
     "session/update:goal_updated",
     "task/goal:structured",
     "session/prompt:completed",
   ]);
-  assert.equal(detail?.events[4]?.occurredAt, new Date(startedAt + 5_000).toISOString());
+  assert.equal(detail?.events[5]?.occurredAt, new Date(startedAt + 5_000).toISOString());
   assert.equal(
-    Date.parse(detail!.events[4].occurredAt) - Date.parse(detail!.messages[0].createdAt),
+    Date.parse(detail!.events[5].occurredAt) - Date.parse(detail!.messages[0].createdAt),
     5_000,
   );
+  assert.equal(detail?.snapshot.workMode, "plan");
   assert.deepEqual(detail?.snapshot.goal, {
     status: "active",
     lastOutcome: null,

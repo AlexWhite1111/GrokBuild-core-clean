@@ -14,7 +14,7 @@ export function wireTaskClientEvents(options: TaskRuntimeContext): void {
   options.client.on("notification", (event: unknown) => {
     const value = asRecord(event);
     const method = string(value.method) || "unknown";
-    if ((method === "session/update" || method === "x.ai/session/update") && acpSessionUpdate(value.params)) {
+    if (["session/update", "x.ai/session/update", "_x.ai/session/update"].includes(method) && acpSessionUpdate(value.params)) {
       const params = asRecord(value.params);
       const sessionId = string(params.sessionId);
       const ownSession = !sessionId || sessionId === options.projection.snapshot.sessionId;

@@ -62,6 +62,25 @@ test("Goal identity resets elapsed state and an explicit empty objective clears 
   assert.equal(goal.objective, null);
 });
 
+test("Goal infra pause is projected as paused from the official update", () => {
+  const goal = createTaskSnapshotFixture("project-fixture").goal;
+  goal.status = "active";
+  goal.objective = "Wait for connectivity";
+  goal.timeUsedSeconds = 3;
+  goal.updatedAt = "2026-07-25T00:00:00.000Z";
+
+  assert.equal(applyGoalSessionUpdate(goal, {
+    status: "infra_paused",
+    goalId: "goal-native",
+    elapsedMs: 4_000,
+  }, new Date("2026-07-25T00:00:04.000Z")), true);
+  assert.equal(goal.source, "native");
+  assert.equal(goal.status, "paused");
+  assert.equal(goal.objective, "Wait for connectivity");
+  assert.equal(goal.timeUsedSeconds, 4);
+  assert.equal(goal.telemetry?.goalId, "goal-native");
+});
+
 test("Goal transitions remain append-only across consecutive Goals", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-goal-history-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { z } from "zod";
-import { QueueMutationSchema, type ComposerReplayDocument, type GateDecision, type PathReferenceSummary, type PlanReviewDraftIdentity, type PlanReviewDraftSnapshot, type TaskCreate, type ProjectDefaults, type SystemPromptPresetSave, type TaskDetailProjection, type TaskFork, type TaskGoalAction, type TaskListItem, type TaskSearchResult, type TaskSnapshot, type TaskSubmissionMode, type WorkspaceProjection } from "../../shared/contracts.js";
+import { QueueMutationSchema, type ComposerReplayDocument, type GateDecision, type PathReferenceSummary, type PlanReviewDraftIdentity, type PlanReviewDraftSnapshot, type TaskCreate, type ProjectDefaults, type SystemPromptPresetSave, type TaskDetailProjection, type TaskFork, type TaskGoalAction, type TaskListItem, type TaskSearchResult, type TaskSnapshot, type TaskSubmissionMode, type WorkMode, type WorkspaceProjection } from "../../shared/contracts.js";
 import type { TaskNotificationIntent } from "../../shared/taskNotifications.js";
 import type { ProjectStore } from "../projects/ProjectStore.js";
 import { AppProblem } from "../security/problemResponse.js";
@@ -274,6 +274,12 @@ export class TaskSupervisor extends EventEmitter {
     return this.#withTaskRuntimeIntent(taskId, async () => {
       const actor = await this.#activation.intentActor(taskId, requestId);
       return actor.executeGoal(requestId, action, objective);
+    });
+  }
+  async setWorkMode(taskId: string, requestId: string, mode: WorkMode): Promise<TaskSnapshot> {
+    return this.#withTaskRuntimeIntent(taskId, async () => {
+      const actor = await this.#activation.intentActor(taskId, requestId);
+      return actor.setWorkMode(mode);
     });
   }
   async stopWork(taskId: string, requestId: string, workItemId: string): Promise<TaskSnapshot> {

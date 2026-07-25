@@ -95,7 +95,7 @@ function goalTelemetryFrom(value: Record<string, unknown>, previous: TaskGoalTel
 function nativeState(value: string | null): NativeGoalState | null {
   if (!value) return null;
   if (["active", "running"].includes(value)) return { status: "active", outcome: null };
-  if (["user_paused", "paused"].includes(value)) return { status: "paused", outcome: null };
+  if (["user_paused", "infra_paused", "paused"].includes(value)) return { status: "paused", outcome: null };
   if (["complete", "completed", "achieved"].includes(value)) return { status: "inactive", outcome: "completed" };
   if (value === "cleared") return { status: "inactive", outcome: "cleared", clearObjective: true };
   if (["cancelled", "canceled"].includes(value)) return { status: "inactive", outcome: "cancelled" };

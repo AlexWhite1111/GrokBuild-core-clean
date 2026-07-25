@@ -73,10 +73,9 @@ test("busy permission changes coalesce to the last verified mode", async () => {
   assert.equal(runtime.hasPending, false);
 });
 
-test("busy Goal actions dispatch through the official prompt queue without TASK_BUSY", async () => {
+test("busy active Goal controls cancel the Goal before dispatch instead of entering the prompt queue", async () => {
   const firstPrompt = deferred<unknown>();
-  const pausePrompt = deferred<unknown>();
-  const clearPrompt = deferred<unknown>();
+  const secondPrompt = deferred<unknown>();
   const calls: string[] = [];
   class FakeClient extends EventEmitter {
     async start() { return { protocolVersion: 1 }; }
@@ -91,11 +90,16 @@ test("busy Goal actions dispatch through the official prompt queue without TASK_
       return { sessionId, yolo: enabled };
     }
     prompt(_sessionId: string, text: string) {
-      calls.push(text);
+      calls.push(`prompt:${text}`);
       if (text === "first") return firstPrompt.promise;
-      if (text === "/goal pause") return pausePrompt.promise;
-      if (text === "/goal clear") return clearPrompt.promise;
+      if (text === "second") return secondPrompt.promise;
       return Promise.resolve({ stopReason: "end_turn" });
+    }
+    async cancel() {
+      calls.push("cancel");
+      this.emit("notification", goalUpdate("user_paused"));
+      if (calls.includes("prompt:second")) secondPrompt.resolve({ stopReason: "cancelled" });
+      else firstPrompt.resolve({ stopReason: "cancelled" });
     }
     stop() {}
     async shutdown() {}
@@ -114,7 +118,7 @@ test("busy Goal actions dispatch through the official prompt queue without TASK_
       delete: () => undefined,
       entries: () => [],
     } as never,
-    taskStore: { readChildDetail: () => null } as never,
+    taskStore: { readChildDetail: () => null, readDetail: () => null } as never,
     publishNotification: () => undefined,
     workMode: "normal",
     permission: "ask",
@@ -141,30 +145,28 @@ test("busy Goal actions dispatch through the official prompt queue without TASK_
 
   const running = actor.submit("request-first", "first");
   await settleMicrotasks();
+  client.emit("notification", goalUpdate("active"));
   const pause = actor.executeGoal("goal-pause", "pause");
+  await Promise.all([running, pause]);
+  assert.deepEqual(calls, ["prompt:first", "cancel"]);
+  assert.deepEqual(actor.snapshot.queue.entries, []);
+  assert.equal(actor.snapshot.goal.status, "paused");
+
+  const runningAgain = actor.submit("request-second", "second");
+  await settleMicrotasks();
+  client.emit("notification", goalUpdate("active"));
   const clear = actor.executeGoal("goal-clear", "clear");
+  await Promise.all([runningAgain, clear]);
   await settleMicrotasks();
 
-  assert.deepEqual(calls, ["first", "/goal pause", "/goal clear"]);
-  assert.deepEqual(actor.snapshot.queue.entries.map((entry) => entry.textPreview), ["/goal pause", "/goal clear"]);
-
-  client.emit("notification", {
-    method: "x.ai/queue/changed",
-    params: {
-      sessionId: "session-fixture",
-      entries: [
-        { id: "native-pause", text: "/goal pause", position: 0 },
-        { id: "native-clear", text: "/goal clear", position: 1 },
-      ],
-    },
-  });
-  await Promise.all([pause, clear]);
-
-  firstPrompt.resolve({ stopReason: "end_turn" });
-  pausePrompt.resolve({ stopReason: "end_turn" });
-  clearPrompt.resolve({ stopReason: "end_turn" });
-  await running;
-  await settleMicrotasks();
+  assert.deepEqual(calls, [
+    "prompt:first",
+    "cancel",
+    "prompt:second",
+    "cancel",
+    "prompt:/goal clear",
+  ]);
+  assert.deepEqual(actor.snapshot.queue.entries, []);
   actor.stop();
 });
 
@@ -208,7 +210,7 @@ test("a busy Plan waits for the official turn, then sets mode before its prompt"
     grokHome: "/tmp",
     grokHomeId: "native",
     state: state as never,
-    taskStore: { readChildDetail: () => null } as never,
+    taskStore: { readChildDetail: () => null, readDetail: () => null } as never,
     publishNotification: () => undefined,
     workMode: "normal",
     permission: "ask",
@@ -287,7 +289,7 @@ test("a queued next prompt waits for its pending Permission preflight", async ()
       delete: () => undefined,
       entries: () => [],
     } as never,
-    taskStore: { readChildDetail: () => null } as never,
+    taskStore: { readChildDetail: () => null, readDetail: () => null } as never,
     publishNotification: () => undefined,
     workMode: "normal",
     permission: "ask",
@@ -331,4 +333,19 @@ async function settleMicrotasks(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
+}
+
+function goalUpdate(status: "active" | "user_paused") {
+  return {
+    method: "session/update",
+    params: {
+      sessionId: "session-fixture",
+      update: {
+        sessionUpdate: "goal_updated",
+        status,
+        goalId: "goal-fixture",
+        objective: "Control Goal",
+      },
+    },
+  };
 }

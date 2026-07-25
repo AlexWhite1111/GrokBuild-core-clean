@@ -10,7 +10,6 @@ import type {
   TaskConfigOption,
   TaskContextWindowUsage,
   TaskGoalState,
-  TaskSnapshot,
   TaskSystemPrompt,
   TaskPermissionMode,
   UiPreferences,
@@ -53,7 +52,7 @@ export interface ComposerProps {
   disabled?: boolean;
   permissionLocked?: boolean;
   planActive?: boolean;
-  connection?: TaskSnapshot["connection"];
+  onExitPlanMode?: () => Promise<void> | void;
   activeGoal?: TaskGoalState;
   contextWindow?: TaskContextWindowUsage | null;
   showContextUsage?: boolean;

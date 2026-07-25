@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createActor } from "xstate";
-import { QueueMutationSchema, type ComposerReplayDocument, type GateDecision, type PathReferenceSummary, type PlanReviewDraftIdentity, type PlanReviewDraftSnapshot, type TaskDetailProjection, type TaskGoalAction, type TaskSnapshot, type TaskSubmissionMode } from "../../shared/contracts.js";
+import { QueueMutationSchema, type ComposerReplayDocument, type GateDecision, type PathReferenceSummary, type PlanReviewDraftIdentity, type PlanReviewDraftSnapshot, type TaskDetailProjection, type TaskGoalAction, type TaskSnapshot, type TaskSubmissionMode, type WorkMode } from "../../shared/contracts.js";
 import type { z } from "zod";
 import { OfficialAcpClient, type ForkSessionResponse, type RewindExecuteResponse } from "../acp/OfficialAcpClient.js";
 import { wireTaskClientEvents } from "./TaskClientEvents.js";
@@ -31,7 +31,7 @@ import { completeTaskTurn, rejectTaskTurn, type ActiveTaskTurn, type TaskTurnSet
 import { TaskPromptReceiptRuntime } from "./taskPromptReceipt.js";
 import { forkTaskHistory, rewindTaskHistory } from "./taskHistoryMutation.js";
 import { sessionPromptMeta } from "./taskSystemPrompt.js";
-import { applyAvailableCommands } from "./taskProtocolRegistry.js";
+import { applyAvailableCommands, permissionModes } from "./taskProtocolRegistry.js";
 interface IdleWaiter { resolve: () => void; reject: (error: Error) => void }
 export class TaskActor extends EventEmitter {
   readonly #machine = createActor(taskMachine);
@@ -52,6 +52,10 @@ export class TaskActor extends EventEmitter {
   constructor(private readonly options: TaskActorOptions) {
     super();
     const snapshot = options.existing?.snapshot ?? createTaskSnapshot(options);
+    snapshot.permission.modes = permissionModes(
+      snapshot.permission.effective,
+      options.permissionCapabilities,
+    );
     snapshot.projectionEpoch = `runtime:${randomUUID()}`;
     snapshot.revision = 0;
     this.#projection = new TaskRuntimeProjection(snapshot, options.state, {
@@ -145,7 +149,7 @@ export class TaskActor extends EventEmitter {
       if (session.modes?.currentModeId === "normal" || session.modes?.currentModeId === "plan") {
         this.#projection.snapshot.workMode = session.modes.currentModeId;
       }
-      await this.#permissions.establish(session.sessionId, this.#latestTurnId);
+      await this.#permissions.establish(session.sessionId, this.#latestTurnId, "create");
       this.#machine.send({ type: "READY" });
       return this.snapshot;
     } catch (error) {
@@ -168,7 +172,7 @@ export class TaskActor extends EventEmitter {
       const loaded = await this.#client.loadSession(sessionId).finally(() => this.#projection.endSessionReplay());
       applyTaskConfigOptions(this.#projection.snapshot, loaded.configOptions);
       if (loaded.modes?.currentModeId === "normal" || loaded.modes?.currentModeId === "plan") this.#projection.snapshot.workMode = loaded.modes.currentModeId;
-      await this.#permissions.establish(sessionId, this.#latestTurnId);
+      await this.#permissions.establish(sessionId, this.#latestTurnId, "resume");
       this.#projection.snapshot.error = null;
       this.#projection.snapshot.sandbox.source = "loaded-session";
       this.#machine.send({ type: "READY" });
@@ -195,7 +199,7 @@ export class TaskActor extends EventEmitter {
       await this.#waitForIdle();
       this.#assertNotStopped();
       await this.#permissions.flushPending();
-      await this.#enterPlanMode();
+      await this.setWorkMode("plan");
       return this.#submitPrompt(requestId, transportPrompt, paths, displayPrompt, false, composerDocument);
     });
     if (this.#permissions.hasPending) return this.#serializeControlDispatch(async () => {
@@ -314,8 +318,37 @@ export class TaskActor extends EventEmitter {
   async executeGoal(requestId: string, action: TaskGoalAction, objective?: string, presentation?: TaskCommandPresentation): Promise<TaskSnapshot> {
     const input = action === "set" ? objective?.trim() : action;
     if (!input) throw new Error("Goal objective cannot be empty.");
-    const completion = this.executeCommand(requestId, "goal", input, presentation, { queueWhenBusy: true });
-    await this.#receipts.waitFor(completion, requestId);
+    return this.#serializeControlDispatch(async () => {
+      if (this.#activeTurns.size > 0 && this.snapshot.goal.status === "active") {
+        await this.cancel();
+        await this.#waitForIdle();
+        if (action === "pause") {
+          this.#refreshOfficialGoal();
+          return this.snapshot;
+        }
+      }
+      const completion = this.executeCommand(requestId, "goal", input, presentation, {
+        queueWhenBusy: this.#activeTurns.size > 0,
+      });
+      await this.#receipts.waitFor(completion, requestId);
+      if (this.#refreshOfficialGoal()) {
+        this.#projection.touch();
+        this.#touch();
+        this.#emitChange();
+      }
+      return this.snapshot;
+    });
+  }
+  async setWorkMode(mode: WorkMode): Promise<TaskSnapshot> {
+    this.#assertNotStopped();
+    const sessionId = this.#projection.snapshot.sessionId;
+    if (!sessionId) throw new Error("Task session is not ready.");
+    await this.#client.setMode(sessionId, mode);
+    this.#projection.snapshot.workMode = mode;
+    this.#projection.record("acp", "session/set_mode", this.#latestTurnId, { mode });
+    this.#projection.touch();
+    this.#touch();
+    this.#emitChange();
     return this.snapshot;
   }
   async stopWork(requestId: string, workItemId: string): Promise<TaskSnapshot> {
@@ -354,9 +387,15 @@ export class TaskActor extends EventEmitter {
     }
   }
   #completeTurn(turnId: string, response: unknown): void {
+    if (this.#activeTurns.get(turnId)?.commandName === "goal") {
+      this.#refreshOfficialGoal();
+    }
     completeTaskTurn(this.#turnSettlement, turnId, response);
   }
   #rejectTurn(turnId: string, error: unknown): void {
+    if (this.#activeTurns.get(turnId)?.commandName === "goal") {
+      this.#refreshOfficialGoal();
+    }
     rejectTaskTurn(this.#turnSettlement, turnId, error);
   }
   #syncMachineState(): void { applyTaskMachineState(this.#projection.snapshot, this.#machine.getSnapshot()); this.#projection.touch(); this.#emitChange(); }
@@ -366,12 +405,9 @@ export class TaskActor extends EventEmitter {
     this.#projection.touch();
     this.#emitChange();
   }
-  async #enterPlanMode(): Promise<void> {
-    const sessionId = this.#projection.snapshot.sessionId;
-    if (!sessionId) throw new Error("Task session is not ready.");
-    await this.#client.setMode(sessionId, "plan");
-    this.#projection.snapshot.workMode = "plan";
-    this.#projection.record("acp", "session/set_mode", this.#latestTurnId, { mode: "plan" });
+  #refreshOfficialGoal(): boolean {
+    const detail = this.options.taskStore.readDetail(this.#projection.snapshot.taskId);
+    return detail ? this.#projection.reconcileOfficialGoal(detail) : false;
   }
   #refreshContextWindow(): boolean { return refreshTaskContextWindow(this.#projection.snapshot, this.options.grokHome, this.options.projectPath); }
   #connectionInterrupted(): boolean {

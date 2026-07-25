@@ -34,6 +34,7 @@ const REPLAY_TURN_UPDATES = new Set([
   "plan",
   "plan_update",
   "plan_removed",
+  "current_mode_update",
   "turn_completed",
   "turn_failed",
   "retry_state",
@@ -92,6 +93,7 @@ export class TaskRuntimeProjection {
   readonly #timeline = new Map<string, TaskStoredTimelineItem>();
   readonly #childTimeline = new Map<string, Map<string, TaskStoredTimelineItem>>();
   readonly #timelineOrdinals = new Map<string, number>();
+  readonly #officialEventIds = new Set<string>();
   readonly #media?: ProjectionMediaContext;
   readonly #readChild?: TaskRuntimeProjectionOptions["readChild"];
   readonly #notify?: TaskRuntimeProjectionOptions["notify"];
@@ -131,7 +133,10 @@ export class TaskRuntimeProjection {
     ];
     this.#connectionEpoch = Math.max(1, ...cursors.map((cursor) => cursor.connectionEpoch));
     this.#sequence = Math.max(0, ...cursors.filter((cursor) => cursor.connectionEpoch === this.#connectionEpoch).map((cursor) => cursor.sequence));
-    for (const event of restored?.events || []) this.#upsertTimeline(event, false);
+    for (const event of restored?.events || []) {
+      this.#officialEventIds.add(event.eventId);
+      this.#upsertTimeline(event, false);
+    }
   }
 
   /** Raw chunk events are never retained by the v2 runtime. */
@@ -298,6 +303,26 @@ export class TaskRuntimeProjection {
     return result;
   }
 
+  reconcileOfficialGoal(detail: TaskDetailProjection): boolean {
+    if (
+      !this.snapshot.sessionId
+      || detail.snapshot.sessionId !== this.snapshot.sessionId
+    ) return false;
+    const events = detail.events.filter((event) =>
+      event.method === "session/update:goal_updated"
+      || event.method === "task/goal:structured");
+    if (!events.length) return false;
+    let changed = JSON.stringify(this.snapshot.goal) !== JSON.stringify(detail.snapshot.goal);
+    if (changed) this.snapshot.goal = structuredClone(detail.snapshot.goal);
+    for (const event of events) {
+      if (this.#officialEventIds.has(event.eventId)) continue;
+      this.#officialEventIds.add(event.eventId);
+      this.#upsertTimeline(event, true);
+      changed = true;
+    }
+    return changed;
+  }
+
   addGate(gate: PendingGate, protocolPayload?: unknown): void {
     this.#semanticChange(() => this.#semantic.addGate(gate, protocolPayload));
   }
@@ -370,7 +395,8 @@ export class TaskRuntimeProjection {
     const replay = this.#transcript.isReplayUpdate(updateType, REPLAY_TURN_UPDATES);
     const effectiveTurn = replay
       ? this.#transcript.turnForReplay(updateType, this.#connectionEpoch, safePayload)
-      : userEcho?.turnId || turnId || string(safePayload.turnId) || `turn_${this.#sequence + 1}`;
+      : userEcho?.turnId || turnId || string(safePayload.turnId)
+        || delayedExecutionId(this.#connectionEpoch, safePayload, this.#sequence + 1);
     if (this.#transcript.suppressesReplayUpdate(
       updateType,
       REPLAY_TURN_UPDATES,
@@ -634,6 +660,14 @@ function eventOccurredAt(payload: unknown, fallback: string): string {
   if (typeof timestamp !== "number" || !Number.isSafeInteger(timestamp) || timestamp < 0) return fallback;
   const date = new Date(timestamp);
   return Number.isNaN(date.valueOf()) ? fallback : date.toISOString();
+}
+
+function delayedExecutionId(connectionEpoch: number, payload: Record<string, unknown>, sequence: number): string {
+  const promptId = string(payload.promptId);
+  const turnStartMs = payload.turnStartMs;
+  return promptId && typeof turnStartMs === "number" && Number.isSafeInteger(turnStartMs)
+    ? `native:${connectionEpoch}:${promptId}:${turnStartMs}`
+    : `turn_${sequence}`;
 }
 
 function emptyContext(): TaskOperationalContextSnapshot {

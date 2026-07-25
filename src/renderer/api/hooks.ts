@@ -108,6 +108,7 @@ export function useTaskIntents(taskId?: string) {
     config: useMutation({ mutationFn: (input: { requestId: string; configId: string; value: string | boolean }) => api.post<TaskSnapshot>(`/tasks/${taskId}/config-option`, input), onSuccess: update }),
     command: useMutation({ mutationFn: (input: { requestId: string; name: string; input?: string }) => api.post<TaskSnapshot>(`/tasks/${taskId}/commands`, input), onSuccess: update }),
     goal: useMutation({ mutationFn: (input: TaskGoalMutation) => api.post<TaskSnapshot>(`/tasks/${taskId}/goal`, input), onSuccess: update }),
+    mode: useMutation({ mutationFn: (input: { requestId: string; mode: "normal" }) => api.post<TaskSnapshot>(`/tasks/${taskId}/mode`, input), onSuccess: updateAfterActivation }),
     workStop: useMutation({ mutationFn: (input: TaskWorkStop) => api.post<TaskSnapshot>(`/tasks/${taskId}/work/stop`, input), onSuccess: update }),
     gate: useMutation({ mutationFn: (input: GateDecision) => api.post<TaskSnapshot>(`/tasks/${taskId}/gates/decision`, input), onSuccess: update }),
   };

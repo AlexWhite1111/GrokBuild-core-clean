@@ -61,10 +61,117 @@ test("resume without an initialize Goal advertisement clears stale availability"
   actor.stop();
 });
 
+test("resume rebuilds permission modes and reads the official session permission", async () => {
+  const client = new CapabilityClient(undefined, true);
+  const snapshot = createTaskSnapshotFixture("project-fixture");
+  snapshot.taskId = "session-fixture";
+  snapshot.sessionId = "session-fixture";
+  snapshot.connection = "unloaded";
+  snapshot.permission = {
+    requested: "ask",
+    effective: "ask",
+    base: "ask",
+    modes: [],
+  };
+  const actor = new TaskActor(actorOptions(client, {
+    snapshot,
+    messages: [],
+    events: [],
+    context: {} as never,
+  }));
+
+  const resumed = await actor.resume();
+
+  assert.equal(client.yoloWrites, 0);
+  assert.equal(resumed.permission.effective, "alwaysApprove");
+  assert.equal(
+    resumed.permission.modes.find((mode) => mode.mode === "alwaysApprove")?.effective,
+    true,
+  );
+  actor.stop();
+});
+
+test("Goal command reconciles official Goal history when live ACP omits goal_updated", async () => {
+  const client = new CapabilityClient([{
+    name: "goal",
+    description: "Official Goal",
+    input: { hint: "objective" },
+  }]);
+  const official = createTaskSnapshotFixture("project-fixture");
+  official.taskId = "session-fixture";
+  official.sessionId = "session-fixture";
+  official.goal = {
+    status: "inactive",
+    lastOutcome: "completed",
+    objective: "Goal projection probe",
+    timeUsedSeconds: 3,
+    source: "native",
+    updatedAt: "2026-07-25T00:00:03.000Z",
+    telemetry: null,
+  };
+  const actor = new TaskActor(actorOptions(client, undefined, {
+    readChildDetail: () => null,
+    readDetail: () => ({
+      snapshot: official,
+      messages: [],
+      context: { currentTodo: null, activeWork: [], history: [] },
+      events: [{
+        eventId: "official:session-fixture:1",
+        taskId: "session-fixture",
+        turnId: "official-turn",
+        connectionEpoch: 1,
+        sequence: 1,
+        source: "acp",
+        method: "task/goal:structured",
+        occurredAt: "2026-07-25T00:00:03.000Z",
+        payload: {
+          goalId: "goal-probe",
+          status: "inactive",
+          lastOutcome: "completed",
+          objective: "Goal projection probe",
+          timeUsedSeconds: 3,
+        },
+      }],
+    }),
+  }));
+  await actor.createSession();
+
+  const completed = await actor.executeGoal(
+    "3ed72d17-2fb4-4203-a161-8c4059a11f8b",
+    "set",
+    "Goal projection probe",
+  );
+
+  assert.equal(completed.goal.lastOutcome, "completed");
+  assert.equal(completed.goal.objective, "Goal projection probe");
+  assert.equal(actor.detail.events.some((event) => event.method === "task/goal:structured"), true);
+  actor.stop();
+});
+
+test("an active Plan session can return to normal mode", async () => {
+  const client = new CapabilityClient();
+  const actor = new TaskActor(actorOptions(client));
+  await actor.createSession();
+  const modeActor = actor as unknown as {
+    setWorkMode(mode: "normal" | "plan"): Promise<TaskSnapshot>;
+  };
+
+  const snapshot = await modeActor.setWorkMode("normal");
+
+  assert.equal(snapshot.workMode, "normal");
+  assert.deepEqual(client.modeWrites, ["normal"]);
+  actor.stop();
+});
+
 class CapabilityClient extends EventEmitter {
   readonly prompts: string[] = [];
+  readonly modeWrites: string[] = [];
+  yoloWrites = 0;
 
-  constructor(private readonly availableCommands?: unknown[]) {
+  constructor(
+    private readonly availableCommands?: unknown[],
+    private yolo = false,
+  ) {
     super();
   }
 
@@ -91,7 +198,17 @@ class CapabilityClient extends EventEmitter {
   }
 
   async setYoloMode(sessionId: string, enabled: boolean) {
-    return { sessionId, yolo: enabled };
+    this.yoloWrites += 1;
+    this.yolo = enabled;
+    return { sessionId, yolo: this.yolo };
+  }
+
+  async readSessionRosterState(sessionId: string) {
+    return { sessionId, yolo: this.yolo };
+  }
+
+  async setMode(_sessionId: string, mode: string) {
+    this.modeWrites.push(mode);
   }
 
   prompt(_sessionId: string, text: string) {
@@ -106,6 +223,10 @@ class CapabilityClient extends EventEmitter {
 function actorOptions(
   client: CapabilityClient,
   existing?: TaskActorOptions["existing"],
+  taskStore: Pick<TaskActorOptions["taskStore"], "readChildDetail" | "readDetail"> = {
+    readChildDetail: () => null,
+    readDetail: () => null,
+  },
 ): TaskActorOptions {
   return {
     taskId: existing?.snapshot.taskId || "task-fixture",
@@ -120,7 +241,7 @@ function actorOptions(
       delete: () => undefined,
       entries: () => [],
     } as never,
-    taskStore: { readChildDetail: () => null } as never,
+    taskStore: taskStore as TaskActorOptions["taskStore"],
     publishNotification: () => undefined,
     workMode: "normal",
     permission: "ask",

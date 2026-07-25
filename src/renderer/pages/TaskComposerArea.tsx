@@ -1,4 +1,5 @@
 import type { ComponentProps, RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import type {
   ComposerInputDocument,
   ComposerReplayDocument,
@@ -13,7 +14,7 @@ import { Composer, type ComposerGoalAction, type ComposerSettings, type Composer
 import { ComposerStack } from "../composer/ComposerStack.js";
 import { ComposerTakeover } from "../composer/ComposerTakeover.js";
 import { NativeQueue } from "../composer/NativeQueue.js";
-import { Notice } from "../../ui/components/index.js";
+import { Control, Notice } from "../../ui/components/index.js";
 import styles from "./TaskPage.module.css";
 
 type ComposerCapabilities = ComponentProps<typeof Composer>["capabilities"];
@@ -54,6 +55,7 @@ interface TaskComposerAreaProps {
   permissionLocked: boolean;
   planActive: boolean;
   connection: TaskSnapshot["connection"];
+  resuming: boolean;
   onSettingsChange: (settings: ComposerSettings) => void;
   onGoalAction: (input: ComposerGoalAction) => Promise<boolean | void> | boolean | void;
   onSend: (
@@ -73,6 +75,8 @@ interface TaskComposerAreaProps {
     document: ComposerInputDocument,
   ) => Promise<boolean | void> | boolean | void;
   onStop: () => Promise<void> | void;
+  onResume: () => Promise<void> | void;
+  onExitPlanMode: () => Promise<void> | void;
   onGateDecision: (decision: GateDecision) => unknown | Promise<unknown>;
   onQueueMutation: (
     action: "remove" | "reorder" | "edit" | "interject",
@@ -122,12 +126,15 @@ export function TaskComposerArea({
   permissionLocked,
   planActive,
   connection,
+  resuming,
   onSettingsChange,
   onGoalAction,
   onSend,
   onQueue,
   onInterject,
   onStop,
+  onResume,
+  onExitPlanMode,
   onGateDecision,
   onQueueMutation,
   onChooseProject,
@@ -136,6 +143,7 @@ export function TaskComposerArea({
   onReplacementApplied,
   onDraftStateChange,
 }: TaskComposerAreaProps) {
+  const { t } = useTranslation();
   return (
     <div ref={stackRef} className={styles.composerArea}>
       <ComposerStack>
@@ -147,6 +155,14 @@ export function TaskComposerArea({
             className={styles.error}
           >
             {error}
+          </Notice>
+        )}
+        {connection === "unloaded" && (
+          <Notice density="compact" className={styles.resumeNotice}>
+            <span>{t("agentUnloaded")} · {t("agentUnloadedDetail")}</span>
+            <Control recipe="text" density="compact" disabled={resuming} onClick={() => void onResume()}>
+              {t(resuming ? "resuming" : "resumeTask")}
+            </Control>
           </Notice>
         )}
         <NativeQueue
@@ -193,7 +209,7 @@ export function TaskComposerArea({
               waiting={waiting}
               permissionLocked={permissionLocked}
               planActive={planActive}
-              connection={connection}
+              onExitPlanMode={onExitPlanMode}
               taskConfigOptions={configOptions}
               projectLabel={projectLabel}
               onChooseProject={onChooseProject}

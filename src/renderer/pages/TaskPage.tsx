@@ -218,6 +218,26 @@ export function TaskPage() {
       throw cause;
     }
   };
+  const resumeTask = async () => {
+    setError(null);
+    try {
+      await intents.resume.mutateAsync(crypto.randomUUID());
+    } catch (cause) {
+      showError(cause);
+    }
+  };
+  const exitPlanMode = async () => {
+    setError(null);
+    try {
+      await intents.mode.mutateAsync({
+        requestId: crypto.randomUUID(),
+        mode: "normal",
+      });
+    } catch (cause) {
+      showError(cause);
+      throw cause;
+    }
+  };
   const retryMessage = async (message: TaskMessageBlock) => {
     setError(null);
     try {
@@ -495,12 +515,15 @@ export function TaskPage() {
                 permissionLocked={!permissionControlAvailable}
                 planActive={snapshot.workMode === "plan"}
                 connection={snapshot.connection}
+                resuming={intents.resume.isPending}
                 onSettingsChange={changeSettings}
                 onGoalAction={mutateGoal}
                 onSend={send}
                 onQueue={enqueue}
                 onInterject={interjectDraft}
                 onStop={cancelTurn}
+                onResume={resumeTask}
+                onExitPlanMode={exitPlanMode}
                 onGateDecision={(decision) =>
                   intents.gate.mutateAsync(decision)
                 }

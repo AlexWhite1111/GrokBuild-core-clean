@@ -75,7 +75,6 @@ function ConnectedBootstrap({ api, payload, children }: PropsWithChildren<Bootst
       }, 250);
     };
     const syncRuntime = () => {
-      if (window.grokDesktop) return;
       void api.get<Pick<AppBootstrapPayload, "appVersion" | "startedAt">>("/bootstrap").then((current) => {
         if (current.appVersion !== payload.appVersion || current.startedAt !== payload.startedAt) window.location.reload();
       }).catch(() => undefined);

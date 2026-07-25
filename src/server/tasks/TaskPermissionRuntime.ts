@@ -33,8 +33,17 @@ export class TaskPermissionRuntime {
 
   get hasPending(): boolean { return Boolean(this.#pending || this.#drain); }
 
-  async establish(sessionId: string, turnId: string | null): Promise<void> {
+  async establish(
+    sessionId: string,
+    turnId: string | null,
+    intent: "create" | "resume",
+  ): Promise<void> {
     const { requested, capabilities, client, projection } = this.options;
+    if (intent === "resume") {
+      const state = await client.readSessionRosterState(sessionId);
+      projection.applySessionRosterReceipt(state, "x.ai/sessions/list", turnId);
+      return;
+    }
     if (requested === "auto") {
       throw unavailable("Auto is unavailable because this Grok runtime did not advertise a verifiable structured control.");
     }

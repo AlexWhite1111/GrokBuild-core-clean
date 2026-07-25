@@ -553,6 +553,11 @@ export const TaskGoalMutationSchema = z.discriminatedUnion("action", [
 export type TaskGoalMutation = z.infer<typeof TaskGoalMutationSchema>;
 export type TaskGoalAction = TaskGoalMutation["action"];
 
+export const TaskWorkModeMutationSchema = z.object({
+  requestId: z.string().uuid(),
+  mode: z.literal("normal"),
+}).strict();
+
 export const TaskWorkStopSchema = z.object({
   requestId: z.string().uuid(),
   workItemId: z.string().min(1).max(256).regex(/^[A-Za-z0-9._:-]+$/),

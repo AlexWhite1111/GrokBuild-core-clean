@@ -37,6 +37,7 @@ function projectSubagentLinks(events: TaskEventEnvelope[]): {
       const link = (nativeToolCallId ? byTool.get(nativeToolCallId) : undefined) || childLink || {
         childSessionId: null, toolCallId: null, resumedFrom: null, title: null, explicit: false,
       };
+      link.explicit = true;
       link.childSessionId = childSessionId;
       link.toolCallId ||= nativeToolCallId || childLink?.toolCallId || null;
       link.resumedFrom ||= text(record(payload.telemetry).resumedFrom) || text(payload.resumedFrom);

@@ -14,6 +14,7 @@ import {
   TaskConfigMutationSchema,
   TaskCommandMutationSchema,
   TaskGoalMutationSchema,
+  TaskWorkModeMutationSchema,
   TaskWorkStopSchema,
   TaskInterjectSchema,
   TaskForkSchema,
@@ -259,6 +260,9 @@ export function registerV1Routes(app: Express, dependencies: V1RouteDependencies
   app.post("/api/v1/tasks/:taskId/goal", (req, res, next) =>
     mutate(req, res, next, TaskGoalMutationSchema, idempotency, (input) =>
       supervisor.executeGoal(TaskIdSchema.parse(req.params.taskId), input.requestId, input.action, input.action === "set" ? input.objective : undefined)));
+  app.post("/api/v1/tasks/:taskId/mode", (req, res, next) =>
+    mutate(req, res, next, TaskWorkModeMutationSchema, idempotency, (input) =>
+      supervisor.setWorkMode(TaskIdSchema.parse(req.params.taskId), input.requestId, input.mode)));
   app.post("/api/v1/tasks/:taskId/work/stop", (req, res, next) =>
     mutate(req, res, next, TaskWorkStopSchema, idempotency, (input) =>
       supervisor.stopWork(TaskIdSchema.parse(req.params.taskId), input.requestId, input.workItemId)));

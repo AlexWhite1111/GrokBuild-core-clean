@@ -231,7 +231,7 @@ function snapshotFrom(row: TaskRow, summary: Record<string, unknown>): TaskSnaps
     connection: "unloaded",
     turn: "idle",
     currentPromptExecutionId: null,
-    workMode: text(summary.agent_name)?.includes("plan") ? "plan" : "normal",
+    workMode: "normal",
     permission: { requested: "ask", effective: "ask", base: "ask", modes: [] },
     sandbox: {
       requested: sandbox,
@@ -287,6 +287,10 @@ function projectOfficialHistory(
     const update = object(params?.update);
     const updateType = text(update?.sessionUpdate);
     if (!params || !update || !updateType) continue;
+    if (updateType === "current_mode_update") {
+      const mode = text(update.currentModeId) || text(update.modeId);
+      if (mode === "normal" || mode === "plan") snapshot.workMode = mode;
+    }
     const payload = safeSessionUpdate(update, readMeta(params));
     const structuredMedia = storedInlineMediaForSessionUpdate(row.task_id, updateType, update);
     if (structuredMedia.length) payload.media = structuredMedia;
