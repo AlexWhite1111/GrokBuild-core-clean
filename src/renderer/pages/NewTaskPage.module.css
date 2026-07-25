@@ -1,0 +1,11 @@
+.page { position: relative; display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: center; }
+.page[data-detail-workspace] { align-items: stretch; justify-content: stretch; }
+.prompt { margin-top: auto; margin-bottom: auto; color: var(--color-text-secondary); font: 400 var(--type-title-relaxed)/calc(1.4 * var(--line-spacing-scale)) var(--font-heading); text-align: center; }
+.center { display: grid; width: 100%; margin-top: auto; margin-bottom: auto; place-items: center; }
+.composer { width: 100%; }
+.composer > div > [data-ui-notice] { margin-bottom: var(--space-7); }
+
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .page { padding-top: var(--ui-workspace-control-safe-top); }
+  .prompt { max-width: calc(100% - var(--ui-compact-content-start) - var(--ui-compact-content-end)); font-size: var(--type-title-compact); }
+}

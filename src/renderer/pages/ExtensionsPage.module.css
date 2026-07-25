@@ -1,0 +1,50 @@
+.page {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  padding: var(--space-32) clamp(var(--space-24), 4vw, var(--space-56)) var(--space-42);
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.page > header { flex: none; margin-bottom: var(--space-14); }
+.page > header p { max-width: 760px; margin-top: var(--space-6); line-height: calc(1.5 * var(--line-spacing-scale)); }
+
+.categories { flex: none; margin-bottom: var(--space-10); overflow-x: auto; }
+.categories a { white-space: nowrap; text-decoration: none; }
+
+.workspace { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(300px, .78fr) minmax(420px, 1.22fr); overflow: hidden; }
+.center { display: flex; min-width: 0; flex-direction: column; box-shadow: var(--shadow-separator-end); }
+.center > header { display: grid; min-height: 49px; padding: var(--space-7) var(--space-10); flex: none; grid-template-columns: auto minmax(140px, 1fr); align-items: center; gap: var(--space-8); box-shadow: var(--shadow-separator-bottom); }
+.center > header > input { justify-self: end; max-width: 280px; }
+
+.list { min-height: 0; padding: var(--space-7); overflow-y: auto; flex: 1; }
+.list > button { display: grid; width: 100%; min-height: 54px; padding: var(--space-7) var(--space-9); grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: var(--space-7); text-align: left; }
+.list > button > [data-ui-badge] { width: 28px; height: 28px; }
+.list button > span:nth-child(2) { display: grid; min-width: 0; gap: var(--space-3); }
+.tags { display: flex; gap: var(--space-3); }
+
+.detail { padding: var(--space-18); overflow-y: auto; }
+.detailHeader { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: var(--space-10); }
+.detailHeader > span:nth-child(2) { display: grid; min-width: 0; gap: var(--space-4); }
+.detailBadges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-4); }
+.detailIcon { width: 38px; height: 38px; }
+.metadata { display: grid; margin-top: var(--space-14); padding: var(--space-10) var(--space-12); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-10) var(--space-18); }
+.metadata > div { display: grid; min-width: 0; gap: var(--space-3); }
+.metadata > div > :last-child { display: flex; min-width: 0; align-items: center; gap: var(--space-5); overflow-wrap: anywhere; }
+.boundary { margin-top: var(--space-12); }
+.empty { padding: var(--space-35) var(--space-12); text-align: center; }
+.emptyDetail { margin-bottom: var(--space-12); }
+
+@media (max-width: 1100px) { .workspace { grid-template-columns: 1fr; grid-template-rows: minmax(280px, 42%) minmax(360px, auto); overflow-y: auto; }.center { min-height: 280px; }.detail { overflow: visible; } }
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .page { padding: var(--ui-workspace-control-safe-top) var(--ui-compact-content-end) var(--ui-compact-page-bottom) var(--ui-compact-content-start); }
+  .tags { display: none; }
+  .workspace { grid-template-rows: minmax(340px, 55dvh) auto; }
+  .center > header { grid-template-columns: 1fr; }
+  .center > header > input { width: 100%; max-width: none; justify-self: stretch; }
+  .detail { padding: var(--space-14); }
+  .detailHeader { grid-template-columns: 38px minmax(0, 1fr); }
+  .detailBadges { grid-column: 1 / -1; justify-content: flex-start; }
+  .metadata { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,5 @@
+.divider { display: block; flex: none; background: var(--color-border); }
+.divider[data-orientation="horizontal"] { width: 100%; height: var(--border-hairline); }
+.divider[data-orientation="vertical"] { width: var(--border-hairline); height: 100%; }
+.divider[data-extent="half"][data-orientation="horizontal"] { width: 50%; }
+.divider[data-extent="half"][data-orientation="vertical"] { height: 50%; }

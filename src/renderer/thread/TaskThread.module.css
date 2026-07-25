@@ -1,0 +1,35 @@
+.frame { --thread-top-safe: var(--ui-workspace-control-safe-top); position: relative; flex: 1; min-height: 0; }
+.scroller { position: absolute; inset: 0; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; }
+.virtual { position: relative; width: min(var(--conversation-max-width, 100%), calc(100% - var(--conversation-gutter) - var(--conversation-gutter))); margin: 0 auto; }
+.item { position: absolute; top: 0; left: 0; width: 100%; padding: 0 0 var(--app-thread-gap, var(--density-thread-gap)); }
+.item[data-index="0"] { padding-top: var(--thread-top-safe); }
+.row { box-sizing: border-box; width: 100%; margin-inline: auto; }
+.continuation { display: grid; width: 100%; grid-template-columns: minmax(var(--space-20), 1fr) auto minmax(var(--space-20), 1fr); align-items: center; gap: var(--space-8); padding: var(--space-8) 0; color: var(--color-accent); }
+.continuation > span { height: 1px; background: var(--color-border-subtle, var(--color-border)); }
+.continuation button { gap: var(--space-5); color: var(--color-accent); font: var(--type-label) var(--font-ui); }
+.edgeTop {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  right: var(--scrollbar-size, 6px);
+  left: 0;
+  height: calc(var(--thread-top-safe) + var(--thread-edge-top-size, 28px));
+  pointer-events: none;
+  opacity: 0;
+  background: var(--thread-edge-top-background);
+  transition: opacity var(--motion-fast) var(--motion-easing);
+}
+.edgeTop.edgeVisible { opacity: 1; }
+.latest { position: absolute; z-index: 12; bottom: calc(var(--thread-bottom-inset, 0px) + var(--space-9)); left: 50%; transform: translateX(-50%); }
+.latestActivity { display: inline-flex; width: var(--space-15); height: var(--space-15); align-items: center; justify-content: center; gap: var(--space-2); }
+.latestActivity > span { width: var(--space-3); height: var(--space-3); border-radius: 50%; opacity: .34; background: currentColor; animation: latest-activity 1.05s ease-in-out infinite; }
+.latestActivity > span:nth-child(2) { animation-delay: .14s; }
+.latestActivity > span:nth-child(3) { animation-delay: .28s; }
+@keyframes latest-activity {
+  0%, 60%, 100% { transform: translateY(0); opacity: .34; }
+  30% { transform: translateY(calc(-1 * var(--space-2))); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edgeTop { transition: none; }
+  .latestActivity > span { animation: none; opacity: .72; }
+}

@@ -1,0 +1,6 @@
+.list { display: flex; align-items: center; gap: var(--space-5); }
+.trigger { display: inline-flex; min-height: var(--density-compact-control-height); padding: 0 var(--space-9); align-items: center; gap: var(--space-5); border: 0; color: var(--color-text-muted); background: transparent; font: var(--font-ui-weight) var(--type-label) var(--font-ui); }
+.trigger[data-state="active"] { color: var(--color-text); background: var(--color-interactive-selected); box-shadow: var(--shadow-selected); }
+.trigger:hover { color: var(--color-text); }
+.trigger:focus-visible { outline: 0; box-shadow: var(--shadow-focus-control); }
+.content { min-height: 0; }

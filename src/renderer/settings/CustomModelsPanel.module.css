@@ -1,0 +1,23 @@
+.panel { display: grid; grid-template-columns: 230px minmax(0,1fr); min-height: 470px; overflow: hidden; }
+.panel header { display: flex; min-height: 48px; padding: var(--space-8) var(--space-10); align-items: center; justify-content: space-between; }
+.panel > aside > div { display: grid; gap: var(--space-3); padding: var(--space-7); }
+.panel > aside > div > button { display: grid; grid-template-columns: 1fr auto; min-height: 46px; padding: var(--space-6) var(--space-8); text-align: left; }
+.panel > aside span { display: grid; min-width: 0; gap: var(--space-3); }
+.panel > aside p { padding: var(--space-18) var(--space-8); }
+.panel > section { display: flex; min-width: 0; flex-direction: column; }
+.form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-9); padding: var(--space-13); }
+.wide { grid-column: 1 / -1; }
+.check { grid-column: 1 / -1; }
+.panel footer { display: flex; gap: var(--space-5); margin-top: auto; padding: var(--space-10) var(--space-13); box-shadow: var(--shadow-separator-top); }
+.primary { margin-left: auto; }
+.diagnostic { margin: 0 var(--space-13) var(--space-10); font-family: var(--font-code); }
+@media (max-width: 900px) {
+  .panel { grid-template-columns: 1fr; }
+  .panel > aside { max-height: 180px; overflow: auto; box-shadow: var(--shadow-separator-bottom); }
+}
+
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .form { grid-template-columns: 1fr; }
+  .panel footer { flex-wrap: wrap; }
+  .primary { margin-left: 0; }
+}

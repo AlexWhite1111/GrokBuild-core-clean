@@ -1,0 +1,11 @@
+.group {
+  display: flex;
+  min-width: 0;
+  gap: calc(var(--density-unit) * .75);
+  padding: calc(var(--density-unit) * .75);
+  background: var(--background-surface-muted, var(--color-surface-muted));
+  box-shadow: var(--shadow-muted-stroke);
+}
+.group > button { min-width: 0; flex: 1; }
+.group > button > [data-ui-icon] { flex: none; }
+.label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

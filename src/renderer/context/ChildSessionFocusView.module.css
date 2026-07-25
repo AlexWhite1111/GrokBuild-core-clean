@@ -1,0 +1,1 @@
+.fallback { display: grid; min-height: 0; flex: 1; place-items: center; overflow: auto; padding: var(--space-18); }

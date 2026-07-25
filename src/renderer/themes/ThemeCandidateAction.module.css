@@ -1,0 +1,4 @@
+.trigger { margin-top: var(--space-10); }
+.summary { display: grid; gap: var(--space-8); }
+.summary div { display: grid; grid-template-columns: var(--ui-label-column-width) minmax(0, 1fr); gap: var(--space-9); }
+.notice { margin-top: var(--space-12); }

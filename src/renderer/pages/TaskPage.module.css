@@ -1,0 +1,34 @@
+.page { --task-top-controls-width: calc(var(--ui-titlebar-control-size) * 3 + var(--space-16)); --ui-workspace-control-safe-end: var(--task-top-controls-width); position: relative; isolation: isolate; display: flex; height: 100%; min-width: 0; flex-direction: column; }
+.page[data-rail-open="true"] { --ui-workspace-control-safe-end: 0px; }
+.body { position: relative; display: flex; min-height: 0; flex: 1; }
+.main { position: relative; z-index: 4; display: flex; min-width: 0; flex: 1; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-layout-end); }
+.conversationPane { position: relative; display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; }
+.composerArea { position: absolute; z-index: 10; right: 0; bottom: 0; left: 0; padding-top: var(--space-8); pointer-events: none; }
+.composerArea > * { pointer-events: auto; }
+.conversationPane::after {
+  content: "";
+  position: absolute;
+  z-index: 9;
+  right: var(--scrollbar-size, 6px);
+  bottom: 0;
+  left: 0;
+  height: calc(var(--composer-height, 0px) / 2 + var(--thread-edge-size, 56px));
+  pointer-events: none;
+  background: var(--thread-edge-bottom-fog-background);
+  backdrop-filter: var(--thread-edge-bottom-fog-filter);
+  -webkit-backdrop-filter: var(--thread-edge-bottom-fog-filter);
+  mask-image: var(--thread-edge-bottom-fog-mask);
+  -webkit-mask-image: var(--thread-edge-bottom-fog-mask);
+}
+.error { box-sizing: border-box; width: 100%; margin: 0 0 var(--space-7); }
+.topControls { position: fixed; z-index: 100; top: var(--ui-titlebar-control-axis-y); right: var(--space-7); isolation: isolate; display: flex; min-width: var(--task-top-controls-width); height: var(--ui-titlebar-control-size); align-items: center; justify-content: flex-end; gap: var(--space-2); pointer-events: auto; transform: translateY(-50%); -webkit-app-region: no-drag; }
+.topControl { position: relative; -webkit-app-region: no-drag; }
+.loading { display: flex; height: 100%; align-items: center; justify-content: center; gap: var(--space-8); color: var(--color-text-muted); font: var(--type-ui) var(--font-ui); }
+.loading strong, .loading span { display: block; }
+
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .composerArea { padding-top: var(--space-5); }
+  .topControls { z-index: 82; top: var(--ui-compact-chrome-top); right: var(--ui-compact-chrome-end); transform: none; }
+  .page[data-rail-open="true"] { --task-top-controls-width: var(--ui-titlebar-control-size); }
+  .page[data-rail-open="true"] .topControls > :not(:last-child) { display: none; }
+}

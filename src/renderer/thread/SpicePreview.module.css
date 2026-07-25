@@ -1,0 +1,29 @@
+.preview { display: grid; min-width: 0; max-height: min(72vh, 760px); overflow: auto; gap: var(--space-10); padding: var(--space-13) var(--space-14); color: var(--color-text); background: var(--background-code-visual); font-family: var(--font-ui); }
+.detail { width: 100%; height: 100%; max-height: none; box-sizing: border-box; align-content: start; padding-top: var(--space-52); }
+.header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: var(--space-14); }
+.header > div:first-child { display: grid; min-width: 0; gap: var(--space-2); }
+.metrics { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-9); }
+.metrics > span { display: flex; align-items: baseline; gap: var(--space-3); color: var(--color-text-muted); font: var(--type-label)/1.25 var(--font-ui); white-space: nowrap; }
+.metrics strong { color: var(--color-text); font-family: var(--font-numeric); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.chips span { padding: var(--space-2) var(--space-7); border-radius: var(--radius-pill); color: var(--color-accent); background: var(--color-accent-soft); font: var(--type-caption)/1.35 var(--font-code); }
+.topology { position: relative; min-width: 0; overflow: hidden; background: color-mix(in srgb, var(--color-surface) 55%, transparent); }
+.topology svg { display: block; width: 100%; height: auto; min-height: 220px; max-height: min(48vh, 460px); }
+.component line { stroke: var(--color-border-strong); stroke-width: 1.25; }
+.component rect { fill: var(--color-surface-raised); stroke: var(--color-accent); stroke-width: 1.35; }
+.component text, .node text, .groundNode text { fill: var(--color-text); font: 11px var(--font-code); pointer-events: none; }
+.node circle { fill: var(--color-surface); stroke: var(--color-border-strong); stroke-width: 1.25; }
+.groundNode circle { fill: var(--color-accent-soft); stroke: var(--color-accent); stroke-width: 1.5; }
+.overflow { position: absolute; right: var(--space-8); bottom: var(--space-6); color: var(--color-text-muted); font: var(--type-caption) var(--font-ui); }
+.tableWrap { max-height: 320px; overflow: auto; }
+.detail .tableWrap { max-height: none; }
+.tableWrap table { width: 100%; border-collapse: separate; border-spacing: 0; font: var(--type-label-relaxed)/1.45 var(--font-code); }
+.tableWrap th, .tableWrap td { padding: var(--space-6) var(--space-8); border-right: var(--border-hairline) solid var(--color-table-grid); border-bottom: var(--border-hairline) solid var(--color-table-grid); color: var(--color-table-text); background: var(--color-table-surface); text-align: left; vertical-align: top; }
+.tableWrap th { position: sticky; top: 0; z-index: 1; color: var(--color-table-header-text); background: var(--color-table-header); font-family: var(--font-ui); }
+.tableWrap tr > :last-child { border-right: 0; }
+.tableMore { padding: var(--space-5) var(--space-8); color: var(--color-text-muted); background: var(--color-table-surface); font: var(--type-caption) var(--font-ui); }
+.diagnostics { display: grid; gap: var(--space-5); }
+.diagnostics > div { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-7); color: var(--color-text-muted); font: var(--type-label-relaxed)/1.45 var(--font-ui); }
+.diagnostics > div > :first-child { color: var(--color-warning); font-family: var(--font-code); }
+.diagnostics > div[data-severity="error"] > :first-child { color: var(--color-danger); }
+@media (max-width: 640px) { .preview { padding: var(--space-10); } .header { align-items: flex-start; flex-direction: column; } .metrics { justify-content: flex-start; } .topology svg { min-width: 620px; } .topology { overflow-x: auto; } }

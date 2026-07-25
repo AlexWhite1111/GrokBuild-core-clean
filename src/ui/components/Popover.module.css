@@ -1,0 +1,7 @@
+.content { z-index: 90; min-width: 220px; max-width: min(420px, calc(100vw - var(--space-32))); max-height: min(620px, calc(var(--app-viewport-height, 100dvh) - var(--space-52))); padding: var(--space-8); overflow: auto; border: 0; color: var(--component-menu-foreground, var(--color-text)); background: var(--background-menu, var(--component-menu-background, var(--color-surface-raised))); box-shadow: var(--shadow-menu-stroke), var(--shadow-popover); backdrop-filter: var(--menu-backdrop-filter); -webkit-backdrop-filter: var(--menu-backdrop-filter); font-family: var(--font-ui); }
+.content[data-size="wide"] { width: min(calc(var(--density-unit) * 80), calc(100vw - var(--space-28))); padding: var(--space-7); }
+
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .content { max-width: calc(100vw - var(--ui-compact-chrome-start) - var(--ui-compact-chrome-end)); max-height: calc(var(--app-viewport-height, 100dvh) - var(--safe-area-top) - var(--safe-area-bottom) - var(--space-16)); }
+  .content[data-size="wide"] { width: calc(100vw - var(--ui-compact-chrome-start) - var(--ui-compact-chrome-end)); }
+}

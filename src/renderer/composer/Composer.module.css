@@ -1,0 +1,96 @@
+.shell { position: relative; width: 100%; margin: 0; padding: 0 0 var(--space-14); font-family: var(--font-ui); }
+.composer { --composer-preview-max-lines: 20; --composer-line-box: calc(var(--type-body-subtle) * var(--font-body-line-height)); position: relative; overflow: visible; border: 0; color: var(--component-composer-foreground, var(--color-text)); background: var(--background-composer, var(--component-composer-background, var(--color-surface-raised))); box-shadow: var(--shadow-composer-stroke), var(--shadow-composer-elevation, var(--shadow-content)); backdrop-filter: var(--composer-backdrop-filter); -webkit-backdrop-filter: var(--composer-backdrop-filter); }
+.composer[data-composer-mode] { box-shadow: var(--shadow-focus), var(--shadow-composer-stroke), var(--shadow-content); }
+.composer[data-drag-active="true"] { background: var(--color-drag-active); box-shadow: var(--shadow-focus), var(--shadow-composer-stroke); }
+.conversationDropOverlay { position: absolute; z-index: 12; inset: 0; display: grid; place-content: center; place-items: center; gap: var(--space-7); padding: var(--space-16); color: var(--color-accent); background: var(--color-drop-overlay); box-shadow: var(--shadow-drop-outline); font: 600 var(--type-body)/var(--font-body-line-height) var(--font-ui); pointer-events: none; }
+.composer[data-submitting="true"] .goalBar,
+.composer[data-submitting="true"] .replacementBar,
+.composer[data-submitting="true"] .editorStack,
+.composer[data-submitting="true"] .leading,
+.composer[data-submitting="true"] .controls { opacity: var(--component-composer-submitting-opacity, .64); }
+.goalBar, .replacementBar, .editorStack, .leading, .controls { transition: opacity var(--motion-fast) var(--motion-easing); }
+.goalBar { display: grid; min-width: 0; padding: var(--space-7) var(--space-9) var(--space-6) var(--space-12); grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-6); color: var(--color-text-muted); box-shadow: var(--shadow-separator-bottom); }
+.goalBar > svg { color: var(--color-text-secondary); }
+.goalCopy { display: flex; min-width: 0; align-items: baseline; gap: var(--space-5); font: var(--type-label) var(--font-ui); white-space: nowrap; }
+.goalCopy strong { flex: none; color: var(--color-text); font-weight: 600; }
+.goalObjective { overflow: hidden; min-width: 0; flex: 0 1 auto; color: var(--color-text-secondary); text-overflow: ellipsis; }
+.goalTime { flex: none; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.goalActions { display: flex; flex: none; align-items: center; gap: var(--space-1); }
+.replacementBar { display: grid; min-width: 0; padding: var(--space-7) var(--space-9) var(--space-6) var(--space-12); grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-6); color: var(--color-text-muted); box-shadow: var(--shadow-separator-bottom); font: var(--type-label) var(--font-ui); }
+.replacementBar > svg { color: var(--color-text-secondary); }
+.replacementBar > span { overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.contextUsage { position: relative; display: grid; width: var(--component-context-ring-size); height: var(--component-context-ring-size); flex: none; place-items: center; outline: none; }
+.contextUsageGraphic { width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
+.contextUsageTrack, .contextUsageValue { fill: none; stroke-width: 3; }
+.contextUsageTrack { stroke: var(--component-context-ring-track); }
+.contextUsageValue { stroke: var(--component-context-ring-fill); stroke-linecap: round; }
+.contextUsageTip { position: absolute; right: 50%; bottom: calc(100% + var(--space-7)); z-index: 12; width: max-content; padding: var(--space-5) var(--space-7); border: 0; color: var(--color-text); background: var(--background-menu, var(--color-surface-raised)); box-shadow: var(--shadow-menu-stroke), var(--shadow-floating); font: var(--type-label) var(--font-numeric); opacity: 0; pointer-events: none; transform: translate(50%, 3px); transition: opacity var(--motion-fast) var(--motion-easing), transform var(--motion-fast) var(--motion-easing); }
+.contextUsage:hover .contextUsageTip, .contextUsage:focus-visible .contextUsageTip { opacity: 1; transform: translate(50%, 0); }
+.composer textarea,
+.inlineEditor { display: block; box-sizing: border-box; width: 100%; min-height: var(--density-control-height); max-height: calc(var(--composer-line-box) * var(--composer-editor-max-lines, 12) + 13px); padding: var(--space-8) var(--space-15) var(--space-5); overflow-y: auto; border: 0; outline: 0; color: var(--color-text); background: transparent; font: 400 var(--type-body-subtle)/var(--font-body-line-height) var(--font-body); letter-spacing: var(--font-body-spacing); }
+.composer textarea { resize: none; }
+.composer textarea::placeholder { color: var(--color-text-muted); opacity: .7; }
+.editorStack { display: flex; min-width: 0; min-height: 0; flex-direction: column; font-size: var(--type-body-subtle); }
+.composer[data-rich-preview="true"] .editorStack { max-height: min(calc(var(--composer-line-box) * var(--composer-preview-max-lines) + 28px), calc(var(--app-viewport-height, 100dvh) - var(--safe-area-top) - var(--safe-area-bottom) - 82px)); overflow: hidden; }
+.richPreview { display: block; box-sizing: border-box; width: 100%; min-height: 0; max-height: calc(var(--composer-line-box) * var(--composer-preview-max-lines) + 15px); padding: var(--space-9) var(--space-15) var(--space-8); overflow: auto; overscroll-behavior: contain; border: 0; outline: 0; color: var(--color-text); background: var(--color-composer-preview); box-shadow: var(--shadow-separator-bottom); flex: 1 1 auto; font: 400 var(--type-body-subtle)/var(--font-body-line-height) var(--font-body); letter-spacing: var(--font-body-spacing); text-align: left; }
+.composer[data-rich-preview="true"] .inlineEditor { min-height: var(--density-compact-control-height); max-height: calc(var(--composer-line-box) * 6 + 13px); padding-top: var(--space-6); color: var(--color-text-secondary); flex: 0 0 auto; font-size: var(--type-body-condensed); }
+.inlineEditor { position: relative; overflow-x: hidden; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.inlineEditor[data-empty="true"]::before { position: absolute; top: 8px; left: 15px; overflow: hidden; max-width: calc(100% - 30px); color: var(--color-text-muted); content: attr(data-placeholder); opacity: .7; pointer-events: none; text-overflow: ellipsis; white-space: nowrap; }
+.inlineEditor[contenteditable="false"] { cursor: default; }
+.inlinePath { user-select: all; }
+.inlinePath:hover { color: var(--color-text); }
+.inlinePath[data-selected="true"] { color: var(--component-chip-accent, var(--color-accent)); box-shadow: var(--shadow-selected); }
+.notice { margin-bottom: var(--space-5); align-items: center; justify-content: space-between; }
+.upPanel { position: absolute; z-index: 18; display: grid; width: max-content; min-width: 164px; max-width: min(320px, calc(100% - var(--space-18))); max-height: min(320px, calc(var(--app-viewport-height, 100dvh) * .42)); padding: var(--space-5); overflow-y: auto; }
+.upPanel[data-panel="model"] { min-width: 210px; }
+.upPanel [data-ui-control] { width: 100%; justify-content: flex-start; text-align: left; }
+.panelLabel { padding: var(--space-4) var(--space-7) var(--space-3); }
+.panelDivider { width: auto; margin: var(--space-4) var(--space-5); }
+.toolbar { display: flex; min-height: var(--app-composer-toolbar-height); padding: var(--space-2) var(--space-7) var(--space-6) var(--space-8); align-items: center; gap: var(--space-3); }
+.leading, .controls, .actions, .controlScroller { display: flex; min-height: var(--ui-action-control-size); align-items: center; }
+.leading { flex: none; gap: var(--space-1); }
+.specialMode { color: var(--color-accent); background: var(--color-accent-soft); }
+.specialMode span { font-weight: 600; }
+.controls { min-width: 0; flex: 1; gap: var(--space-4); }
+.controlScroller { min-width: 0; flex: 0 1 auto; gap: var(--space-2); overflow-x: auto; scrollbar-width: none; }
+.controlScroller::-webkit-scrollbar { display: none; }
+.actions { flex: none; margin-left: auto; gap: var(--space-4); }
+.sendAction {
+  --control-disabled-background: var(--background-composer-send-idle);
+  --background-primary-action: var(--background-composer-send-active);
+  --background-primary-action-hover: var(--background-composer-send-active-hover);
+  --background-primary-action-pressed: var(--background-composer-send-active-pressed);
+}
+.optionTrigger { min-width: 0; flex: none; padding-inline: var(--space-4); white-space: nowrap; }
+.optionTrigger > span { display: flex; min-width: 0; align-items: center; overflow: hidden; max-width: 116px; text-overflow: ellipsis; }
+.optionTrigger[data-grouped] > span { overflow: visible; max-width: none; }
+.optionTrigger svg { margin-left: var(--space-2); }
+.inlineDivider { padding-inline: var(--space-3); }
+.secondaryOptions { display: flex; align-items: center; gap: var(--space-3); margin-left: var(--space-3); }
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .shell { padding-bottom: var(--safe-area-bottom); }
+  .goalBar { padding-right: var(--space-7); padding-left: var(--space-9); }
+  .goalCopy strong { display: none; }
+  .composer textarea,
+  .inlineEditor { min-height: 35px; padding-right: var(--space-12); padding-left: var(--space-12); }
+  .composer textarea { max-height: min(calc(var(--composer-line-box) * var(--composer-editor-max-lines, 12) + 13px), 36dvh); }
+  .inlineEditor { max-height: min(calc(var(--composer-line-box) * var(--composer-editor-max-lines, 6) + 13px), 36dvh); }
+  .composer[data-rich-preview="true"] .inlineEditor { max-height: min(calc(var(--composer-line-box) * 6 + 13px), 34dvh); }
+  .richPreview { min-height: 0; padding-right: var(--space-12); padding-left: var(--space-12); }
+  .inlineEditor[data-empty="true"]::before { left: 12px; max-width: calc(100% - 24px); }
+  .toolbar { min-height: 40px; padding-right: var(--space-6); padding-left: var(--space-6); }
+  .leading { margin-right: var(--space-2); }
+  .controls { gap: var(--space-3); }
+  .controlScroller { gap: 0; scroll-padding-inline: var(--space-8); }
+  .actions { gap: var(--space-3); }
+  .optionTrigger { padding-inline: var(--space-3); }
+  .optionTrigger > span { max-width: 72px; }
+  .optionTrigger[data-grouped] > span { max-width: none; }
+  .secondaryOptions { gap: var(--space-1); margin-left: var(--space-2); }
+  .upPanel { max-height: min(280px, calc(var(--app-viewport-height, 100dvh) * .38)); }
+}
+
+@media (pointer: coarse) and (max-width: 900px) {
+  .composer textarea,
+  .inlineEditor { min-height: var(--density-control-height); }
+}

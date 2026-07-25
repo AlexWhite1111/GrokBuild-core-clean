@@ -1,0 +1,8 @@
+.handle { position: absolute; z-index: 2; touch-action: none; }
+.handle[data-orientation="horizontal"] { top: calc(var(--space-4) * -1); right: 0; left: 0; height: var(--space-8); cursor: row-resize; }
+.handle[data-orientation="vertical"] { top: 0; right: calc(var(--space-4) * -1); bottom: 0; width: var(--space-8); cursor: col-resize; }
+.handle[data-orientation="vertical"][data-side="start"] { right: auto; left: calc(var(--space-4) * -1); }
+.handle > i { position: absolute; display: block; border-radius: var(--radius-pill); background: transparent; transition: background var(--motion-fast) var(--motion-easing), box-shadow var(--motion-fast) var(--motion-easing); }
+.handle[data-orientation="horizontal"] > i { top: var(--space-3); right: 44%; left: 44%; height: var(--border-strong); }
+.handle[data-orientation="vertical"] > i { top: 44%; bottom: 44%; left: var(--space-3); width: var(--border-strong); }
+.handle:hover > i, .handle:focus-visible > i { background: var(--color-focus); box-shadow: var(--shadow-focus); }

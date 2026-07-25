@@ -1,0 +1,8 @@
+.group { position: relative; padding: var(--space-3) 0 var(--space-8); box-shadow: var(--shadow-separator-bottom); }
+.list { display: grid; margin: 0; padding: 0; list-style: none; }
+.item { display: grid; min-width: 0; min-height: var(--density-control-height); padding: var(--space-4) var(--space-2); grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-7); }
+.group[data-cancellable="true"] .item { padding-right: calc(var(--ui-detail-control-size) + var(--space-7)); }
+.marker { margin-top: var(--space-8); }
+.label { min-width: 0; overflow-wrap: anywhere; font-size: var(--component-todo-font-size); letter-spacing: var(--component-todo-letter-spacing); transition: color var(--motion-fast) var(--motion-easing), opacity var(--motion-fast) var(--motion-easing); }
+.item[data-status="completed"] .label, .item[data-status="cancelled"] .label { opacity: var(--component-todo-completed-opacity); text-decoration: line-through; text-decoration-color: var(--component-todo-strike); text-decoration-thickness: .75px; }
+.cancel { position: absolute; top: var(--space-5); right: 0; }

@@ -1,0 +1,16 @@
+.queue { box-sizing: border-box; width: 100%; max-height: 264px; margin: 0 0 var(--space-7); overflow-y: auto; font-family: var(--font-ui); }
+.list { display: grid; padding: var(--space-5); }
+.row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; min-height: 34px; align-items: center; color: var(--color-text-secondary); }
+.row[data-dragging="true"] { opacity: .48; }
+.grip { display: grid; height: 28px; place-items: center; color: var(--color-text-muted); cursor: grab; touch-action: none; }
+.grip:active { cursor: grabbing; }
+.prompt { min-width: 0; overflow: hidden; padding: var(--space-7) var(--space-4); font: var(--type-label-relaxed)/calc(1.35 * var(--line-spacing-scale)) var(--font-body); text-overflow: ellipsis; white-space: nowrap; }
+.prompt:hover, .prompt:focus { position: relative; z-index: 2; max-height: calc(1.4em * 8); overflow-y: auto; color: var(--color-text); white-space: normal; outline: 0; }
+.actions { display: flex; opacity: 0; }
+.row:hover .actions, .row:focus-within .actions { opacity: 1; }
+
+@media (pointer: coarse) and (max-width: 900px) {
+  .row { grid-template-columns: var(--density-control-height) minmax(0, 1fr) auto; min-height: var(--density-control-height); }
+  .grip { height: var(--density-control-height); }
+  .actions { opacity: 1; }
+}

@@ -1,0 +1,44 @@
+.popover { width: min(420px, calc(100vw - var(--space-20))); padding: 0; overflow: hidden; }
+.shell { display: flex; min-height: 0; flex-direction: column; }
+.header { display: flex; min-width: 0; min-height: var(--density-control-height); padding: var(--space-7) var(--space-8); align-items: center; gap: var(--space-5); box-shadow: var(--shadow-separator-bottom); }
+.branchTrigger { min-width: 0; flex: 1; padding-inline: var(--space-5); justify-content: flex-start; }
+.branchTrigger > [data-ui-icon] { color: var(--color-text-muted); }
+.branchName { min-width: 0; overflow: hidden; flex: 1; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.summaryMeta { display: flex; flex: none; align-items: center; gap: var(--space-5); color: var(--color-text-muted); font: var(--type-caption) var(--font-code); }
+.headerActions { display: flex; flex: none; align-items: center; gap: var(--space-2); }
+.body { min-height: 0; max-height: min(560px, calc(var(--app-viewport-height, 100dvh) - var(--space-52))); padding: var(--space-9); overflow-y: auto; }
+.loading { display: flex; min-height: calc(var(--density-control-height) * 2); align-items: center; justify-content: center; gap: var(--space-6); }
+.commitComposer { display: grid; gap: var(--space-9); }
+.commitMessage { min-height: calc(var(--density-control-height) * 2); }
+.commitChoice { padding-inline: var(--space-2); }
+.actionList { display: grid; gap: var(--space-2); padding-top: var(--space-8); box-shadow: var(--shadow-separator-top); }
+.actionRow { width: 100%; justify-content: flex-start; text-align: left; }
+.actionRow > span { min-width: 0; flex: 1; }
+.actionMeta { color: var(--color-text-muted); font: var(--type-caption) var(--font-code); }
+.navigation { display: grid; gap: var(--space-2); padding-top: var(--space-7); }
+.navigation .actionRow { color: var(--color-text-muted); }
+.screenHeader { display: flex; min-width: 0; min-height: var(--density-compact-control-height); flex: 1; align-items: center; gap: var(--space-5); }
+.screenHeader > strong { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sectionStack { display: grid; }
+.diff { max-height: min(280px, 36vh); margin: var(--space-4) 0; padding: var(--space-8); overflow: auto; color: var(--color-text-secondary); background: var(--background-code, var(--color-surface-muted)); box-shadow: var(--shadow-code-stroke), var(--shadow-inset-content); font: var(--font-code-weight) var(--font-code-size)/var(--font-code-line-height) var(--font-code); white-space: pre; tab-size: 2; }
+.picker { width: min(320px, calc(100vw - var(--space-20))); padding: var(--space-7); }
+.pickerSearch { padding-bottom: var(--space-5); }
+.branchList { max-height: min(340px, calc(var(--app-viewport-height, 100dvh) - var(--space-52))); overflow-y: auto; }
+.branchOption { width: 100%; padding-block: var(--space-5); justify-content: flex-start; text-align: left; }
+.branchCopy { display: grid; min-width: 0; flex: 1; gap: var(--space-2); }
+.branchCopy strong, .branchCopy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.branchCopy strong { color: var(--color-text); font-size: var(--type-control); font-weight: var(--font-ui-weight); }
+.branchCopy small { color: var(--color-text-muted); font-size: var(--type-caption); }
+.pickerDivider { margin: var(--space-5) 0; }
+.pickerFooter { display: grid; gap: var(--space-2); }
+.quickBranch { align-items: flex-start; }
+.quickBranch code { min-width: 0; overflow: hidden; flex: 1; color: var(--color-text-secondary); font: var(--type-caption) var(--font-code); text-overflow: ellipsis; white-space: nowrap; }
+.dialogFields { display: grid; gap: var(--space-9); }
+.confirmTarget { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.remoteSelect { width: 100%; }
+
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .popover { width: calc(100vw - var(--ui-compact-chrome-start) - var(--ui-compact-chrome-end)); max-width: none; }
+  .body { max-height: calc(var(--app-viewport-height, 100dvh) - var(--space-52)); padding-right: max(var(--space-9), var(--safe-area-right)); padding-left: max(var(--space-9), var(--safe-area-left)); }
+  .picker { width: calc(100vw - var(--ui-compact-chrome-start) - var(--ui-compact-chrome-end)); }
+}

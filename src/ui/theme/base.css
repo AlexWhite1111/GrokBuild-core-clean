@@ -1,0 +1,47 @@
+:root {
+  --layout-space-scale: var(--layout-density-scale, 1);
+  --space-1: calc(1px * var(--layout-space-scale)); --space-2: calc(2px * var(--layout-space-scale)); --space-3: calc(3px * var(--layout-space-scale)); --space-4: calc(4px * var(--layout-space-scale)); --space-4-14: calc(4.14px * var(--layout-space-scale));
+  --space-5: calc(5px * var(--layout-space-scale)); --space-6: calc(6px * var(--layout-space-scale)); --space-7: calc(7px * var(--layout-space-scale)); --space-8: calc(8px * var(--layout-space-scale)); --space-9: calc(9px * var(--layout-space-scale)); --space-10: calc(10px * var(--layout-space-scale));
+  --space-11: calc(11px * var(--layout-space-scale)); --space-12: calc(12px * var(--layout-space-scale)); --space-13: calc(13px * var(--layout-space-scale)); --space-14: calc(14px * var(--layout-space-scale)); --space-15: calc(15px * var(--layout-space-scale)); --space-16: calc(16px * var(--layout-space-scale));
+  --space-17: calc(17px * var(--layout-space-scale)); --space-18: calc(18px * var(--layout-space-scale)); --space-19: calc(19px * var(--layout-space-scale)); --space-20: calc(20px * var(--layout-space-scale)); --space-22: calc(22px * var(--layout-space-scale)); --space-23: calc(23px * var(--layout-space-scale));
+  --space-24: calc(24px * var(--layout-space-scale)); --space-25: calc(25px * var(--layout-space-scale)); --space-26: calc(26px * var(--layout-space-scale)); --space-28: calc(28px * var(--layout-space-scale)); --space-30: calc(30px * var(--layout-space-scale)); --space-32: calc(32px * var(--layout-space-scale));
+  --space-35: calc(35px * var(--layout-space-scale)); --space-40: calc(40px * var(--layout-space-scale)); --space-42: calc(42px * var(--layout-space-scale)); --space-45: calc(45px * var(--layout-space-scale)); --space-48: calc(48px * var(--layout-space-scale)); --space-50: calc(50px * var(--layout-space-scale));
+  --space-52: calc(52px * var(--layout-space-scale)); --space-56: calc(56px * var(--layout-space-scale)); --space-64: calc(64px * var(--layout-space-scale));
+  --space-negative-1: calc(-1px * var(--layout-space-scale)); --space-negative-2: calc(-2px * var(--layout-space-scale)); --space-negative-3: calc(-3px * var(--layout-space-scale)); --space-negative-10: calc(-10px * var(--layout-space-scale));
+
+  --rhythm-006: .06em; --rhythm-008: .08em; --rhythm-01: .1em; --rhythm-012: .12em; --rhythm-014: .14em;
+  --rhythm-018: .18em; --rhythm-024: .24em; --rhythm-028: .28em; --rhythm-032: .32em; --rhythm-034: .34em;
+  --rhythm-038: .38em; --rhythm-04: .4em; --rhythm-046: .46em; --rhythm-048: .48em; --rhythm-05: .5em;
+  --rhythm-055: .55em; --rhythm-056: .56em; --rhythm-058: .58em; --rhythm-065: .65em; --rhythm-068: .68em;
+  --rhythm-07: .7em; --rhythm-072: .72em; --rhythm-076: .76em; --rhythm-08: .8em; --rhythm-082: .82em;
+  --rhythm-086: .86em; --rhythm-09: .9em; --rhythm-092: .92em; --rhythm-1: 1em; --rhythm-1-15: 1.15em;
+  --rhythm-1-25: 1.25em; --rhythm-1-45: 1.45em;
+
+  --type-micro-compact: calc(9.5px * var(--font-scale));
+  --type-micro: calc(10px * var(--font-scale));
+  --type-caption: calc(10.5px * var(--font-scale));
+  --type-caption-relaxed: calc(11px * var(--font-scale));
+  --type-label: calc(11.5px * var(--font-scale));
+  --type-label-relaxed: calc(12px * var(--font-scale));
+  --type-control: calc(12.5px * var(--font-scale));
+  --type-control-relaxed: calc(13px * var(--font-scale));
+  --type-ui: calc(13px * var(--font-scale));
+  --type-ui-relaxed: calc(13.5px * var(--font-scale));
+  --type-body-compact: calc(13.5px * var(--font-scale));
+  --type-body: calc(14px * var(--font-scale));
+  --type-body-relaxed: calc(14.5px * var(--font-scale));
+  --type-copy: calc(15px * var(--font-scale));
+  --type-title-compact: calc(16px * var(--font-scale));
+  --type-title: calc(17px * var(--font-scale));
+  --type-title-relaxed: calc(18px * var(--font-scale));
+  --type-heading: calc(19px * var(--font-scale));
+  --type-heading-large: calc(21px * var(--font-scale));
+  --type-display: calc(23px * var(--font-scale));
+  --type-display-large: calc(26px * var(--font-scale));
+  --type-ratio-075: .75em; --type-ratio-078: .78em; --type-ratio-08: .8em; --type-ratio-084: .84em;
+  --type-ratio-086: .86em; --type-ratio-088: .88em; --type-ratio-09: .9em; --type-ratio-092: .92em;
+  --type-ratio-1: 1em; --type-ratio-1-02: 1.02em; --type-ratio-1-13: 1.13em; --type-ratio-1-26: 1.26em;
+  --type-ratio-1-42: 1.42em;
+  --type-body-subtle: calc(var(--font-body-size) - .5px);
+  --type-body-condensed: calc(var(--font-body-size) - 1.5px);
+}

@@ -1,0 +1,32 @@
+.stack {
+  --composer-stack-fog-color: var(--color-canvas);
+  position: relative;
+  isolation: isolate;
+  box-sizing: border-box;
+  width: min(var(--conversation-max-width, 100%), calc(100% - var(--conversation-gutter) - var(--conversation-gutter)));
+  margin: 0 auto;
+}
+.stack::before {
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  bottom: calc(100% - var(--border-hairline));
+  left: 0;
+  height: calc(var(--space-19) + var(--border-hairline));
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--composer-stack-fog-color) 84%, transparent) 0%,
+    color-mix(in srgb, var(--composer-stack-fog-color) 68%, transparent) 18%,
+    color-mix(in srgb, var(--composer-stack-fog-color) 30%, transparent) 50%,
+    transparent 100%
+  );
+  content: "";
+  pointer-events: none;
+  mask: linear-gradient(
+    to right,
+    transparent 0,
+    var(--color-mask-opaque) var(--radius-surface),
+    var(--color-mask-opaque) calc(100% - var(--radius-surface)),
+    transparent 100%
+  );
+}

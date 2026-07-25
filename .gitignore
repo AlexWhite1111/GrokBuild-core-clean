@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-server/
+dist-shell/
+out/
+release/
+release-*/
+*.app/
+*.dmg
+*.zip
+*.blockmap
+builder-effective-config.yaml
+
+# Tooling / coverage
+outputs/
+coverage/
+jscpd-report/
+.nyc_output/
+playwright-report/
+test-results/
+*.log
+*.tsbuildinfo
+
+# Environment & secrets (keep example only)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+.vault/
+**/credentials.json
+**/service-account*.json
+
+# Local app / agent runtime data
+.codex-backups/
+.grok/
+terminals/
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# ACP / session recordings (may contain user content)
+recordings/
+*.acp-recording.json
+*.acp.jsonl
+
+# OS / editor
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# Electron cache
+.electron-cache/
+electron-builder.yml.bak

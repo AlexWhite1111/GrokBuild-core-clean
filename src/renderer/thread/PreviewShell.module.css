@@ -1,0 +1,9 @@
+.modal { background: var(--background-surface-raised, var(--color-surface-raised)); }
+.shell { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; color: var(--color-text); background: var(--background-surface-raised, var(--color-surface-raised)); }
+.shell[data-tone="inverse"] { color: var(--color-inverse-surface); background: var(--color-media-canvas); }
+.content { width: 100%; height: 100%; min-height: 0; }
+.toolbar { position: absolute; z-index: 3; top: var(--ui-media-toolbar-top); right: var(--ui-media-toolbar-right); left: var(--ui-media-toolbar-left); display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: var(--space-8); pointer-events: none; }
+.title { min-width: 0; overflow: hidden; color: var(--color-text-secondary); font: 500 var(--ui-media-toolbar-font-size)/var(--font-ui-line-height) var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+.shell[data-tone="inverse"] .title { color: var(--color-inverse-secondary); }
+.actions { display: flex; margin-left: auto; align-items: center; gap: var(--space-2); pointer-events: auto; }
+.bottomStart { position: absolute; z-index: 3; bottom: var(--ui-media-toolbar-bottom); left: var(--ui-media-toolbar-left); max-width: calc(100% - var(--ui-media-toolbar-left) - var(--ui-media-toolbar-right)); pointer-events: auto; }

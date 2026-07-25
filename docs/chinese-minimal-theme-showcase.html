@@ -1,0 +1,164 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GrokGUI · 六境主题</title>
+<style>
+*{box-sizing:border-box} html,body{margin:0;min-height:100%;background:#EAE7DF;color:#24231F} body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
+.page{width:1800px;min-height:2200px;padding:96px 104px 110px;margin:auto;background:linear-gradient(180deg,#EEECE6 0,#E7E3DA 100%)}
+.hero{display:grid;grid-template-columns:1fr auto;align-items:end;margin-bottom:72px;padding:0 8px}
+.hero-kicker{font-size:12px;letter-spacing:.22em;color:#858077;margin-bottom:18px} h1{margin:0;font-family:"Songti SC",STSong,serif;font-size:55px;line-height:1.08;font-weight:600;letter-spacing:.035em} .hero p{margin:18px 0 0;max-width:700px;font-family:"Songti SC",STSong,serif;font-size:18px;line-height:1.8;color:#69655D}
+.hero-rule{width:300px;text-align:right;color:#6C675F;font-family:"Songti SC",STSong,serif;font-size:15px;line-height:2} .hero-rule b{display:block;margin-left:auto;margin-bottom:17px;width:42px;height:4px;border-radius:2px;background:#9B493C}
+.pair-row{margin-top:54px} .pair-head{display:grid;grid-template-columns:34px 1fr 48px;align-items:center;gap:18px;margin:0 12px 22px} .pair-no{font-size:11px;letter-spacing:.18em;color:#938D83} .pair-head h2{display:inline;margin:0 16px 0 0;font-family:"Songti SC",STSong,serif;font-size:25px;font-weight:600;letter-spacing:.12em} .pair-head p{display:inline;margin:0;color:#817B72;font-family:"Songti SC",STSong,serif;font-size:14px;letter-spacing:.08em} .seal{display:grid;width:38px;height:38px;place-items:center;border-radius:9px;background:#9B493C;color:#F8EEE5;font-family:"Songti SC",STSong,serif;font-size:18px;box-shadow:0 12px 28px -22px #5D1D16}
+.pair-themes{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.theme{min-width:0} .app-shell{display:grid;grid-template-columns:126px 1fr;height:405px;overflow:hidden;border-radius:24px;background:var(--canvas);color:var(--text);box-shadow:0 35px 90px -68px rgba(38,34,27,.72)}
+.app-side{display:flex;flex-direction:column;padding:24px 16px 18px;background:var(--sidebar);box-shadow:inset -.5px 0 color-mix(in srgb,var(--line) 38%,transparent)} .brand{display:flex;height:34px;align-items:center;gap:10px;padding:0 10px;font-size:13px;font-weight:620} .brand i{width:8px;height:8px;border-radius:50%;background:var(--accent)} .brand span{opacity:.86}
+.app-side nav{display:flex;flex-direction:column;gap:4px;margin-top:28px} .nav{display:flex;height:34px;align-items:center;gap:10px;padding:0 10px;border-radius:10px;color:var(--text3);font-size:11px} .nav b{width:12px;height:12px;border-radius:4px;background:color-mix(in srgb,var(--text3) 13%,transparent)} .nav.active{background:color-mix(in srgb,var(--accent) 8%,var(--muted));color:var(--text)} .nav.active b{background:var(--accent)} .side-bottom{display:flex;margin-top:auto;padding:0 10px;align-items:center;justify-content:space-between;color:var(--text3)} .side-bottom small{font-family:"Songti SC",STSong,serif}
+.app-main{min-width:0;background:var(--canvas)} .app-top{display:flex;height:55px;padding:0 28px;align-items:center;justify-content:space-between;box-shadow:inset 0 -.5px color-mix(in srgb,var(--line) 30%,transparent);font-size:11px;color:var(--text3)} .app-top span{color:var(--text2);font-weight:560;letter-spacing:.12em} .app-top small{font-size:10px}
+.conversation{position:relative;max-width:570px;margin:0 auto;padding:40px 34px 26px} .eyebrow{color:var(--accent);font-size:8px;font-weight:650;letter-spacing:.2em} .conversation h3{margin:13px 0 11px;font-family:var(--heading);font-size:25px;line-height:1.32;font-weight:620;letter-spacing:.02em} .lead{margin:0;color:var(--text2);font-family:var(--body);font-size:12px;line-height:1.85} .reply{display:grid;grid-template-columns:3px 1fr;gap:13px;margin-top:23px;color:var(--text2);font-family:var(--body);font-size:11px;line-height:1.75} .reply p{margin:0} .reply-mark{width:3px;height:28px;border-radius:2px;background:var(--accent);opacity:.78} .user-bubble{width:max-content;max-width:74%;margin:22px 0 0 auto;padding:10px 13px;border-radius:13px;background:color-mix(in srgb,var(--accent) 8%,var(--raised));font-size:10px;color:var(--text2)} .composer{display:flex;height:42px;margin-top:24px;padding:0 7px 0 15px;align-items:center;justify-content:space-between;border-radius:15px;background:var(--composer);color:var(--text3);font-size:10px;box-shadow:0 14px 36px -30px color-mix(in srgb,var(--text) 24%,transparent)} .composer button{display:grid;width:28px;height:28px;padding:0;place-items:center;border:0;border-radius:9px;background:var(--accent);color:var(--accentText);font-size:15px}
+.theme-meta{display:flex;min-height:74px;padding:16px 10px 0;align-items:flex-start;justify-content:space-between;gap:18px} .theme-meta div:first-child{display:grid;gap:5px} .theme-meta strong{font-family:"Songti SC",STSong,serif;font-size:16px;letter-spacing:.08em} .theme-meta span{color:#7D776E;font-size:11px} .palette{display:flex;gap:6px;padding-top:3px} .palette i{width:17px;height:17px;border-radius:6px;box-shadow:inset 0 0 0 .5px rgba(80,74,65,.16)}
+.footnote{display:flex;margin:62px 8px 0;padding-top:24px;justify-content:space-between;border-top:.5px solid rgba(84,77,68,.18);color:#858077;font-size:11px;letter-spacing:.06em} .footnote b{color:#5E5951;font-weight:560}
+</style></head><body><main class="page"><header class="hero"><div><div class="hero-kicker">GROKGUI · SIX THEMES / THREE DAY–NIGHT PAIRS</div><h1>六境 · 三组昼夜</h1><p>不以描边堆砌层级，不以纹理假装文化。<br>用留白、字序、色阶与一笔克制的东方颜色，建立真正耐看的个人工作空间。</p></div><div class="hero-rule"><b></b>以留白成界<br>以文字定气质<br>以色阶见层次</div></header><section class="pair-row">
+      <header class="pair-head"><span class="pair-no">一</span><div><h2>素墨</h2><p>以纸承墨，留白成章</p></div><span class="seal">墨</span></header>
+      <div class="pair-themes"><article class="theme" data-role="day" style="--canvas:#F5F1E8;--sidebar:#EEE9DE;--surface:#F8F5EE;--raised:#FCFAF5;--muted:#EAE4D8;--text:#292722;--text2:#57534C;--text3:#6C675E;--accent:#8A493C;--accentText:#FFF9F2;--composer:#FCFAF5;--code:#ECE6DA;--line:#D9D1C4;--body:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif;--heading:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif">
+      <div class="app-shell">
+        <aside class="app-side">
+          <div class="brand"><i></i><span>G</span></div>
+          <nav><span class="nav active"><b></b>对话</span><span class="nav "><b></b>项目</span><span class="nav "><b></b>灵感</span></nav>
+          <div class="side-bottom"><span>···</span><small>昼</small></div>
+        </aside>
+        <main class="app-main">
+          <header class="app-top"><span>素墨</span><small>素笺 · 昼</small></header>
+          <section class="conversation">
+            <div class="eyebrow">东方留白 · EASTERN RESTRAINT</div>
+            <h3>静中有序，简而不空</h3>
+            <p class="lead">真正的高级感，不依赖厚重描边与堆叠装饰。<br>让文字、比例与呼吸感承担视觉秩序。</p>
+            <div class="reply"><span class="reply-mark"></span><p>界面只保留必要的分界。普通内容以明度差区分，代码、菜单等需要辨界的区域才使用半像素线。</p></div>
+            <div class="user-bubble">把复杂藏进结构，把安静留给界面。</div>
+            <div class="composer"><span>继续对话…</span><button>↑</button></div>
+          </section>
+        </main>
+      </div>
+      <footer class="theme-meta">
+        <div><strong>素笺 · 昼</strong><span>暖纸留白、松烟墨字与克制朱砂</span></div>
+        <div class="palette"><i style="background:#F5F1E8"></i><i style="background:#FCFAF5"></i><i style="background:#292722"></i><i style="background:#8A493C"></i></div>
+      </footer>
+    </article><article class="theme" data-role="night" style="--canvas:#171816;--sidebar:#1A1C19;--surface:#1D201C;--raised:#242822;--muted:#131513;--text:#EEEAE1;--text2:#C0BAAE;--text3:#999286;--accent:#D07A66;--accentText:#24100C;--composer:#242822;--code:#101210;--line:#30342E;--body:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif;--heading:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif">
+      <div class="app-shell">
+        <aside class="app-side">
+          <div class="brand"><i></i><span>G</span></div>
+          <nav><span class="nav active"><b></b>对话</span><span class="nav "><b></b>项目</span><span class="nav "><b></b>灵感</span></nav>
+          <div class="side-bottom"><span>···</span><small>夜</small></div>
+        </aside>
+        <main class="app-main">
+          <header class="app-top"><span>素墨</span><small>松烟 · 夜</small></header>
+          <section class="conversation">
+            <div class="eyebrow">东方留白 · EASTERN RESTRAINT</div>
+            <h3>夜色沉静，层次自生</h3>
+            <p class="lead">真正的高级感，不依赖厚重描边与堆叠装饰。<br>让文字、比例与呼吸感承担视觉秩序。</p>
+            <div class="reply"><span class="reply-mark"></span><p>界面只保留必要的分界。普通内容以明度差区分，代码、菜单等需要辨界的区域才使用半像素线。</p></div>
+            <div class="user-bubble">把复杂藏进结构，把安静留给界面。</div>
+            <div class="composer"><span>继续对话…</span><button>↑</button></div>
+          </section>
+        </main>
+      </div>
+      <footer class="theme-meta">
+        <div><strong>松烟 · 夜</strong><span>松烟墨底、暖白长文与沉静朱砂</span></div>
+        <div class="palette"><i style="background:#171816"></i><i style="background:#242822"></i><i style="background:#EEEAE1"></i><i style="background:#D07A66"></i></div>
+      </footer>
+    </article></div>
+    </section><section class="pair-row">
+      <header class="pair-head"><span class="pair-no">二</span><div><h2>天青</h2><p>以青入静，清简如瓷</p></div><span class="seal">青</span></header>
+      <div class="pair-themes"><article class="theme" data-role="day" style="--canvas:#EFF3F0;--sidebar:#E8EDEA;--surface:#F4F7F5;--raised:#FAFCFA;--muted:#E1E8E4;--text:#25312D;--text2:#52615C;--text3:#626F6A;--accent:#466F65;--accentText:#F7FBF9;--composer:#FAFCFA;--code:#E6ECE8;--line:#CFD8D3;--body:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif;--heading:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif">
+      <div class="app-shell">
+        <aside class="app-side">
+          <div class="brand"><i></i><span>G</span></div>
+          <nav><span class="nav active"><b></b>对话</span><span class="nav "><b></b>项目</span><span class="nav "><b></b>灵感</span></nav>
+          <div class="side-bottom"><span>···</span><small>昼</small></div>
+        </aside>
+        <main class="app-main">
+          <header class="app-top"><span>天青</span><small>天青 · 昼</small></header>
+          <section class="conversation">
+            <div class="eyebrow">东方留白 · EASTERN RESTRAINT</div>
+            <h3>静中有序，简而不空</h3>
+            <p class="lead">真正的高级感，不依赖厚重描边与堆叠装饰。<br>让文字、比例与呼吸感承担视觉秩序。</p>
+            <div class="reply"><span class="reply-mark"></span><p>界面只保留必要的分界。普通内容以明度差区分，代码、菜单等需要辨界的区域才使用半像素线。</p></div>
+            <div class="user-bubble">把复杂藏进结构，把安静留给界面。</div>
+            <div class="composer"><span>继续对话…</span><button>↑</button></div>
+          </section>
+        </main>
+      </div>
+      <footer class="theme-meta">
+        <div><strong>天青 · 昼</strong><span>青瓷冷白、雾灰层次与竹青焦点</span></div>
+        <div class="palette"><i style="background:#EFF3F0"></i><i style="background:#FAFCFA"></i><i style="background:#25312D"></i><i style="background:#466F65"></i></div>
+      </footer>
+    </article><article class="theme" data-role="night" style="--canvas:#121817;--sidebar:#151D1B;--surface:#19211F;--raised:#202A27;--muted:#101614;--text:#E8EEEB;--text2:#B8C3BE;--text3:#8F9E98;--accent:#79AA9E;--accentText:#0B1B17;--composer:#202A27;--code:#0D1312;--line:#28332F;--body:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif;--heading:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif">
+      <div class="app-shell">
+        <aside class="app-side">
+          <div class="brand"><i></i><span>G</span></div>
+          <nav><span class="nav active"><b></b>对话</span><span class="nav "><b></b>项目</span><span class="nav "><b></b>灵感</span></nav>
+          <div class="side-bottom"><span>···</span><small>夜</small></div>
+        </aside>
+        <main class="app-main">
+          <header class="app-top"><span>天青</span><small>黛青 · 夜</small></header>
+          <section class="conversation">
+            <div class="eyebrow">东方留白 · EASTERN RESTRAINT</div>
+            <h3>夜色沉静，层次自生</h3>
+            <p class="lead">真正的高级感，不依赖厚重描边与堆叠装饰。<br>让文字、比例与呼吸感承担视觉秩序。</p>
+            <div class="reply"><span class="reply-mark"></span><p>界面只保留必要的分界。普通内容以明度差区分，代码、菜单等需要辨界的区域才使用半像素线。</p></div>
+            <div class="user-bubble">把复杂藏进结构，把安静留给界面。</div>
+            <div class="composer"><span>继续对话…</span><button>↑</button></div>
+          </section>
+        </main>
+      </div>
+      <footer class="theme-meta">
+        <div><strong>黛青 · 夜</strong><span>黛青夜色、低明度表面与玉色焦点</span></div>
+        <div class="palette"><i style="background:#121817"></i><i style="background:#202A27"></i><i style="background:#E8EEEB"></i><i style="background:#79AA9E"></i></div>
+      </footer>
+    </article></div>
+    </section><section class="pair-row">
+      <header class="pair-head"><span class="pair-no">三</span><div><h2>丹漆</h2><p>白瓷玄漆，一笔丹心</p></div><span class="seal">丹</span></header>
+      <div class="pair-themes"><article class="theme" data-role="day" style="--canvas:#F7F6F2;--sidebar:#F0EFEB;--surface:#FAF9F6;--raised:#FFFFFF;--muted:#EAE9E4;--text:#222220;--text2:#555450;--text3:#6C6A64;--accent:#A44638;--accentText:#FFF8F5;--composer:#FFFFFF;--code:#ECEAE5;--line:#D8D6D0;--body:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif;--heading:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif">
+      <div class="app-shell">
+        <aside class="app-side">
+          <div class="brand"><i></i><span>G</span></div>
+          <nav><span class="nav active"><b></b>对话</span><span class="nav "><b></b>项目</span><span class="nav "><b></b>灵感</span></nav>
+          <div class="side-bottom"><span>···</span><small>昼</small></div>
+        </aside>
+        <main class="app-main">
+          <header class="app-top"><span>丹漆</span><small>白瓷 · 昼</small></header>
+          <section class="conversation">
+            <div class="eyebrow">东方留白 · EASTERN RESTRAINT</div>
+            <h3>静中有序，简而不空</h3>
+            <p class="lead">真正的高级感，不依赖厚重描边与堆叠装饰。<br>让文字、比例与呼吸感承担视觉秩序。</p>
+            <div class="reply"><span class="reply-mark"></span><p>界面只保留必要的分界。普通内容以明度差区分，代码、菜单等需要辨界的区域才使用半像素线。</p></div>
+            <div class="user-bubble">把复杂藏进结构，把安静留给界面。</div>
+            <div class="composer"><span>继续对话…</span><button>↑</button></div>
+          </section>
+        </main>
+      </div>
+      <footer class="theme-meta">
+        <div><strong>白瓷 · 昼</strong><span>白瓷留白、黑字秩序与一笔丹红</span></div>
+        <div class="palette"><i style="background:#F7F6F2"></i><i style="background:#FFFFFF"></i><i style="background:#222220"></i><i style="background:#A44638"></i></div>
+      </footer>
+    </article><article class="theme" data-role="night" style="--canvas:#121011;--sidebar:#171415;--surface:#1B1819;--raised:#231F20;--muted:#0E0D0D;--text:#F0ECE7;--text2:#C0B8B3;--text3:#998F8A;--accent:#D46C5C;--accentText:#25100C;--composer:#231F20;--code:#0C0B0B;--line:#302A2C;--body:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif;--heading:&quot;Songti SC&quot;, STSong, &quot;Noto Serif CJK SC&quot;, serif">
+      <div class="app-shell">
+        <aside class="app-side">
+          <div class="brand"><i></i><span>G</span></div>
+          <nav><span class="nav active"><b></b>对话</span><span class="nav "><b></b>项目</span><span class="nav "><b></b>灵感</span></nav>
+          <div class="side-bottom"><span>···</span><small>夜</small></div>
+        </aside>
+        <main class="app-main">
+          <header class="app-top"><span>丹漆</span><small>玄漆 · 夜</small></header>
+          <section class="conversation">
+            <div class="eyebrow">东方留白 · EASTERN RESTRAINT</div>
+            <h3>夜色沉静，层次自生</h3>
+            <p class="lead">真正的高级感，不依赖厚重描边与堆叠装饰。<br>让文字、比例与呼吸感承担视觉秩序。</p>
+            <div class="reply"><span class="reply-mark"></span><p>界面只保留必要的分界。普通内容以明度差区分，代码、菜单等需要辨界的区域才使用半像素线。</p></div>
+            <div class="user-bubble">把复杂藏进结构，把安静留给界面。</div>
+            <div class="composer"><span>继续对话…</span><button>↑</button></div>
+          </section>
+        </main>
+      </div>
+      <footer class="theme-meta">
+        <div><strong>玄漆 · 夜</strong><span>玄漆深底、暖白文字与丹红点睛</span></div>
+        <div class="palette"><i style="background:#121011"></i><i style="background:#231F20"></i><i style="background:#F0ECE7"></i><i style="background:#D46C5C"></i></div>
+      </footer>
+    </article></div>
+    </section><footer class="footnote"><span><b>设计原则</b>　普通表面无边框 · 功能区域半像素辨界 · 动效不漂浮</span><span>2026 · CHINESE MINIMAL THEME SYSTEM</span></footer></main></body></html>

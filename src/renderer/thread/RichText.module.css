@@ -1,0 +1,43 @@
+.richText { min-width: 0; max-width: 100%; overflow-wrap: anywhere; line-height: var(--font-body-line-height, 1.68); letter-spacing: var(--font-body-spacing); }
+.inlineFlow { display: contents; }
+.inlineParagraph { margin: 0; }
+.inlineParagraph + .inlineParagraph::before { content: " "; }
+.richText > :first-child { margin-top: 0; }
+.richText > :last-child { margin-bottom: 0; }
+.richText p { margin: var(--rhythm-072) 0; }
+.richText h1, .richText h2, .richText h3, .richText h4, .richText h5, .richText h6 { margin: var(--rhythm-1-15) 0 var(--rhythm-046); color: var(--color-text); font-family: var(--font-heading); line-height: var(--font-heading-line-height); letter-spacing: var(--font-heading-spacing); }
+.richText h1 { color: var(--heading-h1-color, var(--color-text)); font-size: var(--type-ratio-1-42); }
+.richText h2 { color: var(--heading-h2-color, var(--color-text)); font-size: var(--type-ratio-1-26); }
+.richText h3 { color: var(--heading-h3-color, var(--color-text)); font-size: var(--type-ratio-1-13); }
+.richText h4, .richText h5, .richText h6 { font-size: var(--type-ratio-1); }
+.inlineHtml { display: block; min-width: 0; max-width: 100%; }
+.localLinkUnavailable { color: var(--color-text-secondary); text-decoration: underline dotted var(--color-rich-link-decoration); text-underline-offset: .18em; }
+.mediaReference { display: inline-flex; max-width: 100%; vertical-align: middle; }
+.richText blockquote { margin: var(--rhythm-09) 0; padding: var(--rhythm-068) var(--rhythm-09); color: var(--color-text-secondary); background: var(--color-rich-quote); box-shadow: var(--shadow-quote); }
+.richText ul, .richText ol { margin: var(--rhythm-072) 0; padding-left: var(--rhythm-1-45); } .richText li { margin: var(--rhythm-024) 0; padding-left: var(--rhythm-012); } .richText li::marker { color: var(--color-text-muted); }
+.richText hr { height: 1px; margin: var(--rhythm-1-15) 0; border: 0; background: var(--color-rich-separator); }
+.tableViewport { width: fit-content; max-width: 100%; margin: var(--rhythm-09) 0; overflow-x: auto; background: var(--color-table-surface); box-shadow: var(--shadow-content); overscroll-behavior-inline: contain; }
+.richText table { width: auto; max-width: none; margin: 0; border-collapse: separate; border-spacing: 0; border-radius: 0; background: var(--color-table-surface); font-family: var(--font-body); font-size: var(--type-ratio-092); }
+.richText th, .richText td { min-width: 92px; padding: var(--rhythm-056) var(--rhythm-076); border: 0; border-right: var(--border-hairline) solid var(--color-table-grid); border-bottom: var(--border-hairline) solid var(--color-table-grid); color: var(--color-table-text); background: var(--color-table-surface); text-align: left; box-shadow: var(--shadow-none); }
+.richText th { color: var(--color-table-header-text); background: var(--color-table-header); font-weight: 650; }
+.richText tr > :last-child { border-right: 0; }
+.richText tbody tr:last-child td { border-bottom: 0; }
+.richText :global(.katex-display) { max-width: 100%; margin: var(--rhythm-1) 0; overflow-x: auto; overflow-y: hidden; padding: var(--space-2) 0; }
+.richText :global(.katex) { font-size: var(--type-ratio-1-02); }
+.richText u { text-decoration-color: var(--color-rich-underline); text-underline-offset: .16em; }
+.richText mark { padding: var(--rhythm-006) var(--rhythm-024); color: inherit; background: var(--color-rich-mark); }
+.richText kbd { display: inline-block; min-width: 1.45em; margin: 0 var(--rhythm-008); padding: var(--rhythm-008) var(--rhythm-038); color: var(--color-text-secondary); background: var(--background-surface-muted, var(--color-surface-muted)); box-shadow: var(--shadow-keycap); font: calc(var(--type-ratio-084) * var(--font-scale, 1))/calc(1.45 * var(--line-spacing-scale)) var(--font-ui); text-align: center; }
+.richText abbr[title] { text-decoration: underline dotted var(--color-rich-abbr); text-underline-offset: .16em; cursor: help; }
+.richText sup, .richText sub { font-size: var(--type-ratio-075); line-height: 0; }
+.inlineCode { max-width: 100%; padding: var(--rhythm-012) var(--rhythm-034); overflow-wrap: anywhere; border: 0; box-decoration-break: clone; -webkit-box-decoration-break: clone; color: var(--color-inline-code, var(--component-code-foreground, var(--color-text))); background: var(--background-inline-code, var(--background-code, var(--component-code-background, var(--color-surface-raised)))); box-shadow: var(--shadow-inline-code-stroke, var(--shadow-code-stroke)), var(--shadow-content); font-family: var(--font-code); font-size: var(--type-ratio-09); line-height: var(--font-code-line-height); letter-spacing: var(--font-code-spacing); }
+.compact { line-height: calc(1.38 * var(--line-spacing-scale)); }
+.compact p { margin: var(--rhythm-028) 0; }
+.compact h1, .compact h2, .compact h3, .compact h4, .compact h5, .compact h6 { margin: var(--rhythm-058) 0 var(--rhythm-024); line-height: calc(1.28 * var(--line-spacing-scale)); }
+.compact ul, .compact ol { margin: var(--rhythm-032) 0; padding-left: var(--rhythm-1-25); }
+.compact li { margin: var(--rhythm-01) 0; }
+.compact blockquote { margin: var(--rhythm-038) 0; padding: var(--rhythm-038) var(--rhythm-058); }
+.compact .tableViewport { margin: var(--rhythm-038) 0; }
+.compact table { font-size: var(--type-ratio-088); }
+.compact th, .compact td { min-width: 68px; padding: var(--rhythm-032) var(--rhythm-048); }
+.compact :global(.katex-display) { margin: var(--rhythm-038) 0; padding-block: var(--space-1); }
+.compact :global(.katex) { font-size: var(--type-ratio-1); }

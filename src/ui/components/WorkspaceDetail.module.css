@@ -1,0 +1,4 @@
+.root { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; background: var(--color-canvas); font-family: var(--font-ui); }
+.header { z-index: 2; display: flex; min-height: var(--ui-titlebar-drag-height); flex: none; align-items: center; justify-content: flex-end; gap: var(--space-2); margin-right: var(--ui-workspace-control-safe-end); padding: 0 var(--space-8); background: var(--color-canvas); -webkit-app-region: drag; }
+.header [data-ui-control] { -webkit-app-region: no-drag; }
+.body { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; }

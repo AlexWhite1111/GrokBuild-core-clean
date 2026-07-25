@@ -1,0 +1,22 @@
+.text { margin: 0; color: var(--color-text); font-family: var(--font-ui); font-weight: var(--font-ui-weight); line-height: var(--font-ui-line-height); letter-spacing: var(--font-ui-spacing); }
+.text[data-tone="secondary"] { color: var(--color-text-secondary); }
+.text[data-tone="muted"] { color: var(--color-text-muted); }
+.text[data-tone="accent"] { color: var(--color-accent); }
+.text[data-tone="success"] { color: var(--color-success); }
+.text[data-tone="warning"] { color: var(--color-warning); }
+.text[data-tone="danger"] { color: var(--color-danger); }
+.text[data-tone="info"] { color: var(--color-info); }
+.text[data-role="body"] { font-family: var(--font-body); font-weight: var(--font-body-weight); line-height: var(--font-body-line-height); letter-spacing: var(--font-body-spacing); }
+.text[data-role="heading"] { font-family: var(--font-heading); font-weight: var(--font-heading-weight); line-height: var(--font-heading-line-height); letter-spacing: var(--font-heading-spacing); }
+.text[data-role="code"] { font-family: var(--font-code); font-weight: var(--font-code-weight); line-height: var(--font-code-line-height); letter-spacing: var(--font-code-spacing); }
+.text[data-role="numeric"] { font-family: var(--font-numeric); font-weight: var(--font-numeric-weight); line-height: var(--font-code-line-height); letter-spacing: var(--font-code-spacing); }
+.text[data-size="micro"] { font-size: var(--type-micro); }
+.text[data-size="caption"] { font-size: var(--type-caption); }
+.text[data-size="label"] { font-size: var(--type-label); }
+.text[data-size="body"] { font-size: var(--type-body); }
+.text[data-size="copy"] { font-size: var(--type-copy); }
+.text[data-size="title"] { font-size: var(--type-title); }
+.text[data-weight="medium"] { font-weight: var(--font-weight-medium); }
+.text[data-weight="semibold"] { font-weight: var(--font-weight-semibold); }
+.text[data-weight="bold"] { font-weight: var(--font-weight-bold); }
+.text[data-truncate="true"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

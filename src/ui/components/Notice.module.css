@@ -1,0 +1,7 @@
+.notice { --notice-color: var(--color-text-secondary); --notice-background: var(--background-surface-muted, var(--color-surface-muted)); display: flex; padding: var(--space-8) var(--space-10); align-items: center; gap: var(--space-7); color: var(--notice-color); background: var(--notice-background); box-shadow: var(--shadow-muted-stroke); font: var(--font-ui-weight) var(--type-label)/calc(1.45 * var(--line-spacing-scale)) var(--font-ui); }
+.notice[data-density="compact"] { padding: var(--space-6) var(--space-8); font-size: var(--type-caption); }
+.notice[data-tone="info"] { --notice-color: var(--color-info); --notice-background: var(--color-info-soft); }
+.notice[data-tone="success"] { --notice-color: var(--color-success); --notice-background: var(--color-success-soft); }
+.notice[data-tone="warning"] { --notice-color: var(--color-warning); --notice-background: var(--color-warning-soft); }
+.notice[data-tone="danger"] { --notice-color: var(--color-danger); --notice-background: var(--color-danger-soft); }
+.notice > svg { flex: none; }

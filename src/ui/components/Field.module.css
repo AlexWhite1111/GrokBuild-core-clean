@@ -1,0 +1,42 @@
+.field { display: grid; min-width: 0; gap: calc(var(--density-unit) * 1.5); color: var(--component-form-foreground, var(--color-text)); font-family: var(--font-ui); }
+.label { color: var(--color-text-secondary); font-size: var(--type-label); }
+.hint, .error { color: var(--color-text-muted); font-size: var(--type-caption); }
+.error { color: var(--color-danger); }
+
+.input { width: 100%; min-width: 0; min-height: var(--density-control-height); padding: 0 calc(var(--density-unit) * 2); border: 0; outline: 0; color: var(--component-form-foreground, var(--color-text)); background: transparent; box-shadow: var(--shadow-none); font-family: var(--font-ui); transition: color var(--motion-fast) var(--motion-easing), background var(--motion-fast) var(--motion-easing), box-shadow var(--motion-fast) var(--motion-easing); }
+.input::placeholder { color: var(--component-form-muted, var(--color-text-muted)); }
+.input[data-appearance="surface"] { background: var(--background-form, var(--component-form-background, var(--color-surface-muted))); box-shadow: var(--shadow-input-stroke); }
+.input[data-density="compact"] { min-height: var(--density-compact-control-height); padding-inline: calc(var(--density-unit) * 1.5); }
+.input[data-density="comfortable"] { min-height: calc(var(--density-control-height) + var(--density-unit) * 2); padding-inline: calc(var(--density-unit) * 3); }
+.input[data-tone="success"] { color: var(--color-success); }
+.input[data-tone="warning"] { color: var(--color-warning); }
+.input[data-tone="danger"] { color: var(--color-danger); }
+.input:focus-visible { box-shadow: var(--shadow-focus), var(--shadow-input-stroke); }
+.input:disabled { color: var(--color-interactive-disabled); opacity: .72; }
+
+.textarea { min-height: auto; padding-block: calc(var(--density-unit) * 1.5); resize: none; line-height: var(--font-body-line-height); }
+
+.input[data-kind="selection"] { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.choice, .switch { display: inline-flex; min-width: 0; align-items: center; gap: calc(var(--density-unit) * 2); color: var(--component-form-foreground, var(--color-text-secondary)); font-family: var(--font-ui); }
+.choiceMark { display: grid; width: calc(var(--density-unit) * 4); height: calc(var(--density-unit) * 4); flex: none; place-items: center; color: transparent; background: var(--background-form, var(--component-form-background, var(--color-surface-muted))); box-shadow: var(--shadow-input-stroke); }
+.choiceMark svg { width: calc(var(--density-unit) * 2.5); height: calc(var(--density-unit) * 2.5); }
+.choice input:checked + .choiceMark { color: var(--color-form-active-foreground, var(--color-inverse-surface)); background: var(--background-form-active, var(--component-form-accent, var(--color-accent))); box-shadow: var(--shadow-control); }
+.choice input:focus-visible + .choiceMark, .switch input:focus-visible + .switchTrack { box-shadow: var(--shadow-focus-control); }
+.choiceCopy { display: grid; min-width: 0; gap: var(--space-2); }
+.choiceCopy strong { color: inherit; font: inherit; font-weight: var(--font-weight-medium); }
+.choiceCopy small { color: var(--color-text-muted); font-size: var(--type-caption); }
+
+.switchTrack { display: flex; width: calc(var(--density-unit) * 8); height: calc(var(--density-unit) * 4.5); padding: var(--space-2); flex: none; align-items: center; border-radius: var(--radius-pill); background: var(--background-form-track, var(--background-form, var(--component-form-background, var(--color-surface-muted)))); box-shadow: var(--shadow-input-stroke); transition: background var(--motion-fast) var(--motion-easing), box-shadow var(--motion-fast) var(--motion-easing); }
+.switchTrack i { width: calc(var(--density-unit) * 3.5); height: calc(var(--density-unit) * 3.5); border-radius: var(--radius-round); corner-shape: var(--corner-curve-round); background: var(--color-form-thumb, var(--color-text-muted)); transform: translateX(0); transition: background var(--motion-fast) var(--motion-easing), transform var(--motion-fast) var(--motion-easing); }
+.switch input:checked + .switchTrack { background: var(--background-form-active, var(--component-form-accent, var(--color-accent))); }
+.switch input:checked + .switchTrack i { background: var(--color-form-active-foreground, var(--color-inverse-surface)); transform: translateX(calc(var(--density-unit) * 3.5)); }
+
+.input[data-kind="range"] { height: var(--density-control-height); padding: 0; appearance: none; -webkit-appearance: none; cursor: pointer; background: transparent; box-shadow: var(--shadow-none); }
+.input[data-kind="range"]::-webkit-slider-runnable-track { height: var(--density-unit); border-radius: var(--radius-pill); corner-shape: var(--corner-curve-round); background: var(--background-form-track, var(--background-form)); box-shadow: var(--shadow-input-stroke); }
+.input[data-kind="range"]::-webkit-slider-thumb { width: calc(var(--density-unit) * 4); height: calc(var(--density-unit) * 4); margin-top: calc(var(--density-unit) * -1.5); border: 0; border-radius: var(--radius-round); corner-shape: var(--corner-curve-round); appearance: none; -webkit-appearance: none; background: var(--background-form-active, var(--component-form-accent, var(--color-accent))); box-shadow: var(--shadow-control); transition: background var(--motion-fast) var(--motion-easing), box-shadow var(--motion-fast) var(--motion-easing); }
+.input[data-kind="range"]:hover::-webkit-slider-thumb { background: var(--background-form-active-hover, var(--background-form-active)); }
+.input[data-kind="range"]:active::-webkit-slider-thumb { background: var(--background-form-active-pressed, var(--background-form-active)); }
+.input[data-kind="range"]:focus-visible { box-shadow: var(--shadow-focus); }
+.input[data-kind="range"]:disabled { cursor: default; }
+.input[data-kind="file"] { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; overflow: hidden; clip-path: inset(50%); }
+.input[data-kind="color"] { width: var(--density-control-height); padding: var(--space-2); flex: none; background: var(--background-form, var(--component-form-background, var(--color-surface-muted))); box-shadow: var(--shadow-input-stroke); }

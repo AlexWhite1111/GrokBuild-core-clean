@@ -1,0 +1,6 @@
+.target { margin: 0 0 var(--space-14); }
+.changes { display: grid; gap: var(--space-4); }
+.change { display: grid; min-height: var(--space-45); padding: var(--space-9) var(--space-11); grid-template-columns: minmax(var(--ui-label-column-width), .7fr) minmax(var(--ui-value-column-min), 1fr) var(--space-14) minmax(var(--ui-value-column-min), 1fr); gap: var(--space-9); align-items: center; }
+.change > span { overflow-wrap: anywhere; }
+.warnings { margin-top: var(--space-10); }
+.warnings p { margin: var(--space-3) 0; }

@@ -1,0 +1,5 @@
+.flow { display: grid; min-width: 0; }
+.messageSegment, .processSegment { min-width: 0; }
+.messageSegment + .processSegment,
+.processSegment + .messageSegment { margin-block-start: var(--component-process-group-block-space); }
+.prose { min-width: 0; }

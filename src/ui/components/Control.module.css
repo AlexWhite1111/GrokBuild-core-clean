@@ -1,0 +1,68 @@
+.control {
+  --control-color: var(--color-text-secondary);
+  --control-interactive-color: var(--color-text);
+  --control-tone: var(--color-accent);
+  --control-tone-soft: var(--color-accent-soft);
+  --control-on-tone: var(--component-button-foreground, var(--color-accent-text));
+  --control-height: var(--density-control-height);
+  --control-padding-inline: calc(var(--density-unit) * 3);
+  --control-gap: var(--density-unit);
+  --control-stroke: 0 0 0 0 transparent;
+  --control-elevation: 0 0 0 0 transparent;
+  display: inline-flex;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0 var(--control-padding-inline);
+  align-items: center;
+  justify-content: center;
+  gap: var(--control-gap);
+  border: 0;
+  color: var(--control-color);
+  background: transparent;
+  box-shadow: var(--control-stroke), var(--control-elevation);
+  font-family: var(--font-ui);
+  font-size: var(--type-control);
+  font-weight: var(--font-ui-weight);
+  text-decoration: none;
+  transition: color var(--motion-fast) var(--motion-easing), background var(--motion-normal) var(--motion-easing), box-shadow var(--motion-normal) var(--motion-easing), opacity var(--motion-fast) var(--motion-easing);
+}
+
+.control[data-density="detail"] { --control-height: var(--ui-detail-control-size); --control-padding-inline: 0; font-size: var(--type-caption); }
+.control[data-density="titlebar"] { --control-height: var(--ui-titlebar-control-size); --control-padding-inline: 0; font-size: var(--type-caption); }
+.control[data-density="media"] { --control-height: var(--ui-media-toolbar-control-size); --control-padding-inline: 0; font-size: var(--ui-media-toolbar-font-size); }
+.control[data-density="body"] { --control-height: 1lh; --control-padding-inline: 0; font: inherit; letter-spacing: inherit; }
+.control[data-density="compact"] { --control-height: var(--density-compact-control-height); --control-padding-inline: calc(var(--density-unit) * 2); font-size: var(--type-label); }
+.control[data-density="action"] { --control-height: var(--ui-action-control-size); --control-padding-inline: calc(var(--density-unit) * 2); font-size: var(--type-label); }
+.control[data-density="comfortable"] { --control-height: calc(var(--density-control-height) + var(--density-unit) * 2); --control-padding-inline: calc(var(--density-unit) * 4); }
+.control[data-icon-only="true"] { width: var(--control-height); padding: 0; flex: none; }
+
+
+.control[data-tone="accent"] { --control-tone: var(--color-accent); --control-tone-soft: var(--color-accent-soft); }
+.control[data-tone="success"] { --control-tone: var(--color-success); --control-tone-soft: var(--color-success-soft); }
+.control[data-tone="warning"] { --control-tone: var(--color-warning); --control-tone-soft: var(--color-warning-soft); }
+.control[data-tone="danger"] { --control-tone: var(--color-danger); --control-tone-soft: var(--color-danger-soft); }
+.control[data-tone="info"] { --control-tone: var(--color-info); --control-tone-soft: var(--color-info-soft); }
+.control[data-tone="inverse"] { --control-color: var(--color-inverse-secondary); --control-interactive-color: var(--color-inverse-surface); }
+.control[data-tone]:not([data-tone="neutral"]):not([data-tone="inverse"]) { --control-color: var(--control-tone); }
+
+.control[data-appearance="quiet"] { background: var(--background-control-quiet, color-mix(in srgb, var(--component-button-background, var(--color-surface-muted)) 72%, transparent)); }
+.control[data-appearance="floating"] { --control-stroke: var(--shadow-control-stroke); --control-elevation: var(--shadow-control); background: var(--background-control-floating, var(--component-button-background, var(--color-surface-raised))); }
+.control[data-appearance="solid"] { color: var(--control-on-tone); background: var(--background-primary-action, var(--control-tone)); box-shadow: var(--shadow-primary-action); }
+
+.control[data-selected="true"] { color: var(--color-text); background: var(--color-interactive-selected); box-shadow: var(--shadow-selected); }
+.control[aria-current="page"] { color: var(--color-text); background: var(--color-navigation-selected, var(--color-interactive-selected)); box-shadow: var(--shadow-selected); }
+.control[aria-current="page"] > svg { color: var(--control-tone); }
+.control[data-active-icon] > svg { color: var(--color-accent); filter: var(--effect-icon-active); }
+.control[data-hover="color"]:hover { color: var(--control-interactive-color); }
+.control[data-hover="tint"]:hover:not([data-selected="true"]):not([aria-current="page"]) { color: var(--control-tone); background: var(--control-tone-soft); }
+.control[data-hover="surface"]:hover:not([data-selected="true"]):not([aria-current="page"]) { color: var(--color-text); background: var(--color-interactive-hover); }
+.control[data-hover="elevation"]:hover:not([data-selected="true"]):not([aria-current="page"]) { color: var(--color-text); background: var(--color-interactive-hover); box-shadow: var(--control-stroke), var(--shadow-control); }
+.control:active:not(:disabled) { color: var(--control-interactive-color); background: var(--color-interactive-pressed); }
+.control:focus-visible { outline: 0; color: var(--color-focus); box-shadow: var(--shadow-focus), var(--control-stroke), var(--control-elevation); }
+.control[data-appearance="solid"]:hover { color: var(--control-on-tone); background: var(--background-primary-action-hover, color-mix(in srgb, var(--control-tone) 88%, var(--color-text))); box-shadow: var(--shadow-primary-action-hover); }
+.control[data-appearance="solid"]:active:not(:disabled) { color: var(--control-on-tone); background: var(--background-primary-action-pressed, color-mix(in srgb, var(--control-tone) 82%, var(--color-text))); box-shadow: var(--shadow-control); }
+.control[data-appearance="solid"]:focus-visible { color: var(--control-on-tone); background: var(--background-primary-action, var(--control-tone)); box-shadow: var(--shadow-focus-primary-action); }
+.control:disabled { color: var(--control-disabled-color, var(--color-interactive-disabled)); opacity: .72; pointer-events: none; }
+.control[data-appearance="solid"]:disabled:not([aria-busy="true"]) { color: var(--control-disabled-color, var(--color-interactive-disabled)); background: var(--control-disabled-background, var(--color-surface-muted)); box-shadow: var(--shadow-none); opacity: 1; }
+.control[aria-busy="true"]:disabled { color: var(--control-on-tone); background: var(--background-primary-action, var(--control-tone)); opacity: 1; }
+.control > svg { flex: none; }

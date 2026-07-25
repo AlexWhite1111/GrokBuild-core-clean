@@ -1,0 +1,83 @@
+.app {
+  /* trafficLightPosition.y (14px) + the native 14px control radius */
+  --ui-titlebar-control-axis-y: 21px;
+  --ui-titlebar-sidebar-control-x: 92px;
+  position: relative;
+  width: 100vw;
+  height: var(--app-viewport-height, 100dvh);
+  overflow: hidden;
+  background: var(--app-background, var(--color-canvas));
+  color: var(--color-text);
+  isolation: isolate;
+}
+.app::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background-image: var(--theme-decoration-image, none);
+  background-position: var(--theme-decoration-position, 0 0);
+  background-size: var(--theme-decoration-size, auto);
+  mix-blend-mode: var(--theme-decoration-blend, normal);
+  content: "";
+  opacity: var(--theme-decoration-opacity, 0);
+  pointer-events: none;
+  transition: opacity var(--motion-slow, var(--motion-normal)) var(--motion-easing);
+}
+.dragRegion { position: absolute; z-index: 80; top: 0; right: 0; left: 0; height: var(--ui-titlebar-drag-height); -webkit-app-region: drag; pointer-events: none; }
+.sidebarToggle {
+  position: absolute;
+  z-index: 90;
+  top: var(--ui-titlebar-control-axis-y);
+  left: var(--ui-titlebar-sidebar-control-x);
+  transform: translateY(-50%);
+  -webkit-app-region: no-drag;
+}
+
+.body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  height: 100%;
+  min-width: 0;
+}
+.sidebarSlot { position: relative; flex: none; min-width: 216px; max-width: 360px; height: 100%; }
+.mobileScrim { display: none; }
+
+.workspace {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  box-shadow: var(--shadow-layout-start);
+}
+
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .app {
+    position: fixed;
+    top: var(--app-viewport-top, 0px);
+    right: 0;
+    left: 0;
+    width: 100%;
+  }
+  .dragRegion { display: none; }
+  .sidebarToggle { position: fixed; top: var(--ui-compact-chrome-top); left: var(--ui-compact-chrome-start); transform: none; }
+  .app[data-native-titlebar="true"] .sidebarToggle { top: var(--ui-titlebar-control-axis-y); left: var(--ui-titlebar-sidebar-control-x); transform: translateY(-50%); }
+  .mobileScrim { position: fixed; z-index: 83; inset: var(--app-viewport-top, 0px) 0 0; display: block; background: var(--color-mobile-scrim); backdrop-filter: blur(var(--blur-mobile-scrim)); }
+  .sidebarSlot {
+    position: fixed;
+    z-index: 84;
+    top: var(--app-viewport-top, 0px);
+    bottom: 0;
+    left: 0;
+    width: min(86vw, 320px) !important;
+    min-width: 0;
+    max-width: none;
+    height: var(--app-viewport-height, 100dvh);
+    padding-bottom: var(--safe-area-bottom);
+    box-shadow: var(--shadow-modal);
+  }
+  .sidebarSlot > [data-ui-resize-handle] { display: none; }
+}

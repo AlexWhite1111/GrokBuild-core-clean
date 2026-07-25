@@ -1,0 +1,20 @@
+.actions { display: grid; gap: var(--space-8); margin-top: var(--space-12); }
+.actions section { display: grid; gap: var(--space-9); padding: var(--space-12); }
+.actions h3 { margin: 0; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(130px, .42fr); gap: var(--space-7); }
+.targetRow { grid-template-columns: minmax(130px, .42fr) minmax(0, 1fr); }
+.buttonRow { display: flex; flex-wrap: wrap; gap: var(--space-5); }
+.buttonRow > button { flex: none; }
+.expandControl { width: 100%; justify-content: flex-start; }
+.expandControl > svg:last-child { margin-left: auto; }
+.codeInput, .documentEditor { width: 100%; font-family: var(--font-code); }
+.documentEditor { min-height: 180px; padding: var(--space-10); resize: vertical; white-space: pre; }
+.editorTitle { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-8); }
+.editorTitle > span { display: grid; min-width: 0; gap: var(--space-3); }
+.editorTitle > span > :last-child { overflow-wrap: anywhere; }
+.secretList { display: grid; gap: var(--space-4); }
+.secretList > span { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .row, .targetRow { grid-template-columns: 1fr; }
+}

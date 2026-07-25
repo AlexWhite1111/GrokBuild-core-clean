@@ -1,0 +1,25 @@
+.workspace { display: grid; min-width: 0; min-height: 0; flex: 1; grid-template-columns: minmax(190px, 240px) minmax(0, 1fr); }
+.sidebar { min-width: 0; padding: var(--space-9); overflow-y: auto; }
+.sidebar [data-ui-control] { display: grid; width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; justify-content: stretch; text-align: left; }
+.sidebar [data-ui-control] > svg + [data-ui-text] { margin-left: var(--space-4); }
+.sectionLabel { display: block; padding: var(--space-6) var(--space-7) var(--space-4); }
+.divider { margin: var(--space-7) var(--space-5); width: auto; }
+.editor { min-width: 0; min-height: 0; padding: var(--space-20) max(var(--space-18), calc((100% - 840px) / 2)); overflow-y: auto; }
+.editorHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-12); margin-bottom: var(--space-16); }
+.heading { display: grid; gap: var(--space-4); }
+.fields { display: grid; gap: var(--space-11); }
+.fields textarea { min-height: 180px; resize: vertical; }
+.preview { display: grid; gap: var(--space-10); }
+.previewSection { display: grid; min-height: 160px; padding: var(--space-12); gap: var(--space-8); }
+.actions { display: flex; align-items: center; gap: var(--space-6); margin-top: var(--space-12); }
+.systemState { display: flex; min-height: 280px; align-items: center; justify-content: space-between; gap: var(--space-16); }
+
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .workspace { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .sidebar { display: flex; padding: var(--space-6) var(--ui-compact-content-end) var(--space-7) var(--ui-compact-content-start); overflow-x: auto; overflow-y: hidden; }
+  .sidebar [data-ui-control] { width: max-content; min-width: max-content; grid-template-columns: auto auto; }
+  .sectionLabel, .divider { display: none; }
+  .editor { padding: var(--space-14) var(--ui-compact-content-end) var(--ui-compact-page-bottom) var(--ui-compact-content-start); }
+  .editorHeader, .systemState { align-items: stretch; flex-direction: column; }
+  .actions { flex-wrap: wrap; }
+}

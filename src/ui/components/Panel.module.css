@@ -1,0 +1,23 @@
+.section { padding: var(--space-7) 0 var(--space-9); box-shadow: var(--shadow-separator-bottom); }
+.section:first-child { padding-top: var(--space-2); }
+.section:last-child { padding-bottom: var(--space-3); box-shadow: var(--shadow-none); }
+.header { display: grid; min-height: var(--density-compact-control-height); grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-6); }
+.header > [data-ui-icon] { color: var(--color-text-muted); }
+.section[data-active="true"] > .header > [data-ui-icon] { color: var(--color-accent); filter: var(--effect-icon-attention); }
+.sectionBody { display: grid; gap: 0; }
+.row { display: grid; width: 100%; min-width: 0; min-height: var(--density-control-height); padding-inline: var(--space-2); grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-6); text-align: left; }
+.row[data-has-icon="false"] { grid-template-columns: minmax(0, 1fr) auto auto; }
+.row[data-wrap="true"] { padding-block: var(--space-5); }
+.row[data-wrap="true"] .copy { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+.row[data-wrap="true"] .copy > [data-ui-text] { overflow-wrap: anywhere; }
+.rowFrame { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.rowActions { display: flex; align-items: center; gap: var(--space-2); }
+.row > [data-ui-icon] { color: var(--color-text-muted); }
+.row[data-tone="accent"] > [data-ui-icon] { color: var(--color-accent); }
+.row[data-tone="success"] > [data-ui-icon] { color: var(--color-success); }
+.row[data-tone="warning"] > [data-ui-icon] { color: var(--color-warning); }
+.row[data-tone="danger"] > [data-ui-icon] { color: var(--color-danger); }
+.copy { display: grid; min-width: 0; grid-template-columns: minmax(0, auto) minmax(0, 1fr); align-items: baseline; gap: var(--space-5); }
+.trailing { display: flex; place-items: center; color: var(--color-text-muted); transition: color var(--motion-fast) var(--motion-easing); }
+.row[data-ui-control]:hover .trailing { color: var(--color-accent); }
+.empty { padding: var(--space-8) 0; }

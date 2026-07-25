@@ -1,0 +1,65 @@
+.group {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  color: var(--component-process-color);
+  font-size: var(--component-process-font-size);
+  line-height: var(--component-process-line-height);
+  font-family: var(--font-body);
+  letter-spacing: inherit;
+}
+
+.summary, .itemSummary {
+  display: inline-grid;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-6);
+  color: inherit;
+  text-align: left;
+}
+.summary:focus-visible, .itemSummary:focus-visible { box-shadow: var(--shadow-none); }
+.chevron { width: var(--component-process-glyph-size); height: var(--component-process-glyph-size); opacity: 0; transition: color var(--motion-fast) var(--motion-easing), opacity var(--motion-fast) var(--motion-easing), transform var(--motion-fast) var(--motion-easing); }
+.summary:hover .chevron, .summary:focus-visible .chevron { opacity: 1; }
+.chevron.open, .itemChevron.open { transform: rotate(90deg); }
+
+.details {
+  display: grid;
+  margin: var(--space-8) 0 0 var(--space-20);
+  gap: var(--space-4);
+}
+
+.item { min-width: 0; color: inherit; }
+.itemSummary {
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.itemSummary[aria-expanded] { grid-template-columns: auto minmax(0, 1fr) auto; }
+.itemChevron { width: var(--component-process-glyph-size); height: var(--component-process-glyph-size); opacity: .58; transition: color var(--motion-fast) var(--motion-easing), transform var(--motion-fast) var(--motion-easing); }
+.firstLineGlyph { margin-block-start: calc((1lh - var(--component-process-glyph-size)) / 2); }
+.label { position: relative; min-width: 0; overflow-wrap: anywhere; }
+.label[data-process-label-state="collapsed"] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.label[data-process-label-state="expanded"] { overflow: visible; text-overflow: clip; white-space: pre-wrap; }
+.itemDetail {
+  min-width: 0;
+  max-height: 7lh;
+  margin: var(--space-3) 0 var(--space-3) calc(var(--component-process-glyph-size) + var(--space-6));
+  overflow: auto;
+  color: var(--component-process-detail-color);
+}
+.codeDetail {
+  padding: var(--space-8) var(--space-9);
+  border: 0;
+  font: var(--type-label-relaxed)/var(--font-code-line-height) var(--font-code);
+  letter-spacing: var(--font-code-spacing);
+  tab-size: 2;
+  white-space: pre;
+}
+.group[data-status="error"] > .summary { color: var(--component-process-error-color); }
+.item[data-status="error"] > .itemSummary,
+.item[data-status="error"] > .itemDetail { color: var(--component-process-error-color); }
+.group[data-status="cancelled"] > .summary { color: var(--color-warning); }
+.item[data-status="cancelled"] > .itemSummary,
+.item[data-status="cancelled"] > .itemDetail { color: var(--color-warning); }

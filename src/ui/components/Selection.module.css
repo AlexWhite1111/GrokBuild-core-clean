@@ -1,0 +1,3 @@
+.mark { display: grid; width: calc(var(--density-unit) * 3.25); height: calc(var(--density-unit) * 3.25); flex: none; place-items: center; color: var(--color-accent-text); background: transparent; box-shadow: var(--shadow-selection-rest, var(--shadow-inset-outline)); }
+.mark[data-selected="true"] { background: var(--color-accent); box-shadow: var(--shadow-control); }
+.mark svg { width: calc(var(--density-unit) * 2.25); height: calc(var(--density-unit) * 2.25); }

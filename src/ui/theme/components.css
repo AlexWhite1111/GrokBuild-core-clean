@@ -1,0 +1,177 @@
+:root {
+  --color-file-danger: color-mix(in srgb, var(--color-danger) 78%, var(--color-text));
+  --color-file-info: color-mix(in srgb, var(--color-info) 74%, var(--color-text));
+  --color-file-accent: color-mix(in srgb, var(--color-accent) 74%, var(--color-text));
+  --color-file-success: color-mix(in srgb, var(--color-success) 78%, var(--color-text));
+  --color-file-warning: color-mix(in srgb, var(--color-warning) 72%, var(--color-text));
+  --color-file-code: color-mix(in srgb, var(--component-chip-accent, var(--color-accent)) 70%, var(--color-text));
+  --color-terminal-black: color-mix(in srgb, var(--color-canvas) 76%, black);
+  --color-terminal-magenta: color-mix(in srgb, var(--color-accent) 58%, var(--color-info));
+  --color-terminal-cyan: color-mix(in srgb, var(--color-info) 72%, var(--color-success));
+  --color-preview-surface: color-mix(in srgb, var(--color-surface-muted) 72%, transparent);
+  --color-preview-accent: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  --opacity-disabled: .58;
+  --color-mobile-scrim: color-mix(in srgb, var(--color-media-canvas) 20%, transparent);
+  --color-inverse-secondary: color-mix(in srgb, var(--color-inverse-surface) 72%, transparent);
+  --color-media-frame: color-mix(in srgb, var(--color-surface-muted) 88%, var(--color-canvas));
+  --color-media-caption: color-mix(in srgb, var(--color-surface-muted) 92%, transparent);
+  --background-media-toolbar: linear-gradient(to bottom, color-mix(in srgb, var(--color-media-canvas) 68%, transparent), transparent);
+  --background-media-footer: linear-gradient(to top, color-mix(in srgb, var(--color-media-canvas) 56%, transparent), transparent);
+  --blur-mobile-scrim: 2px;
+  --background-code-visual: var(--background-code, var(--component-code-background, var(--color-surface-muted)));
+  --background-preview-loading: linear-gradient(100deg, transparent 35%, color-mix(in srgb, var(--color-text-muted) 8%, transparent) 50%, transparent 65%);
+  --color-composer-preview: color-mix(in srgb, var(--color-surface-muted) 24%, transparent);
+  --color-drop-overlay: color-mix(in srgb, var(--color-accent) 14%, var(--color-canvas) 86%);
+  --color-sidebar-drop-overlay: color-mix(in srgb, var(--color-accent) 14%, var(--color-sidebar) 86%);
+  --color-drop-outline: color-mix(in srgb, var(--color-accent) 58%, transparent);
+  --color-mask-opaque: #000;
+  --shadow-drop-outline: inset 0 0 0 var(--border-strong) var(--color-drop-outline);
+  --component-context-ring-size: calc(18px * var(--layout-density-scale));
+  --component-context-ring-core-size: calc(12px * var(--layout-density-scale));
+  --component-context-ring-fill: var(--color-accent);
+  --component-context-ring-track: color-mix(in srgb, var(--color-text-muted) 24%, transparent);
+  --component-todo-font-size: var(--type-body-relaxed);
+  --component-todo-letter-spacing: calc(var(--font-body-spacing) - .01em);
+  --component-todo-completed-opacity: .7;
+  --component-todo-strike: color-mix(in srgb, var(--color-text-muted) 38%, transparent);
+  --component-process-group-block-space: 1lh;
+  --component-process-font-size: var(--type-body-subtle);
+  --component-process-line-height: var(--font-body-line-height);
+  --component-process-color: color-mix(in srgb, var(--color-text-muted) 82%, transparent);
+  --component-process-detail-color: color-mix(in srgb, var(--color-text-secondary) 84%, transparent);
+  --component-process-live-sheen-color: color-mix(in srgb, var(--color-text) 82%, transparent);
+  --component-process-live-cycle-duration: 5.4s;
+  --component-process-error-color: var(--color-danger);
+  --component-process-glyph-size: calc(var(--density-unit) * 3);
+  --color-sidebar-filter: color-mix(in srgb, var(--color-surface-muted) 46%, transparent);
+  --color-sidebar-task-title: color-mix(in srgb, var(--color-text) 88%, transparent);
+  --color-rich-link: color-mix(in srgb, var(--color-info) 82%, var(--color-text));
+  --color-rich-link-hover: var(--color-accent);
+  --color-rich-link-decoration: color-mix(in srgb, currentColor 38%, transparent);
+  --color-rich-quote: color-mix(in srgb, var(--color-surface-muted) 66%, transparent);
+  --color-rich-separator: color-mix(in srgb, var(--color-text-muted) 24%, transparent);
+  --color-rich-card: color-mix(in srgb, var(--color-surface-muted) 67%, transparent);
+  --color-rich-callout: color-mix(in srgb, var(--color-info) 8%, var(--color-surface-muted));
+  --color-rich-badge: color-mix(in srgb, var(--color-surface-muted) 78%, transparent);
+  --color-rich-inert-control: color-mix(in srgb, var(--color-surface-raised) 84%, transparent);
+  --color-rich-underline: color-mix(in srgb, var(--color-accent) 60%, currentColor);
+  --color-rich-mark: color-mix(in srgb, var(--color-warning) 24%, transparent);
+  --color-rich-abbr: color-mix(in srgb, var(--color-text-muted) 70%, transparent);
+  --thread-edge-top-background:
+    radial-gradient(ellipse 68% 38% at 22% 24%, color-mix(in srgb, var(--color-canvas) 16%, transparent), transparent 74%),
+    radial-gradient(ellipse 60% 34% at 82% 17%, color-mix(in srgb, var(--color-canvas) 12%, transparent), transparent 76%),
+    linear-gradient(to bottom,
+      var(--color-canvas) 0%,
+      color-mix(in srgb, var(--color-canvas) 99%, transparent) 4%,
+      color-mix(in srgb, var(--color-canvas) 96%, transparent) 8%,
+      color-mix(in srgb, var(--color-canvas) 91%, transparent) 12%,
+      color-mix(in srgb, var(--color-canvas) 84%, transparent) 16%,
+      color-mix(in srgb, var(--color-canvas) 75%, transparent) 20%,
+      color-mix(in srgb, var(--color-canvas) 64%, transparent) 25%,
+      color-mix(in srgb, var(--color-canvas) 52%, transparent) 30%,
+      color-mix(in srgb, var(--color-canvas) 40%, transparent) 36%,
+      color-mix(in srgb, var(--color-canvas) 30%, transparent) 42%,
+      color-mix(in srgb, var(--color-canvas) 21%, transparent) 49%,
+      color-mix(in srgb, var(--color-canvas) 14%, transparent) 56%,
+      color-mix(in srgb, var(--color-canvas) 8%, transparent) 64%,
+      color-mix(in srgb, var(--color-canvas) 4%, transparent) 73%,
+      color-mix(in srgb, var(--color-canvas) 1.5%, transparent) 84%,
+      transparent 100%);
+  --thread-edge-bottom-fog-background:
+    radial-gradient(ellipse 72% 42% at 18% 73%, color-mix(in srgb, var(--color-canvas) 18%, transparent), transparent 72%),
+    radial-gradient(ellipse 66% 38% at 84% 82%, color-mix(in srgb, var(--color-canvas) 14%, transparent), transparent 74%),
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--color-canvas) 1.5%, transparent) 16%,
+      color-mix(in srgb, var(--color-canvas) 4%, transparent) 27%,
+      color-mix(in srgb, var(--color-canvas) 8%, transparent) 36%,
+      color-mix(in srgb, var(--color-canvas) 14%, transparent) 44%,
+      color-mix(in srgb, var(--color-canvas) 21%, transparent) 51%,
+      color-mix(in srgb, var(--color-canvas) 30%, transparent) 58%,
+      color-mix(in srgb, var(--color-canvas) 40%, transparent) 64%,
+      color-mix(in srgb, var(--color-canvas) 52%, transparent) 70%,
+      color-mix(in srgb, var(--color-canvas) 64%, transparent) 75%,
+      color-mix(in srgb, var(--color-canvas) 75%, transparent) 80%,
+      color-mix(in srgb, var(--color-canvas) 84%, transparent) 84%,
+      color-mix(in srgb, var(--color-canvas) 91%, transparent) 88%,
+      color-mix(in srgb, var(--color-canvas) 96%, transparent) 92%,
+      color-mix(in srgb, var(--color-canvas) 99%, transparent) 96%,
+      var(--color-canvas) 100%
+    );
+  --thread-edge-bottom-fog-filter: blur(max(var(--blur-medium, 0px), var(--space-12))) saturate(.9);
+  --thread-edge-bottom-fog-mask: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--color-mask-opaque) 42%,
+    var(--color-mask-opaque) 100%
+  );
+}
+
+[data-rich-link] { display: inline; margin: 0; padding: 0; border: 0; color: var(--color-rich-link); background: transparent; font: inherit; text-align: inherit; text-decoration: underline; text-decoration-color: var(--color-rich-link-decoration); text-underline-offset: .18em; cursor: pointer; }
+[data-rich-link]:hover, [data-rich-link]:focus-visible { color: var(--color-rich-link-hover); text-decoration-color: currentColor; }
+[data-rich-link] code { color: inherit; text-decoration: inherit; text-decoration-color: inherit; }
+
+[data-process-live-summary="true"] > [data-process-label] {
+  position: relative;
+}
+
+[data-process-live-summary="true"] > [data-process-label]::after {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  content: attr(data-process-label);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    var(--component-process-live-sheen-color) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 260% 100%;
+  background-position: 120% 0;
+  background-repeat: no-repeat;
+  background-clip: text;
+  color: transparent;
+  -webkit-background-clip: text;
+  pointer-events: none;
+  overflow-wrap: inherit;
+  white-space: inherit;
+  animation: component-process-live-sheen var(--component-process-live-cycle-duration) linear infinite;
+}
+
+@keyframes component-process-live-sheen {
+  0% { background-position: 120% 0; }
+  33.333% { background-position: -140% 0; }
+  100% { background-position: -140% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-process-live-summary="true"] > [data-process-label]::after { display: none; }
+}
+
+html[data-font-family-scope="global"] {
+  --font-ui: var(--theme-font-primary);
+  --font-body: var(--theme-font-primary);
+  --font-heading: var(--theme-font-primary);
+  --font-code: var(--theme-font-code);
+  --font-numeric: var(--theme-font-numeric);
+}
+
+html[data-font-family-scope="conversation"],
+html[data-font-family-scope="content"] {
+  --font-ui: var(--font-sans);
+  --font-body: var(--font-sans);
+  --font-heading: var(--font-sans);
+  --font-code: var(--font-system-mono);
+  --font-numeric: var(--font-system-mono);
+}
+
+html[data-font-family-scope="conversation"] [data-typography-scope="conversation"],
+html[data-font-family-scope="content"] [data-typography-scope="content"] {
+  --font-body: var(--theme-font-body);
+  --font-heading: var(--theme-font-heading);
+  --font-code: var(--theme-font-code);
+  --font-numeric: var(--theme-font-numeric);
+}

@@ -1,0 +1,47 @@
+.surface {
+  --surface-background: transparent;
+  --surface-stroke: 0 0 0 0 transparent;
+  --surface-elevation: 0 0 0 0 transparent;
+  --surface-filter: none;
+  color: var(--color-text);
+  background: var(--surface-background);
+  box-shadow: var(--surface-stroke), var(--surface-elevation);
+  backdrop-filter: var(--surface-filter);
+  -webkit-backdrop-filter: var(--surface-filter);
+}
+
+.surface[data-appearance="canvas"] { --surface-background: var(--background-canvas, var(--color-canvas)); }
+.surface[data-appearance="surface"] { --surface-background: var(--background-surface, var(--color-surface)); --surface-stroke: var(--shadow-surface-stroke); --surface-filter: var(--surface-backdrop-filter); }
+.surface[data-appearance="raised"] { --surface-background: var(--background-surface-raised, var(--color-surface-raised)); --surface-stroke: var(--shadow-raised-stroke); --surface-filter: var(--surface-backdrop-filter); }
+.surface[data-appearance="muted"] { --surface-background: var(--background-surface-muted, var(--color-surface-muted)); --surface-stroke: var(--shadow-muted-stroke); }
+.surface[data-appearance="sidebar"] { --surface-background: var(--background-sidebar); --surface-filter: var(--sidebar-backdrop-filter); }
+.surface[data-appearance="drawer"] { --surface-background: var(--background-drawer, var(--component-drawer-background, var(--color-surface))); --surface-stroke: var(--shadow-surface-stroke); --surface-filter: var(--surface-backdrop-filter); color: var(--component-drawer-foreground, var(--color-text)); }
+.surface[data-appearance="menu"] { --surface-background: var(--background-menu, var(--component-menu-background, var(--color-surface-raised))); --surface-stroke: var(--shadow-menu-stroke); --surface-filter: var(--menu-backdrop-filter); color: var(--component-menu-foreground, var(--color-text)); }
+.surface[data-appearance="composer"] { --surface-background: var(--background-composer, var(--component-composer-background, var(--color-surface-raised))); --surface-stroke: var(--shadow-composer-stroke); --surface-filter: var(--composer-backdrop-filter); color: var(--component-composer-foreground, var(--color-text)); }
+.surface[data-appearance="message"] { --surface-background: var(--background-message, var(--component-message-background, var(--color-surface))); --surface-stroke: var(--shadow-message-stroke); color: var(--component-message-foreground, var(--color-text)); }
+.surface[data-appearance="messageUser"] { --surface-background: var(--color-message-user); --surface-stroke: var(--shadow-message-user-stroke); color: var(--component-message-foreground, var(--color-text)); }
+.surface[data-appearance="question"] { --surface-background: var(--background-question, var(--component-question-background, var(--color-surface-raised))); --surface-stroke: var(--shadow-question-stroke, var(--shadow-raised-stroke)); --heading-h1-color: var(--component-question-foreground, var(--color-text)); --heading-h2-color: var(--component-question-foreground, var(--color-text)); --heading-h3-color: var(--component-question-foreground, var(--color-text)); color: var(--component-question-foreground, var(--color-text)); }
+.surface[data-appearance="code"] { --surface-background: var(--background-code, var(--component-code-background, var(--color-surface-muted))); --surface-stroke: var(--shadow-code-stroke); color: var(--component-code-foreground, var(--color-text)); }
+.surface[data-appearance="terminal"] { --surface-background: var(--background-terminal, var(--component-terminal-background, var(--color-surface-muted))); --surface-stroke: var(--shadow-code-stroke); color: var(--component-terminal-foreground, var(--color-text)); }
+
+.surface[data-elevation="inset"] { --surface-elevation: var(--shadow-inset-content); }
+.surface[data-elevation="content"] { --surface-elevation: var(--shadow-content); }
+.surface[data-elevation="control"] { --surface-elevation: var(--shadow-control); }
+.surface[data-elevation="floating"] { --surface-elevation: var(--shadow-floating); }
+.surface[data-elevation="popover"] { --surface-elevation: var(--shadow-popover); }
+.surface[data-elevation="modal"] { --surface-elevation: var(--shadow-modal); }
+.surface[data-appearance="message"][data-elevation="content"] { --surface-elevation: var(--shadow-message-elevation, var(--shadow-content)); }
+.surface[data-appearance="messageUser"][data-elevation="content"] { --surface-elevation: var(--shadow-message-user-elevation, var(--shadow-content)); }
+
+.surface[data-interactive="true"] { transition: color var(--motion-fast) var(--motion-easing), background var(--motion-normal) var(--motion-easing), box-shadow var(--motion-normal) var(--motion-easing); }
+.surface[data-interactive="true"]:hover, .surface[data-interactive="true"]:focus-within { background: var(--color-interactive-hover); box-shadow: var(--surface-stroke), var(--shadow-content); }
+.surface[data-interactive="true"]:active { background: var(--color-interactive-pressed); }
+.surface[data-selected="true"] { background: var(--color-interactive-selected); box-shadow: var(--surface-stroke), var(--shadow-selected); }
+.surface[data-interactive="true"][data-selected="true"]:active { background: var(--color-interactive-pressed); }
+.surface[data-tone="accent"] { --surface-tone: var(--color-accent); --surface-tone-soft: var(--color-accent-soft); }
+.surface[data-tone="success"] { --surface-tone: var(--color-success); --surface-tone-soft: var(--color-success-soft); }
+.surface[data-tone="warning"] { --surface-tone: var(--color-warning); --surface-tone-soft: var(--color-warning-soft); }
+.surface[data-tone="danger"] { --surface-tone: var(--color-danger); --surface-tone-soft: var(--color-danger-soft); }
+.surface[data-tone="info"] { --surface-tone: var(--color-info); --surface-tone-soft: var(--color-info-soft); }
+.surface[data-attention="true"] { box-shadow: var(--surface-stroke), var(--shadow-warning); }
+.surface[data-attention="true"][data-tone="danger"] { box-shadow: var(--surface-stroke), var(--shadow-danger); }

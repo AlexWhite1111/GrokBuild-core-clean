@@ -1,0 +1,36 @@
+.collection { display: inline-grid; width: 100%; margin-top: var(--space-10); gap: var(--space-10); vertical-align: top; }
+.figure { position: relative; width: fit-content; max-width: 100%; margin: 0; overflow: clip; background: var(--color-media-frame); }
+.figure img, .figure video { display: block; max-width: 100%; object-fit: contain; background: var(--color-media-frame); }
+.figure img { max-height: none; }
+.figure video { max-height: min(68vh, 720px); }
+.video { width: min(100%, 900px); }
+.video video { width: 100%; min-width: min(480px, 100%); aspect-ratio: var(--media-aspect, 16 / 9); }
+.imageButton { position: relative; display: block; width: 100%; max-width: 100%; min-height: 0; padding: 0; cursor: zoom-in; }
+.imageButton[data-sized="true"] { aspect-ratio: var(--media-aspect); }
+.imageButton[data-sized="true"] > img { width: 100%; height: 100%; object-fit: contain; }
+.caption { display: flex; min-height: 27px; align-items: center; gap: var(--space-5); padding: 0 var(--space-9); background: var(--color-media-caption); }
+.caption > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inlineResizable { min-width: min(64px, 100%); max-width: 100%; }
+.inlineResizable .imageButton { min-height: 64px; }
+.inlineResizable .imageButton, .inlineResizable .imageButton img { width: 100%; }
+.audio { display: grid; width: min(100%, 560px); padding: var(--space-8) var(--space-10) 0; box-sizing: border-box; }
+.audio audio { width: 100%; min-width: min(360px, 100%); height: 38px; }
+.audio .caption { padding-inline: var(--space-2); }
+.loading { display: grid; width: min(100%, 480px); height: 90px; margin-top: var(--space-10); place-items: center; }
+.error { width: fit-content; margin-top: var(--space-9); align-items: center; }
+.remoteFallback { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+.remoteSource { flex: none; font: var(--type-caption)/var(--font-ui-line-height) var(--font-ui); }
+.compact { width: min(100%, 520px); margin-top: var(--space-4); gap: var(--space-6); }
+.compact .figure img, .compact .figure video { max-height: 210px; }
+.compact .caption { min-height: 24px; }
+.compact .audio { padding-top: var(--space-5); }
+.lightboxBody, .zoomStage, .zoomContent { width: 100%; min-height: 0; height: 100%; }
+.zoomContent { display: grid; place-items: center; }
+.zoomImage { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) { .figure video { min-width: 0; } .audio audio { min-width: 0; } }
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .collection,
+  .figure { width: 100%; max-width: 100%; }
+  .figure video { max-height: min(calc(var(--app-viewport-height, 100dvh) * .62), 620px); }
+  .zoomImage { max-width: 100%; max-height: 100%; }
+}

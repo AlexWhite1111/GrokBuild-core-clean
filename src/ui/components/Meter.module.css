@@ -1,0 +1,8 @@
+.meter { display: grid; width: 100%; grid-template-columns: repeat(var(--meter-columns), minmax(0, 1fr)); align-items: center; gap: var(--space-2); }
+.meter > i { width: 100%; height: var(--space-4); background: var(--color-interactive-disabled); opacity: .42; transition: opacity var(--motion-fast) var(--motion-easing), background var(--motion-fast) var(--motion-easing); }
+.meter > i[data-enabled="true"] { opacity: .72; }
+.meter > i[data-active="true"] { opacity: .9; }
+.meter > i[data-tone="calm"] { background: var(--color-text-muted); }
+.meter > i[data-tone="warning"] { background: var(--color-warning); }
+.meter > i[data-tone="danger"] { background: var(--color-danger); }
+.meter:hover > i, .meter:focus-within > i { opacity: .82; }

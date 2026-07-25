@@ -1,0 +1,7 @@
+.pinned { display: inline-flex; flex: none; margin-left: auto; align-items: center; gap: var(--space-4); }
+.details { display: grid; gap: var(--space-5); margin: 0 0 var(--space-12); }
+.details div { display: grid; min-height: var(--space-28); grid-template-columns: var(--ui-label-column-width) minmax(0, 1fr); align-items: center; }
+.details dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.identifiers { display: grid; gap: var(--space-5); padding-top: var(--space-9); }
+.identifiers > div { display: grid; min-height: 36px; padding: var(--space-4) var(--space-2); grid-template-columns: minmax(0, 1fr) 28px; align-items: center; gap: var(--space-7); }
+.identifiers span { display: grid; min-width: 0; gap: var(--space-3); }

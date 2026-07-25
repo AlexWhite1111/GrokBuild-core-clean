@@ -1,0 +1,15 @@
+.chip { --path-chip-icon: currentColor; display: inline-flex; max-width: min(240px, 72vw); min-height: 1.65em; margin: 0 var(--rhythm-008); padding: var(--rhythm-008) var(--rhythm-048); box-sizing: border-box; align-items: center; gap: var(--rhythm-034); vertical-align: -.18em; border: 0; color: var(--component-chip-foreground, var(--color-text-secondary)); background: var(--background-surface-muted, var(--component-chip-background, var(--color-surface-muted))); box-shadow: var(--shadow-muted-stroke), var(--shadow-content); font: var(--font-ui-weight) var(--type-ratio-08)/calc(1.35 * var(--line-spacing-scale)) var(--font-ui); }
+.chip > svg { display: block; width: 1em; height: 1em; flex: none; color: var(--path-chip-icon); stroke-width: var(--icon-stroke-standard); }
+.chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip[data-openable="true"] { color: var(--color-rich-link); cursor: default; }
+.chip[data-openable="true"]:hover, .chip[data-openable="true"]:focus-visible { color: var(--color-rich-link-hover); background: var(--color-interactive-hover); }
+.chip[draggable="true"] { cursor: grab; -webkit-user-drag: element; }
+.chip[draggable="true"]:active { cursor: grabbing; }
+.chip[data-openable="true"]:focus-visible { outline: 0; box-shadow: var(--shadow-focus); }
+.chip[data-file-type="pdf"] { --path-chip-icon: var(--color-file-danger); }
+.chip[data-file-type="word"], .chip[data-file-type="javascript"], .chip[data-file-type="typescript"], .chip[data-file-type="python"], .chip[data-file-type="web"], .chip[data-file-type="css"], .chip[data-file-type="code"] { --path-chip-icon: var(--color-file-info); }
+.chip[data-file-type="image"] { --path-chip-icon: var(--color-file-accent); }
+.chip[data-file-type="sheet"], .chip[data-file-type="vue"], .chip[data-file-type="shell"], .chip[data-file-type="docker"] { --path-chip-icon: var(--color-file-success); }
+.chip[data-file-type="presentation"], .chip[data-file-type="swift"], .chip[data-file-type="archive"], .chip[data-file-type="video"], .chip[data-file-type="audio"], .chip[data-file-type="data"], .chip[data-file-type="folder"] { --path-chip-icon: var(--color-file-warning); }
+.chip[data-file-type="dotnet"], .chip[data-file-type="php"], .chip[data-file-type="ruby"], .chip[data-file-type="go"], .chip[data-file-type="native"], .chip[data-file-type="rust"], .chip[data-file-type="java"] { --path-chip-icon: var(--color-file-code); }
+.chip:not([data-path-valid="true"]) { --path-chip-icon: currentColor; color: var(--color-danger); opacity: .68; }

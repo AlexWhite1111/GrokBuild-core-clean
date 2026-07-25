@@ -1,0 +1,18 @@
+.content { z-index: 90; min-width: var(--radix-dropdown-menu-trigger-width, 172px); max-height: min(var(--radix-dropdown-menu-content-available-height, 480px), 480px); padding: var(--space-6); overflow-y: auto; border: 0; color: var(--component-menu-foreground, var(--color-text)); background: var(--background-menu, var(--component-menu-background, var(--color-surface-raised))); box-shadow: var(--shadow-menu-stroke), var(--shadow-popover); backdrop-filter: var(--menu-backdrop-filter); -webkit-backdrop-filter: var(--menu-backdrop-filter); font-family: var(--font-ui); transform-origin: var(--radix-dropdown-menu-content-transform-origin); }
+.item { position: relative; display: flex; min-height: var(--density-compact-control-height); padding: 0 var(--space-8); align-items: center; gap: var(--space-7); outline: 0; color: var(--color-text-secondary); font-size: var(--type-label); user-select: none; }
+.radioItem { padding-left: var(--space-26); }
+.item[data-highlighted] { color: var(--color-text); background: var(--color-interactive-hover); }
+.item[data-state="checked"] { color: var(--color-text); background: var(--color-interactive-selected); box-shadow: var(--shadow-selected); }
+.item[data-disabled] { color: var(--color-interactive-disabled); pointer-events: none; }
+.item[data-tone="danger"] { color: var(--color-danger); }
+.indicator { position: absolute; left: var(--space-8); display: grid; width: var(--space-14); place-items: center; color: var(--color-accent); }
+.indicator svg { width: var(--space-12); height: var(--space-12); }
+.separator { height: var(--space-1); margin: var(--space-5) var(--space-7); background: var(--color-border); }
+
+@media (max-width: 760px), (pointer: coarse) and (max-width: 900px) {
+  .content { max-width: calc(100vw - var(--ui-compact-chrome-start) - var(--ui-compact-chrome-end)); max-height: calc(var(--app-viewport-height, 100dvh) - var(--safe-area-top) - var(--safe-area-bottom) - var(--space-16)); }
+}
+
+@media (pointer: coarse) and (max-width: 900px) {
+  .item { min-height: var(--platform-control-min); }
+}
