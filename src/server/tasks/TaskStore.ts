@@ -4,6 +4,7 @@ import path from "node:path";
 import type {
   ReasoningEffort,
   SandboxProfile,
+  TaskContinuationOrigin,
   TaskDetailProjection,
   TaskEventEnvelope,
   TaskListItem,
@@ -122,12 +123,35 @@ export class TaskStore {
     const summary = readObject(row.summary_path, 1_048_576) || {};
     const snapshot = snapshotFrom(row, summary);
     const officialHistory = projectOfficialHistory(row, snapshot);
-    if (officialHistory) return officialHistory;
-    return {
+    const detail = officialHistory || {
       snapshot,
       messages: transcript(row),
       events: [],
       context: emptyContext(),
+    };
+    detail.snapshot.continuedFrom = this.#continuationOrigin(row, summary, detail.messages);
+    return detail;
+  }
+
+  #continuationOrigin(
+    row: TaskRow,
+    summary: Record<string, unknown>,
+    messages: TaskMessageBlock[],
+  ): TaskContinuationOrigin | null {
+    const parentSessionId = text(summary.parent_session_id);
+    if (text(summary.session_kind) !== "fork" || !parentSessionId || parentSessionId === row.session_id) return null;
+    const parent = this.row(parentSessionId);
+    if (!parent) return null;
+    const forkedAt = parsedTimestamp(summary.forked_at);
+    const boundaryBlockId = forkedAt == null ? null : [...messages].reverse().find((message) =>
+      (message.role === "user" || message.role === "assistant")
+      && (parsedTimestamp(message.createdAt) ?? Number.POSITIVE_INFINITY) <= forkedAt)?.blockId || null;
+    return {
+      taskId: parent.task_id,
+      sessionId: parent.session_id,
+      title: parent.title,
+      ordinal: forkOrdinal(row.title),
+      boundaryBlockId,
     };
   }
 
@@ -279,9 +303,7 @@ function projectOfficialHistory(
   const events: TaskEventEnvelope[] = [];
   let eventSequence = 0;
   let updates = 0;
-  for (const line of source.split(/\r?\n/)) {
-    let record: Record<string, unknown> | null = null;
-    try { record = object(JSON.parse(line)); } catch { /* skip damaged live tail */ }
+  for (const record of logicalOfficialUpdates(source)) {
     const rawParams = object(record?.params);
     const params = rawParams ? withOfficialTimestamp(rawParams, record?.timestamp) : null;
     const update = object(params?.update);
@@ -348,6 +370,17 @@ function projectOfficialHistory(
         }
       }
       events.push(event);
+      if (
+        goalApplied
+        && previousGoal?.status !== "active"
+        && snapshot.goal.status === "active"
+        && snapshot.goal.objective
+      ) {
+        transcriptProjection.appendRemoteUser({
+          messageId: `goal:${snapshot.goal.telemetry?.goalId || event.eventId}`,
+          content: { text: snapshot.goal.objective },
+        }, turnId, false, event);
+      }
       if (goalApplied && previousGoal && (
         previousGoal.status !== snapshot.goal.status
         || previousGoal.lastOutcome !== snapshot.goal.lastOutcome
@@ -380,6 +413,35 @@ function projectOfficialHistory(
     events,
     context: projectTaskOperationalContext(events),
   };
+}
+
+function logicalOfficialUpdates(source: string): Record<string, unknown>[] {
+  const records: Record<string, unknown>[] = [];
+  for (const line of source.split(/\r?\n/)) {
+    let record: Record<string, unknown> | null = null;
+    try { record = object(JSON.parse(line)); } catch { /* skip damaged live tail */ }
+    if (!record) continue;
+    const update = object(object(record.params)?.update);
+    if (text(update?.sessionUpdate) !== "rewind_marker") {
+      records.push(record);
+      continue;
+    }
+    const target = nonnegativeInteger(update?.target_prompt_index ?? update?.targetPromptIndex);
+    if (target == null) continue;
+    for (let index = records.length - 1; index >= 0; index -= 1) {
+      const prior = object(object(records[index]?.params)?.update);
+      if (
+        text(prior?.sessionUpdate) === "user_message_chunk"
+        && nonnegativeInteger(
+          prior?.prompt_index ?? prior?.promptIndex ?? object(prior?._meta)?.prompt_index ?? object(prior?._meta)?.promptIndex,
+        ) === target
+      ) {
+        records.splice(index);
+        break;
+      }
+    }
+  }
+  return records;
 }
 
 function withOfficialTimestamp(
@@ -530,9 +592,18 @@ function nonnegativeInteger(value: unknown): number | null {
 }
 
 function timestamp(value: unknown, fallback: number): number {
+  return parsedTimestamp(value) ?? fallback;
+}
+
+function parsedTimestamp(value: unknown): number | null {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Date.parse(value) : NaN;
-  if (!Number.isFinite(parsed)) return fallback;
+  if (!Number.isFinite(parsed)) return null;
   return parsed < 1_000_000_000_000 ? parsed * 1000 : parsed;
+}
+
+function forkOrdinal(title: string): number {
+  const value = Number(/ · Fork (\d+)$/.exec(title)?.[1]);
+  return Number.isSafeInteger(value) && value > 0 ? value : 1;
 }
 
 function fileTime(file: string): number {

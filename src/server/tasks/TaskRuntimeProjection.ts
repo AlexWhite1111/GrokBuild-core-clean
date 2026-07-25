@@ -444,8 +444,14 @@ export class TaskRuntimeProjection {
       this.#transcript.closeSegment(effectiveTurn);
     }
     const before = this.#semantic.events.length;
-    this.#semantic.applyAcpNotification(params, turnId, userEcho, effectiveTurn);
+    this.#semantic.applyAcpNotification(params, turnId, userEcho);
     const events = this.#captureSemanticEvents(before);
+    const acceptedRequestIds = updateType === "goal_updated"
+      && events.some(({ event }) => event.method === "task/goal:structured")
+      && this.snapshot.commands.execution?.name === "goal"
+      && this.snapshot.commands.execution.state === "pending"
+      ? [this.snapshot.commands.execution.requestId]
+      : [];
     if (structuredMedia.length) {
       this.#transcript.appendAgent(
         "assistant",
@@ -462,7 +468,10 @@ export class TaskRuntimeProjection {
       );
     }
     this.#publish(events);
-    return result({ refreshContextWindow: updateType === "turn_completed" });
+    return result({
+      acceptedRequestIds,
+      refreshContextWindow: updateType === "turn_completed",
+    });
   }
 
   #applyChildAcp(params: unknown): TaskRuntimeNotificationResult {

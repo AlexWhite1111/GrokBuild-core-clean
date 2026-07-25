@@ -148,6 +148,81 @@ test("Goal command reconciles official Goal history when live ACP omits goal_upd
   actor.stop();
 });
 
+test("an official Goal transition acknowledges its command without accepting telemetry noise", async () => {
+  const completion = deferred<unknown>();
+  class GoalReceiptClient extends CapabilityClient {
+    override prompt(_sessionId: string, text: string) {
+      this.prompts.push(text);
+      return completion.promise;
+    }
+  }
+  const client = new GoalReceiptClient([{
+    name: "goal",
+    description: "Official Goal",
+    input: { hint: "objective" },
+  }]);
+  const actor = new TaskActor(actorOptions(client));
+  await actor.createSession();
+  client.emit("notification", {
+    method: "x.ai/session/update",
+    params: {
+      sessionId: "session-fixture",
+      update: {
+        sessionUpdate: "goal_updated",
+        goal_id: "goal-fast",
+        objective: "Old Goal",
+        status: "active",
+      },
+    },
+  });
+
+  const submitted = actor.executeGoal("goal-live-receipt", "set", "Fast Goal");
+  let received = false;
+  void submitted.then(() => { received = true; });
+  await settleMicrotasks();
+  client.emit("notification", {
+    method: "x.ai/session/update",
+    params: {
+      sessionId: "session-fixture",
+      update: {
+        sessionUpdate: "goal_updated",
+        goal_id: "goal-fast",
+        objective: "Old Goal",
+        status: "active",
+        elapsed_ms: 1_000,
+      },
+    },
+  });
+  await settleMicrotasks();
+  assert.equal(received, false);
+  client.emit("notification", {
+    method: "x.ai/session/update",
+    params: {
+      sessionId: "session-fixture",
+      update: {
+        sessionUpdate: "goal_updated",
+        goal_id: "goal-fast",
+        objective: "Fast Goal",
+        status: "active",
+      },
+    },
+  });
+
+  const snapshot = await Promise.race([
+    submitted,
+    new Promise<never>((_, reject) => setTimeout(
+      () => reject(new Error("Goal receipt waited for the prompt timeout.")),
+      100,
+    )),
+  ]);
+  assert.equal(snapshot.goal.status, "active");
+  assert.equal(snapshot.goal.objective, "Fast Goal");
+
+  completion.resolve({ stopReason: "end_turn" });
+  await settleMicrotasks();
+  actor.stop();
+});
+
 test("an active Plan session can return to normal mode", async () => {
   const client = new CapabilityClient();
   const actor = new TaskActor(actorOptions(client));
@@ -255,4 +330,19 @@ function actorOptions(
     existing,
     clientFactory: () => client as unknown as OfficialAcpClient,
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+async function settleMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
 }

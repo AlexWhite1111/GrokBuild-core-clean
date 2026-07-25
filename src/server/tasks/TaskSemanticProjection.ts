@@ -184,23 +184,20 @@ export class TaskSemanticProjection {
     params: unknown,
     turnId: string | null,
     userEcho?: PromptEchoIdentity,
-    effectiveTurnOverride?: string | null,
   ): void {
-    this.#applyAcpNotification(params, turnId, userEcho, effectiveTurnOverride);
+    this.#applyAcpNotification(params, turnId, userEcho);
   }
 
   #applyAcpNotification(
     params: unknown,
     turnId: string | null,
     userEcho?: PromptEchoIdentity,
-    effectiveTurnOverride?: string | null,
   ): void {
     const record = asRecord(params);
     const update = asRecord(record.update);
     const transportMeta = readMeta(record);
     const updateType = string(update.sessionUpdate) || "unknown";
     const safePayload = safeSessionUpdate(update, transportMeta);
-    const replay = effectiveTurnOverride?.startsWith("replay:") === true;
     const signal = nativeTurnSignal(safePayload);
     const metaTurn = string(safePayload.turnId);
     const commandTurn = userEcho?.turnId || turnId;
@@ -218,25 +215,21 @@ export class TaskSemanticProjection {
       !turnId &&
       !metaTurn &&
       !hasNativeTurnSignal(signal) &&
-      !replay &&
       !toolTurn &&
       !FALLBACK_MESSAGE_UPDATES.has(updateType);
-    const resolution = replay || toolTurn || effectiveTurnOverride !== undefined
+    const resolution = toolTurn
       ? null
       : this.#turnIdentity.resolve(
           this.#connectionEpoch,
           signal,
           commandTurn || null,
         );
-    const effectiveTurn = effectiveTurnOverride !== undefined
-      ? effectiveTurnOverride
-      : detached
+    const effectiveTurn = detached
       ? null
       : toolTurn?.turnId || resolution?.turnId || commandTurn || metaTurn
           || (FALLBACK_MESSAGE_UPDATES.has(updateType) ? `turn_${this.#sequence + 1}` : null);
     const localTurnId = toolTurn?.localTurnId || commandTurn;
     if (localTurnId) safePayload.localTurnId = localTurnId;
-    if (replay) safePayload.replay = true;
     const structuredMedia = mediaForSessionUpdate(
       this.media,
       this.snapshot.taskId,

@@ -71,6 +71,125 @@ test("TaskStore reads only official Grok session files", (t) => {
   assert.equal(JSON.parse(fs.readFileSync(path.join(sessionPath, "summary.json"), "utf8")).generated_title, "Renamed official task");
 });
 
+test("TaskStore restores the official Fork source and exact inherited boundary", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-official-fork-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const projectPath = path.join(root, "project");
+  const grokHome = path.join(root, ".grok");
+  const parentId = "019f0000-0000-7000-8000-000000000101";
+  const childId = "019f0000-0000-7000-8000-000000000102";
+  const workspacePath = path.join(grokHome, "sessions", encodeURIComponent(projectPath));
+  const parentPath = path.join(workspacePath, parentId);
+  const childPath = path.join(workspacePath, childId);
+  const startedAt = Date.parse("2026-07-25T00:00:00.000Z");
+  const forkedAt = startedAt + 2_000;
+  fs.mkdirSync(projectPath);
+  fs.mkdirSync(parentPath, { recursive: true });
+  fs.mkdirSync(childPath, { recursive: true });
+  fs.writeFileSync(path.join(parentPath, "summary.json"), JSON.stringify({
+    info: { id: parentId, cwd: projectPath },
+    generated_title: "Parent task",
+    created_at: new Date(startedAt).toISOString(),
+  }));
+  fs.writeFileSync(path.join(childPath, "summary.json"), JSON.stringify({
+    info: { id: childId, cwd: projectPath },
+    session_kind: "fork",
+    parent_session_id: parentId,
+    forked_at: new Date(forkedAt).toISOString(),
+    generated_title: "Parent task · Fork 2",
+    created_at: new Date(forkedAt).toISOString(),
+  }));
+  fs.writeFileSync(path.join(childPath, "updates.jsonl"), [
+    officialUpdate(childId, startedAt, "user_message_chunk", {
+      content: { type: "text", text: "Inherited question" },
+      _meta: { promptIndex: 0 },
+    }),
+    officialUpdate(childId, startedAt + 1_000, "agent_message_chunk", {
+      content: { type: "text", text: "Inherited answer" },
+    }),
+    officialUpdate(childId, startedAt + 3_000, "user_message_chunk", {
+      content: { type: "text", text: "Fork-only question" },
+      _meta: { promptIndex: 1 },
+    }),
+    officialUpdate(childId, startedAt + 4_000, "agent_message_chunk", {
+      content: { type: "text", text: "Fork-only answer" },
+    }),
+    officialUpdate(childId, startedAt + 5_000, "rewind_marker", {
+      target_prompt_index: 1,
+      created_at: new Date(startedAt + 5_000).toISOString(),
+    }, {}, "_x.ai/session/update"),
+    officialUpdate(childId, startedAt + 6_000, "user_message_chunk", {
+      content: { type: "text", text: "Replacement question" },
+      _meta: { promptIndex: 1 },
+    }),
+    officialUpdate(childId, startedAt + 7_000, "agent_message_chunk", {
+      content: { type: "text", text: "Replacement answer" },
+    }),
+  ].join("\n"));
+
+  const state = new JsonStateStore(path.join(root, "app-state.json"));
+  const projects = new ProjectStore(state);
+  projects.addProject(projectPath);
+  const detail = new TaskStore(grokHome, "native", projects, state).readDetail(childId);
+
+  assert.deepEqual(detail?.snapshot.continuedFrom, {
+    taskId: parentId,
+    sessionId: parentId,
+    title: "Parent task",
+    ordinal: 2,
+    boundaryBlockId: detail?.messages[1]?.blockId,
+  });
+  assert.deepEqual(detail?.messages.map(({ text }) => text), [
+    "Inherited question",
+    "Inherited answer",
+    "Replacement question",
+    "Replacement answer",
+  ]);
+});
+
+test("TaskStore restores the submitted Goal objective from the official Goal transition", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-official-goal-message-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const projectPath = path.join(root, "project");
+  const grokHome = path.join(root, ".grok");
+  const sessionId = "019f0000-0000-7000-8000-000000000103";
+  const sessionPath = path.join(grokHome, "sessions", encodeURIComponent(projectPath), sessionId);
+  const startedAt = Date.parse("2026-07-25T00:00:00.000Z");
+  fs.mkdirSync(projectPath);
+  fs.mkdirSync(sessionPath, { recursive: true });
+  fs.writeFileSync(path.join(sessionPath, "summary.json"), JSON.stringify({
+    info: { id: sessionId, cwd: projectPath },
+    generated_title: "Official Goal",
+    created_at: new Date(startedAt).toISOString(),
+  }));
+  fs.writeFileSync(path.join(sessionPath, "updates.jsonl"), [
+    officialUpdate(sessionId, startedAt, "goal_updated", {
+      goal_id: "goal-official",
+      objective: "官方 Goal 目标",
+      status: "active",
+      elapsed_ms: 0,
+    }, {}, "_x.ai/session/update"),
+    officialUpdate(sessionId, startedAt + 1_000, "user_message_chunk", {
+      content: { type: "text", text: "<system-reminder>A goal has been set</system-reminder>" },
+      _meta: { promptIndex: 0 },
+    }),
+    officialUpdate(sessionId, startedAt + 2_000, "agent_message_chunk", {
+      content: { type: "text", text: "Goal response" },
+    }, { promptId: "prompt-0", turnStartMs: startedAt + 1_000, streamStartMs: startedAt + 1_500 }),
+  ].join("\n"));
+
+  const state = new JsonStateStore(path.join(root, "app-state.json"));
+  const projects = new ProjectStore(state);
+  projects.addProject(projectPath);
+  const detail = new TaskStore(grokHome, "native", projects, state).readDetail(sessionId);
+
+  assert.deepEqual(detail?.messages.map(({ role, text }) => [role, text]), [
+    ["user", "官方 Goal 目标"],
+    ["assistant", "Goal response"],
+  ]);
+  assert.equal(detail?.messages[0]?.protocol?.messageId, "goal:goal-official");
+});
+
 test("TaskStore restores official work history through the runtime projection", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-official-updates-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -139,6 +258,7 @@ test("TaskStore restores official work history through the runtime projection", 
   assert.deepEqual(detail?.messages.map(({ role, text }) => [role, text]), [
     ["user", "检查过程"],
     ["thought", "先检查"],
+    ["user", "只认官方 Goal 更新"],
     ["assistant", "完成"],
   ]);
   assert.equal(new Set(detail?.messages.map((message) => message.turnId)).size, 1);

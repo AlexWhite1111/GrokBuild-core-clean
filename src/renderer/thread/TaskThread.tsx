@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useBootstrap } from "../api/BootstrapContext.js";
 import { useUiPreferences } from "../api/hooks.js";
 import { Control } from "../../ui/components/index.js";
-import { GrokTurnBlock } from "./GrokTurnBlock.js";
+import { GrokGoalOutcomeBlock, GrokTurnBlock } from "./GrokTurnBlock.js";
 import { GrokTurnFlow } from "./GrokTurnFlow.js";
 import { MessageBlock } from "./MessageBlock.js";
 import { createTurnTimelineProjector, type TimelineItem } from "./turnPresentation.js";
@@ -51,7 +51,7 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     count: items.length,
     getScrollElement: () => parent.current,
     getItemKey: (index) => items[index]?.id || index,
-    estimateSize: (index) => items[index]?.kind === "assistant" ? 118 : items[index]?.kind === "lifecycle" ? 34 : items[index]?.kind === "continuation" ? 48 : 92,
+    estimateSize: (index) => items[index]?.kind === "assistant" ? 118 : items[index]?.kind === "lifecycle" || items[index]?.kind === "goal" ? 34 : items[index]?.kind === "continuation" ? 48 : 92,
     overscan: 8,
     paddingEnd,
   });
@@ -180,6 +180,8 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
                 ? <MessageBlock taskId={detail.snapshot.taskId} message={item.message} renderPolicy={preferences.richTextRenderPolicy} mediaScale={preferences.mediaPreviewScale} onRetry={onRetry} onEdit={item.message.protocol?.promptIndex != null ? onEdit : undefined} composerHasDraft={composerHasDraft} />
                 : item.kind === "assistant"
                   ? <GrokTurnBlock taskId={detail.snapshot.taskId} turn={item.turn} renderPolicy={preferences.richTextRenderPolicy} mediaScale={preferences.mediaPreviewScale} presentation={preferences.grokMessagePresentation} processAvailable={processAvailable} processExpanded={processExpanded} onToggleProcess={() => setExpandedProcesses((current) => ({ ...current, [item.turn.promptExecutionId]: !processExpanded }))} onFork={item.id === latestGrokItemId ? onFork : undefined} />
+                  : item.kind === "goal"
+                    ? <GrokGoalOutcomeBlock value={item.presentation} />
                   : <div data-session-lifecycle-cluster><GrokTurnFlow taskId={detail.snapshot.taskId} segments={item.segments} renderPolicy={preferences.richTextRenderPolicy} mediaScale={preferences.mediaPreviewScale} running={item.segments.some((segment) => segment.status === "running")} /></div>}
             </div>
           </div>;

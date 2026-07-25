@@ -382,6 +382,9 @@ export function sanitizeXai(method: string, params: unknown): unknown {
   const subagentId = firstString(signal, ["subagentId", "subagent_id"]);
   const childSessionId = firstString(signal, ["childSessionId", "child_session_id"]) || subagentId;
   const description = firstString(signal, ["description", "subagentType", "subagent_type"]);
+  const toolCallId = firstString(signal, ["toolCallId", "tool_call_id"]);
+  const telemetry = signal.map((value) => asRecord(value.telemetry)).filter((value) => Object.keys(value).length);
+  const resumedFrom = firstString([...telemetry, ...signal], ["resumedFrom", "resumed_from"]);
   return {
     sessionId: string(record.sessionId),
     type: firstString(signal, ["sessionUpdate", "type", "kind", "event", "name", "notificationType", "notification_type"]) || method,
@@ -401,7 +404,9 @@ export function sanitizeXai(method: string, params: unknown): unknown {
     model: firstString(signal, ["model", "modelId", "model_id"]),
     subagentId,
     childSessionId,
+    toolCallId,
     title: description,
+    telemetry: resumedFrom ? { resumedFrom } : undefined,
   };
 }
 

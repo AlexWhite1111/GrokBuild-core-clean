@@ -471,7 +471,9 @@ function applyStructuredWorkLifecycle(
     const current = resumed || alreadyResumed || spawned;
     const id = resumed?.id || alreadyResumed?.id || (kind === "subagent_spawned" ? nativeId : current?.id || nativeId);
     const candidateTitle = compact(text(payload.title));
-    const stableTitle = stableAgentTitle(current?.title || null, candidateTitle) || "Subagent";
+    const stableTitle = kind === "subagent_spawned" && candidateTitle && !isAgentPlaceholder(candidateTitle)
+      ? candidateTitle
+      : stableAgentTitle(current?.title || null, candidateTitle) || "Subagent";
     upsertStructuredWork(items, current, event, id, "agent", {
       activityId: subagentId || nativeId,
       childSessionId: childSessionId || nativeId,

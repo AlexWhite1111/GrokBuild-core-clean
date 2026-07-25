@@ -24,6 +24,8 @@
 - [x] P6：补齐 child reverse request、turn identity、Goal 边界、Plan 草稿身份和 inline media 恢复。
 - [x] P7：修复 Goal 实时漏投影、历史 Plan 误判和恢复权限锁定。
 - [x] P8：修复 busy Goal 控制、桌面重启恢复、延迟消息分裂和 Goal 子代理漏投影。
+- [x] P9：用首个官方 `goal_updated` 完成 Goal 提交回执，删除 15 秒无意义等待。
+- [x] P10：删除 Goal 最新消息挂靠和 tool update 伪回合；恢复官方 Goal 首条用户消息。
 
 ## 已确认不变量
 
@@ -32,12 +34,14 @@
 - UI 可见动作必须能被后端执行。
 - Goal/Plan/tool 历史不得用单槽位覆盖。
 - 子会话不进入主列表，但必须能按 session id 打开。
+- Goal 终态是独立的官方时间线事件，不按最新消息、时间或文本推断归属。
+- tool update 只按官方 tool call identity 归并，不为每个更新生成本地伪回合。
 
 ## 当前状态
 
 - 工作目录：`/Users/alexwhite/Desktop/GrokBuild-core-clean-20260725`
 - 原始 ZIP 未修改。
-- P8 已完成；只处理了已复现的投影、恢复和控制可达性问题。
+- P10 已完成；只处理了已复现的投影、恢复和控制可达性问题。
 - 已删除重复的 `TaskActivityTracker`，工作计数和 Context 共用 `projectTaskWorkState`。
 - disk restore 直接使用共享 Context projector；child session 和 partial tool update 回归通过。
 - Goal append-only、计时和 stored Goal 源码锁已完成；Plan 只修官方可恢复路径，不增加影子存储。
@@ -56,12 +60,15 @@
 - 官方 prompt 终态按精确 prompt id 清理旧队列占位，Goal 编辑不会卡在等待接收。
 - 桌面后端重启后复用既有版本检测并刷新页面，不保留永久转圈的旧连接。
 - 延迟回复用官方 prompt identity 合并 chunk；实时 `x.ai/session_notification` 与磁盘 session update 共用子代理 Context projector。
+- 待处理 Goal 命令收到匹配的官方 `goal_updated` 即确认已接收；Goal 内容和生命周期仍只来自官方 Session。
+- 历史首条 Goal 用户消息直接取官方 `goal_updated.objective`；Goal 终态按官方事件游标显示。
+- tool update 复用现有官方 tool call identity；已删除绕过该关联的逐事件 turn 覆盖。
 
 ## 最终验证
 
 - `npm run typecheck`：通过。
 - `npm run test:segmentation`：94 / 94 通过。
-- `npm run test:task-runtime`：88 / 88 通过。
+- `npm run test:task-runtime`：97 / 97 通过。
 - `npm run build`：Web、Server、Electron Shell 通过。
 - `npm run architecture`：通过；无未使用代码，重复率低于阈值。
 - `npm audit --omit=dev`：生产依赖 0 个漏洞。
@@ -72,6 +79,7 @@
 - busy Goal 的暂停、继续、编辑保存、删除均完成，未再卡在等待接收。
 - 卸载任务恢复后可正常发送消息，Paused Goal、权限和子代理历史仍可见。
 - 仅通过加号建立 Plan；详情投影和“不批准”收尾正常。
+- 重开官方历史 Session 后，首条 Goal 用户消息存在，完成条位于对应 Goal 回合之后，空白消息条为 0。
 
 ## 维护入口
 

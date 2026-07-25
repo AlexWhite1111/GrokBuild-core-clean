@@ -37,12 +37,19 @@ export const GrokTurnBlock = memo(function GrokTurnBlock({ taskId, turn, renderP
     <Surface appearance={presentation === "bubble" ? "message" : "plain"} elevation={presentation === "bubble" ? "content" : "none"} shape={presentation === "bubble" ? "surface" : "none"} className={styles.surface}>
       <TurnStatus turn={turn} durationMs={durationMs} collapsible={processAvailable} expanded={processExpanded} live={statusLive} onToggle={onToggleProcess} />
       <GrokTurnFlow taskId={taskId} segments={turn.segments} renderPolicy={renderPolicy} mediaScale={mediaScale} running={turn.outcome === "running"} processExpanded={processExpanded} />
-      {turn.goalOutcomes.map((goal, index) => <GoalOutcomeRow key={`${goal.outcome}:${goal.objective || ""}:${index}`} value={goal} />)}
     </Surface>
     {theme && <ThemeCandidateAction theme={theme} />}
     {answerText && <div className={styles.messageMeta}><Control recipe="icon" density="detail" onClick={() => void copy()} aria-label={t("copyMessage")} title={t("copyMessage")}>{copied ? <Check size={12} /> : <Copy size={12} />}</Control>{onFork && <Control recipe="icon" density="detail" onClick={() => void onFork()} aria-label={t("forkConversation")} title={t("forkConversation")}><ConversationForkIcon width={12} height={12} /></Control>}{copied && <Text as="span" tone="success" size="caption" role="status">{t("copied")}</Text>}<Text as="time" tone="muted" size="caption" dateTime={turn.startedAt}>{time(turn.startedAt)}</Text></div>}
   </article>;
 }, sameTurnBlockProps);
+
+export function GrokGoalOutcomeBlock({ value }: { value: GoalOutcomePresentation }) {
+  return <article className={`${styles.message} ${styles.assistant}`}>
+    <Surface appearance="message" elevation="content" shape="surface" className={styles.surface}>
+      <GoalOutcomeRow value={value} />
+    </Surface>
+  </article>;
+}
 
 function sameTurnBlockProps(left: GrokTurnBlockProps, right: GrokTurnBlockProps): boolean {
   return left.taskId === right.taskId

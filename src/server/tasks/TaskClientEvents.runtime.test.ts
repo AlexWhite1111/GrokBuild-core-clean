@@ -115,6 +115,56 @@ test("the official live session notification projects a subagent", (t) => {
   }]);
 });
 
+test("a resumed or renamed live subagent stays one conversation", (t) => {
+  const { client, projection } = liveProjection(t);
+  const notify = (notification: Record<string, unknown>) => client.emit("notification", {
+    method: "x.ai/session_notification",
+    params: { sessionId: "parent-session", notification },
+  });
+
+  notify({
+    type: "subagent_spawned",
+    subagent_id: "child-a",
+    child_session_id: "child-a",
+    description: "researcher",
+  });
+  notify({
+    type: "subagent_finished",
+    subagent_id: "child-a",
+    child_session_id: "child-a",
+    description: "researcher",
+    status: "completed",
+  });
+  notify({
+    type: "subagent_spawned",
+    subagent_id: "child-b",
+    child_session_id: "child-b",
+    description: "verifier",
+    telemetry: { resumed_from: "child-a" },
+  });
+  notify({
+    type: "subagent_spawned",
+    subagent_id: "child-b",
+    child_session_id: "child-b",
+    description: "lead verifier",
+  });
+
+  assert.deepEqual(projection.detail().context.activeWork.map((item) => ({
+    id: item.id,
+    childSessionId: item.childSessionId,
+    status: item.status,
+    title: item.title,
+    resumedFrom: item.telemetry?.resumedFrom,
+  })), [{
+    id: "child-a",
+    childSessionId: "child-b",
+    status: "running",
+    title: "lead verifier",
+    resumedFrom: "child-a",
+  }]);
+  assert.equal(projection.detail().context.history.filter((item) => item.kind === "work").length, 0);
+});
+
 test("an official prompt completion clears only its stale running queue slot", (t) => {
   const { client, projection } = liveProjection(t);
   client.emit("notification", {
@@ -177,7 +227,53 @@ test("late chunks from one official prompt stay in one assistant message", (t) =
   assert.deepEqual(projection.detail().messages.map((message) => message.text), ["收尾"]);
 });
 
-function liveProjection(t: { after(callback: () => void): void }) {
+test("an official Goal terminal without prompt identity stays detached", (t) => {
+  const { client, projection } = liveProjection(t, "goal-turn");
+  client.emit("notification", {
+    method: "session/update",
+    params: {
+      sessionId: "parent-session",
+      update: {
+        sessionUpdate: "goal_updated",
+        goal_id: "goal-official",
+        objective: "完成当前 Goal",
+        status: "completed",
+      },
+    },
+  });
+
+  const outcome = projection.detail().events.find((event) => event.method === "task/goal:structured");
+  assert.equal(outcome?.turnId, null);
+});
+
+test("tool updates stay on their official tool call when update packets omit prompt identity", (t) => {
+  const { client, projection } = liveProjection(t);
+  client.emit("notification", {
+    method: "session/update",
+    params: {
+      sessionId: "parent-session",
+      update: { sessionUpdate: "tool_call", toolCallId: "tool-official", title: "Read" },
+      _meta: { promptId: "prompt-official", turnStartMs: 1_000, streamStartMs: 1_100 },
+    },
+  });
+  for (const status of ["in_progress", "completed"]) {
+    client.emit("notification", {
+      method: "session/update",
+      params: {
+        sessionId: "parent-session",
+        update: { sessionUpdate: "tool_call_update", toolCallId: "tool-official", status },
+      },
+    });
+  }
+
+  const turns = projection.detail().events
+    .filter((event) => event.method.includes("tool_call"))
+    .map((event) => event.turnId);
+  assert.equal(new Set(turns).size, 1);
+  assert.notEqual(turns[0], null);
+});
+
+function liveProjection(t: { after(callback: () => void): void }, latestTurnId: string | null = null) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-live-projection-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const snapshot = createTaskSnapshotFixture("project-fixture");
@@ -188,17 +284,17 @@ function liveProjection(t: { after(callback: () => void): void }) {
     {},
   );
   const client = new EventEmitter();
-  wireClient(client, projection);
+  wireClient(client, projection, latestTurnId);
   return { client, projection };
 }
 
-function wireClient(client: EventEmitter, projection: TaskRuntimeProjection): void {
+function wireClient(client: EventEmitter, projection: TaskRuntimeProjection, latestTurnId: string | null = null): void {
   wireTaskClientEvents({
     client: client as unknown as OfficialAcpClient,
     projection,
     projectPath: "/tmp",
     activeTurnId: () => null,
-    latestTurnId: () => null,
+    latestTurnId: () => latestTurnId,
     isStopped: () => false,
     claimUserEcho: () => undefined,
     promptReceiptsFromQueue: () => [],

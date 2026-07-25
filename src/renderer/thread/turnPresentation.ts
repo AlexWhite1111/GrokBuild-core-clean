@@ -71,12 +71,12 @@ export interface GrokTurnPresentation {
   startedAt: string;
   endedAt: string | null;
   durationMs: number | null;
-  goalOutcomes: GoalOutcomePresentation[];
 }
 
 export type TimelineItem =
   | { id: string; at: string; kind: "user"; message: TaskMessageBlock }
   | { id: string; at: string; kind: "assistant"; turn: GrokTurnPresentation }
+  | { id: string; at: string; kind: "goal"; event: TaskEventEnvelope; presentation: GoalOutcomePresentation }
   | { id: string; at: string; kind: "lifecycle"; segments: SessionLifecycleSegment[] };
 
 interface ProtocolCoordinates {
@@ -210,7 +210,6 @@ function buildTurnTimeline(detail: TaskDetailProjection): TimelineItem[] {
           startedAt,
           endedAt,
           durationMs,
-          goalOutcomes: [],
         },
       });
     });
@@ -219,15 +218,17 @@ function buildTurnTimeline(detail: TaskDetailProjection): TimelineItem[] {
   for (const lifecycle of idleLifecycles) {
     items.push({ id: `lifecycle:${lifecycle.id}`, at: lifecycle.anchor.occurredAt, kind: "lifecycle", segments: [lifecycle] });
   }
-  items.sort(compareTimelineItems);
-  const timeline = mergeLifecycleClusters(items);
-  for (const goalOutcome of projectGoalOutcomes(orderedEvents)) {
-    const executionId = goalOutcome.turnId ? maps.executionByTurn.get(goalOutcome.turnId) || goalOutcome.turnId : null;
-    const assistants = [...timeline].reverse().filter((item): item is Extract<TimelineItem, { kind: "assistant" }> => item.kind === "assistant");
-    const target = assistants.find((item) => !executionId || item.turn.promptExecutionId === executionId) || assistants[0];
-    if (target?.kind === "assistant") target.turn.goalOutcomes.push(goalOutcome.presentation);
+  for (const goal of projectGoalOutcomes(orderedEvents)) {
+    items.push({
+      id: `goal:${goal.event.eventId}`,
+      at: goal.event.occurredAt,
+      kind: "goal",
+      event: goal.event,
+      presentation: goal.presentation,
+    });
   }
-  return timeline;
+  items.sort(compareTimelineItems);
+  return mergeLifecycleClusters(items);
 }
 
 /**
@@ -560,8 +561,8 @@ function executionOutcome(execution: ExecutionBucket, activeExecutionId: string 
   return "unknown";
 }
 
-function projectGoalOutcomes(events: TaskEventEnvelope[]): Array<{ at: string; turnId: string | null; presentation: GoalOutcomePresentation }> {
-  const results: Array<{ at: string; turnId: string | null; presentation: GoalOutcomePresentation }> = [];
+function projectGoalOutcomes(events: TaskEventEnvelope[]): Array<{ event: TaskEventEnvelope; presentation: GoalOutcomePresentation }> {
+  const results: Array<{ event: TaskEventEnvelope; presentation: GoalOutcomePresentation }> = [];
   const objectives = new Map<string, string | null>();
   for (const event of events) {
     if (!event.method.startsWith("task/goal:")) continue;
@@ -577,7 +578,7 @@ function projectGoalOutcomes(events: TaskEventEnvelope[]): Array<{ at: string; t
       : action === "clear" || lastOutcome === "cleared" ? "cleared"
         : lastOutcome === "cancelled" || lastOutcome === "failed" || lastOutcome === "interrupted" ? lastOutcome : "ended";
     const seconds = numeric(payload.timeUsedSeconds);
-    results.push({ at: event.occurredAt, turnId: event.turnId, presentation: { outcome, objective, durationSeconds: seconds == null ? null : Math.max(0, seconds) } });
+    results.push({ event, presentation: { outcome, objective, durationSeconds: seconds == null ? null : Math.max(0, seconds) } });
   }
   return results;
 }
@@ -796,6 +797,9 @@ function timelineOrder(item: TimelineItem): PresentationOrder {
       id: item.id,
     };
   }
+  if (item.kind === "goal") {
+    return { sourceOrdinal: null, event: cursor(item.event), at: item.at, id: item.id };
+  }
   return {
     sourceOrdinal: null,
     event: item.segments[0] ? cursor(item.segments[0].anchor) : null,
@@ -830,7 +834,7 @@ function minimum(values: Array<number | null | undefined>): number | null {
   return result;
 }
 
-function timelineRank(item: TimelineItem): number { return item.kind === "user" ? 0 : item.kind === "assistant" ? 1 : 2; }
+function timelineRank(item: TimelineItem): number { return item.kind === "user" ? 0 : item.kind === "assistant" ? 1 : item.kind === "goal" ? 2 : 3; }
 function unitRank(unit: TurnUnit): number { return unit.kind === "thought" ? 0 : unit.kind === "toolRun" ? 1 : unit.kind === "sessionLifecycle" ? 2 : 3; }
 function compareEvents(left: TaskEventEnvelope, right: TaskEventEnvelope): number { return compareCursors(cursor(left), cursor(right)); }
 function compareCursors(left: TaskEventCursor, right: TaskEventCursor): number { return left.connectionEpoch - right.connectionEpoch || left.sequence - right.sequence; }

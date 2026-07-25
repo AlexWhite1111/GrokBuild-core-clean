@@ -86,7 +86,7 @@ const RewindPointSchema = z.object({
   created_at: z.string(),
   num_file_snapshots: z.number().int().nonnegative(),
   has_file_changes: z.boolean(),
-  prompt_preview: z.string(),
+  prompt_preview: z.string().nullable(),
 }).passthrough();
 const RewindPointsResponseSchema = z.object({
   rewind_points: z.array(RewindPointSchema),

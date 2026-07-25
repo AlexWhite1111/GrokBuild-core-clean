@@ -484,8 +484,8 @@ export const TaskCreateSchema = z.object({
   modelId: z.string().trim().regex(/^[A-Za-z0-9._:/-]{1,256}$/).nullable().optional(),
   effort: ReasoningEffortSchema.nullable().optional(),
   workMode: WorkModeSchema.default("normal"),
-  permission: PermissionModeSchema.default("ask"),
-  sandbox: SandboxProfileSchema.default("workspace"),
+  permission: PermissionModeSchema.default("alwaysApprove"),
+  sandbox: SandboxProfileSchema.default("off"),
   systemPrompt: TaskSystemPromptSchema.nullable().default(null),
   draftKey: NewTaskDraftKeySchema.optional(),
 });

@@ -77,10 +77,35 @@ test("consecutive Goal outcomes remain visible in the turn timeline", () => {
     }),
   ];
 
-  const assistant = createTurnTimelineProjector()(detail).find((item) => item.kind === "assistant");
-  assert.equal(assistant?.kind, "assistant");
-  if (assistant?.kind !== "assistant") return;
-  assert.deepEqual(assistant.turn.goalOutcomes.map((goal) => goal.objective), ["First", "Second"]);
+  const outcomes = createTurnTimelineProjector()(detail)
+    .filter((item) => item.kind === "goal");
+  assert.deepEqual(outcomes.map((item) => item.presentation.objective), ["First", "Second"]);
+});
+
+test("a Goal outcome keeps its official event position without borrowing a message turn", () => {
+  const detail = detailFixture();
+  detail.messages.push(
+    liveMessage("user-2", "user", "后来的一轮", "turn-2", 4, "2026-07-20T00:00:04.000Z"),
+    liveMessage("answer-2", "assistant", "后来答案", "turn-2", 5, "2026-07-20T00:00:05.000Z"),
+  );
+  detail.events = [event(3, "task/goal:structured", "detached-goal-turn", {
+    goalId: "goal-detached",
+    status: "inactive",
+    lastOutcome: "completed",
+    objective: "Earlier Goal",
+  })];
+
+  const timeline = createTurnTimelineProjector()(detail);
+
+  assert.deepEqual(timeline.map((item) => item.kind), [
+    "user",
+    "assistant",
+    "goal",
+    "user",
+    "assistant",
+  ]);
+  const outcome = timeline.find((item) => item.kind === "goal");
+  assert.equal(outcome?.kind === "goal" && outcome.event.turnId, "detached-goal-turn");
 });
 
 test("official history order stays before the explicitly identified live turn", () => {
@@ -206,6 +231,7 @@ function liveMessage(
 function timelineText(item: ReturnType<ReturnType<typeof createTurnTimelineProjector>>[number]): string {
   if (item.kind === "user") return `user:${item.message.text}`;
   if (item.kind === "lifecycle") return "lifecycle";
+  if (item.kind === "goal") return `goal:${item.presentation.outcome}`;
   const text = item.turn.segments.flatMap((segment) =>
     segment.kind === "assistant" ? [segment.message.text] : []).join("|");
   return `assistant:${text}`;

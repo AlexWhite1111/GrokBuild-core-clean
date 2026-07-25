@@ -24,8 +24,8 @@ const DEFAULTS: ProjectDefaults = {
   modelId: null,
   effort: null,
   workMode: "normal",
-  permission: "ask",
-  sandbox: "workspace",
+  permission: "alwaysApprove",
+  sandbox: "off",
   systemPromptPresetId: null,
 };
 

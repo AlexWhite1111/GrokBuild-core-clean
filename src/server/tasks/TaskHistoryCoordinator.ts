@@ -100,7 +100,9 @@ export class TaskHistoryCoordinator {
 
     const ordinal = this.options.store.nextForkOrdinal(taskId);
     const childId = child.snapshot.sessionId || child.snapshot.taskId;
-    try { this.options.store.rename(childId, forkTitle(sourceRow.title, ordinal)); } catch { /* official title can arrive on the next scan */ }
+    const title = forkTitle(sourceRow.title, ordinal);
+    child.rename(title);
+    try { this.options.store.rename(childId, title); } catch { /* official title can arrive on the next scan */ }
     this.options.publish("task.created", child.detail);
     this.options.publish("workspace.changed", this.options.workspace());
     return child.snapshot;

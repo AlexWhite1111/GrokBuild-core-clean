@@ -108,14 +108,14 @@ const GROK_SHELL_EXTENSION_CONTRACT: readonly XaiMethod[] = [
   XAI_METHODS.yoloModeChanged,
 ];
 
-/** Verified against the installed Grok 0.2.103 agent; these are real custom
- * requests even though initialize does not advertise them individually. */
+/** Introduced and verified in Grok 0.2.103. Patch releases in the same 0.2
+ * protocol line retain these requests even though initialize does not
+ * advertise them individually. A new minor line must be verified explicitly. */
 const GROK_SHELL_PROBED_CONTRACT: readonly XaiMethod[] = [
   XAI_METHODS.rewindPoints,
   XAI_METHODS.rewindExecute,
   XAI_METHODS.sessionFork,
 ];
-const GROK_SHELL_PROBED_AGENT_VERSIONS = new Set(["0.2.103"]);
 
 export class XaiMethodRegistry {
   readonly #methods = new Map<XaiMethod, XaiMethodDescriptor>(
@@ -133,7 +133,7 @@ export class XaiMethodRegistry {
     const meta = response._meta as Record<string, unknown> | undefined;
     if (meta?.grokShell === true) {
       for (const method of GROK_SHELL_EXTENSION_CONTRACT) this.observe(method, "advertised");
-      if (typeof meta.agentVersion === "string" && GROK_SHELL_PROBED_AGENT_VERSIONS.has(meta.agentVersion)) {
+      if (supportsGrokShellHistory(meta.agentVersion)) {
         for (const method of GROK_SHELL_PROBED_CONTRACT) this.observe(method, "probed");
       }
     }
@@ -173,6 +173,14 @@ export class XaiMethodRegistry {
   snapshot(): XaiMethodDescriptor[] {
     return [...this.#methods.values()].map((descriptor) => ({ ...descriptor }));
   }
+}
+
+function supportsGrokShellHistory(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(value);
+  if (!match) return false;
+  const [, major, minor, patch] = match.map(Number);
+  return major === 0 && minor === 2 && patch >= 103;
 }
 
 function collectAdvertisedMethods(value: unknown, found = new Set<string>(), depth = 0): Set<string> {
