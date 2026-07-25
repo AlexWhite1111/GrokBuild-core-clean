@@ -61,15 +61,15 @@ test("resume without an initialize Goal advertisement clears stale availability"
   actor.stop();
 });
 
-test("resume rebuilds permission modes and reads the official session permission", async () => {
-  const client = new CapabilityClient(undefined, true);
+test("resume reapplies the last official session permission through the structured control", async () => {
+  const client = new CapabilityClient(undefined, false);
   const snapshot = createTaskSnapshotFixture("project-fixture");
   snapshot.taskId = "session-fixture";
   snapshot.sessionId = "session-fixture";
   snapshot.connection = "unloaded";
   snapshot.permission = {
-    requested: "ask",
-    effective: "ask",
+    requested: "alwaysApprove",
+    effective: "alwaysApprove",
     base: "ask",
     modes: [],
   };
@@ -82,7 +82,7 @@ test("resume rebuilds permission modes and reads the official session permission
 
   const resumed = await actor.resume();
 
-  assert.equal(client.yoloWrites, 0);
+  assert.equal(client.yoloWrites, 1);
   assert.equal(resumed.permission.effective, "alwaysApprove");
   assert.equal(
     resumed.permission.modes.find((mode) => mode.mode === "alwaysApprove")?.effective,
@@ -319,7 +319,7 @@ function actorOptions(
     taskStore: taskStore as TaskActorOptions["taskStore"],
     publishNotification: () => undefined,
     workMode: "normal",
-    permission: "ask",
+    permission: existing?.snapshot.permission.requested || "ask",
     sandbox: "off",
     permissionCapabilities: {
       auto: { available: false },

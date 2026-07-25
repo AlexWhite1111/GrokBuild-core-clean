@@ -134,6 +134,7 @@ test("a resumed or renamed live subagent stays one conversation", (t) => {
     child_session_id: "child-a",
     description: "researcher",
     status: "completed",
+    output: "Not Refuted",
   });
   notify({
     type: "subagent_spawned",
@@ -148,6 +149,13 @@ test("a resumed or renamed live subagent stays one conversation", (t) => {
     child_session_id: "child-b",
     description: "lead verifier",
   });
+  notify({
+    type: "subagent_spawned",
+    subagent_id: "child-c",
+    child_session_id: "child-c",
+    description: "final verifier",
+    telemetry: { resumed_from: "child-b" },
+  });
 
   assert.deepEqual(projection.detail().context.activeWork.map((item) => ({
     id: item.id,
@@ -155,14 +163,66 @@ test("a resumed or renamed live subagent stays one conversation", (t) => {
     status: item.status,
     title: item.title,
     resumedFrom: item.telemetry?.resumedFrom,
+    outputTail: item.outputTail,
   })), [{
     id: "child-a",
-    childSessionId: "child-b",
+    childSessionId: "child-c",
     status: "running",
-    title: "lead verifier",
-    resumedFrom: "child-a",
+    title: "final verifier",
+    resumedFrom: "child-b",
+    outputTail: "Not Refuted",
   }]);
   assert.equal(projection.detail().context.history.filter((item) => item.kind === "work").length, 0);
+});
+
+test("a live parent reads child conversation through the official Session projector", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-child-session-projection-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const parent = createTaskSnapshotFixture("project-fixture");
+  parent.sessionId = "parent-session";
+  const child = createTaskSnapshotFixture("project-fixture");
+  child.taskId = "child-session";
+  child.sessionId = "child-session";
+  let reads = 0;
+  const projection = new TaskRuntimeProjection(
+    parent,
+    new JsonStateStore(path.join(root, "state.json")),
+    {
+      readChild: (sessionId) => {
+        reads += 1;
+        assert.equal(sessionId, "child-session");
+        return {
+          snapshot: child,
+          messages: [{
+            blockId: "official-child-message",
+            role: "assistant",
+            text: "official cumulative child transcript",
+            turnId: "official-child-turn",
+            streaming: false,
+            createdAt: child.createdAt,
+          }],
+          events: [],
+          context: { currentTodo: null, activeWork: [], history: [] },
+        };
+      },
+    },
+  );
+
+  projection.applyChildAcpNotification({
+    sessionId: "child-session",
+    update: {
+      sessionUpdate: "agent_message_chunk",
+      content: { type: "text", text: "proxied duplicate must not become a second transcript" },
+    },
+  });
+
+  const detail = projection.childDetail("child-session");
+  assert.equal(reads, 1);
+  assert.equal(detail.detail?.snapshot.taskId, "child-session");
+  assert.deepEqual(detail.detail?.messages.map((message) => message.text), [
+    "official cumulative child transcript",
+  ]);
+  assert.equal(projection.detail().messages.length, 0);
 });
 
 test("an official prompt completion clears only its stale running queue slot", (t) => {

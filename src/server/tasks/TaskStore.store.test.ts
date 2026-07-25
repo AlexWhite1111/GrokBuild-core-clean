@@ -36,6 +36,10 @@ test("TaskStore reads only official Grok session files", (t) => {
     JSON.stringify({ type: "user", prompt_index: 1, content: "<user_query>继续</user_query>" }),
     JSON.stringify({ type: "assistant", content: "继续完成" }),
   ].join("\n"));
+  fs.writeFileSync(path.join(sessionPath, "events.jsonl"), [
+    JSON.stringify({ type: "turn_started", yolo_mode: false }),
+    JSON.stringify({ type: "yolo_toggled", enabled: true }),
+  ].join("\n"));
 
   const state = new JsonStateStore(path.join(root, "app-state.json"));
   const projects = new ProjectStore(state);
@@ -45,6 +49,10 @@ test("TaskStore reads only official Grok session files", (t) => {
 
   assert.equal(detail?.snapshot.projectId, project.projectId);
   assert.equal(detail?.snapshot.workMode, "normal");
+  assert.equal(detail?.snapshot.permission.effective, "alwaysApprove");
+  assert.deepEqual(detail?.snapshot.permission.modes.map((mode) => [
+    mode.mode, mode.effective, mode.hotSwitch, mode.source,
+  ]), [["alwaysApprove", true, false, "xai"]]);
   assert.deepEqual(detail?.messages.map(({ role, text }) => [role, text]), [
     ["user", "唯一官方来源"],
     ["assistant", "完成"],
@@ -334,13 +342,16 @@ test("unloaded projection restores Todo, partial tools, and official child sessi
   const projectPath = path.join(root, "project");
   const grokHome = path.join(root, ".grok");
   const parentId = "019f0000-0000-7000-8000-000000000010";
+  const originalChildId = "019f0000-0000-7000-8000-000000000009";
   const childId = "019f0000-0000-7000-8000-000000000011";
   const workspacePath = path.join(grokHome, "sessions", encodeURIComponent(projectPath));
   const parentPath = path.join(workspacePath, parentId);
+  const originalChildPath = path.join(workspacePath, originalChildId);
   const childPath = path.join(workspacePath, childId);
   const startedAt = Date.parse("2026-07-25T00:00:00.000Z");
   fs.mkdirSync(projectPath);
   fs.mkdirSync(parentPath, { recursive: true });
+  fs.mkdirSync(originalChildPath, { recursive: true });
   fs.mkdirSync(childPath, { recursive: true });
   fs.writeFileSync(path.join(parentPath, "summary.json"), JSON.stringify({
     info: { id: parentId, cwd: projectPath },
@@ -364,10 +375,21 @@ test("unloaded projection restores Todo, partial tools, and official child sessi
       status: "completed",
     }),
   ].join("\n"));
-  fs.writeFileSync(path.join(childPath, "summary.json"), JSON.stringify({
-    info: { id: childId, cwd: projectPath, session_kind: "subagent" },
+  fs.writeFileSync(path.join(originalChildPath, "summary.json"), JSON.stringify({
+    info: { id: originalChildId, cwd: projectPath },
     session_kind: "subagent",
-    generated_title: "Child",
+    generated_title: "Original child",
+    created_at: new Date(startedAt).toISOString(),
+  }));
+  fs.writeFileSync(path.join(originalChildPath, "chat_history.jsonl"), JSON.stringify({
+    type: "assistant",
+    content: "original child answer",
+  }));
+  fs.writeFileSync(path.join(childPath, "summary.json"), JSON.stringify({
+    info: { id: childId, cwd: projectPath },
+    session_kind: "subagent_resume",
+    parent_session_id: originalChildId,
+    generated_title: "Resumed child",
     created_at: new Date(startedAt).toISOString(),
   }));
   fs.writeFileSync(path.join(childPath, "chat_history.jsonl"), [
@@ -391,7 +413,9 @@ test("unloaded projection restores Todo, partial tools, and official child sessi
     ["user", "child prompt"],
     ["assistant", "child answer"],
   ]);
+  assert.equal(store.readChildDetail(parentId, originalChildId)?.messages[0]?.text, "original child answer");
   assert.equal(store.list().some((task) => task.taskId === childId), false);
+  assert.equal(store.list().some((task) => task.taskId === originalChildId), false);
 });
 
 test("official inline media keeps its cache reference and attachment after restart", (t) => {

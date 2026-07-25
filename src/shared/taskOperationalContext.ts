@@ -12,84 +12,6 @@ import type {
 
 const TERMINAL_WORK = new Set<WorkItemStatus>(["completed", "failed", "cancelled"]);
 
-interface ProjectedSubagentLink {
-  childSessionId: string | null;
-  toolCallId: string | null;
-  resumedFrom: string | null;
-  title: string | null;
-  explicit: boolean;
-}
-
-function projectSubagentLinks(events: TaskEventEnvelope[]): {
-  byChild: Map<string, ProjectedSubagentLink>;
-  byTool: Map<string, ProjectedSubagentLink>;
-} {
-  const byChild = new Map<string, ProjectedSubagentLink>();
-  const byTool = new Map<string, ProjectedSubagentLink>();
-  const pending = new Map<string, ProjectedSubagentLink[]>();
-  for (const event of [...events].sort(compareEvent)) {
-    const payload = record(event.payload);
-    if (
-      event.method === "session/update:subagent_spawned"
-      || (event.method === "x.ai/session_notification" && text(payload.type) === "subagent_spawned")
-    ) {
-      const childSessionId = text(payload.childSessionId) || text(payload.subagentId);
-      if (!childSessionId) continue;
-      const nativeToolCallId = text(payload.toolCallId);
-      const childLink = byChild.get(childSessionId);
-      const link = (nativeToolCallId ? byTool.get(nativeToolCallId) : undefined) || childLink || {
-        childSessionId: null, toolCallId: null, resumedFrom: null, title: null, explicit: false,
-      };
-      link.explicit = true;
-      link.childSessionId = childSessionId;
-      link.toolCallId ||= nativeToolCallId || childLink?.toolCallId || null;
-      link.resumedFrom ||= text(record(payload.telemetry).resumedFrom) || text(payload.resumedFrom);
-      link.title = stableAgentTitle(link.title || childLink?.title || null, compact(text(payload.title)));
-      byChild.set(childSessionId, link);
-      if (link.toolCallId) byTool.set(link.toolCallId, link);
-      if (childLink?.toolCallId) byTool.set(childLink.toolCallId, link);
-      continue;
-    }
-    const toolCallId = text(payload.toolCallId);
-    const fingerprint = text(payload.promptFingerprint);
-    if (event.method.startsWith("session/update:tool_call") && toolCallId && (payload.toolName === "spawn_subagent" || byTool.has(toolCallId))) {
-      const existing = byTool.get(toolCallId);
-      const advertisedChild = stringList(payload.activityIds)[0] || text(payload.childSessionId) || text(payload.subagentId);
-      const link = existing || {
-        childSessionId: null, toolCallId, resumedFrom: null, title: null, explicit: true,
-      };
-      link.explicit = true;
-      link.toolCallId = toolCallId;
-      link.resumedFrom ||= text(payload.resumedFrom);
-      link.title = stableAgentTitle(link.title, compact(text(payload.title)));
-      if (advertisedChild) {
-        link.childSessionId = advertisedChild;
-        byChild.set(advertisedChild, link);
-      }
-      byTool.set(toolCallId, link);
-      if (fingerprint && !link.childSessionId && !(pending.get(fingerprint) || []).includes(link))
-        pending.set(fingerprint, [...(pending.get(fingerprint) || []), link]);
-      continue;
-    }
-    if (event.method !== "child/session/update:user_message_chunk") continue;
-    const childSessionId = text(payload.sessionId);
-    if (!childSessionId || !fingerprint) continue;
-    const link = pending.get(fingerprint)?.find((candidate) => !candidate.childSessionId);
-    if (!link) continue;
-    const native = byChild.get(childSessionId);
-    link.childSessionId = childSessionId;
-    link.resumedFrom ||= native?.resumedFrom || null;
-    link.title = stableAgentTitle(link.title, native?.title || null);
-    if (native?.toolCallId && !link.toolCallId) link.toolCallId = native.toolCallId;
-    byChild.set(childSessionId, link);
-    if (native?.toolCallId) byTool.set(native.toolCallId, link);
-  }
-  return {
-    byChild: new Map([...byChild].filter(([, link]) => link.explicit)),
-    byTool: new Map([...byTool].filter(([, link]) => link.explicit)),
-  };
-}
-
 /** Projects only structured ACP/XAI/supervisor evidence; message text is never inspected. */
 export function projectTaskOperationalContext(events: TaskEventEnvelope[]): TaskOperationalContextSnapshot {
   const ordered = [...events].sort(compareEvent);
@@ -205,74 +127,20 @@ function projectWorkItems(events: TaskEventEnvelope[]): WorkItemSnapshot[] {
   const toolToActivity = new Map<string, string>();
   const toolNames = new Map<string, string>();
   const toolTargets = new Map<string, string[]>();
-  const childQueuesSeen = new Set<string>();
-  const childLifecycle = new Map<string, WorkItemStatus>();
-  const subagentLinks = projectSubagentLinks(events);
   for (const event of events) {
     const payload = record(event.payload);
-    if (applyStructuredWorkLifecycle(items, toolToActivity, subagentLinks, event, payload)) continue;
+    if (applyStructuredWorkLifecycle(items, toolToActivity, event, payload)) continue;
     if (event.method.startsWith("child/session/update:")) {
       const childId = text(payload.sessionId);
       if (!childId) continue;
-      const link = subagentLinks.byChild.get(childId);
-      if (!link) continue;
       const current = findCurrentAgent(items, childId);
-      const resumeCandidate = !current && link?.resumedFrom ? findCurrentAgent(items, link.resumedFrom) : undefined;
-      const resumed = resumeCandidate && (resumeCandidate.childSessionId === link?.resumedFrom || resumeCandidate.activityId === link?.resumedFrom)
-        ? resumeCandidate
-        : undefined;
-      if (!current && !resumed && isSupersededAgentSession(items, subagentLinks, childId)) continue;
-      const updateType = event.method.slice("child/session/update:".length);
+      if (!current) continue;
       const title = compact(text(payload.title)) || compact(text(payload.message));
-      const next: WorkItemSnapshot = current || resumed || {
-        id: childId,
-        kind: "agent",
-        activityId: childId,
-        childSessionId: childId,
-        title: null,
-        status: "running",
-        currentActivity: null,
-        outputTail: null,
-        telemetry: null,
-        startedAt: event.occurredAt,
-        updatedAt: event.occurredAt,
-      };
-      const id = next.id;
-      const observedStatus = childLifecycle.get(childId);
-      items.set(id, {
-        ...next,
-        id,
-        activityId: childId,
-        childSessionId: childId,
-        title: stableAgentTitle(next.title, link?.title || null),
-        status: resumed ? "running" : TERMINAL_WORK.has(next.status) ? next.status : observedStatus || "running",
-        currentActivity: title || childActivity(updateType) || next.currentActivity,
-        telemetry: link?.resumedFrom ? mergeWorkTelemetry(next.telemetry, { resumedFrom: link.resumedFrom }) : next.telemetry,
+      items.set(current.id, {
+        ...current,
+        currentActivity: title || current.currentActivity,
         updatedAt: event.occurredAt,
       });
-      continue;
-    }
-    if (event.method === "x.ai/queue/changed" || event.method === "child/x.ai/queue/changed") {
-      const childId = text(payload.sessionId);
-      if (!childId || !subagentLinks.byChild.has(childId)) continue;
-      const running = Boolean(text(payload.runningPromptId)) || (Array.isArray(payload.entries) && payload.entries.length > 0);
-      if (running) {
-        childQueuesSeen.add(childId);
-        childLifecycle.set(childId, "running");
-      } else if (childQueuesSeen.has(childId)) childLifecycle.set(childId, "completed");
-      const current = findCurrentAgent(items, childId);
-      const status = childLifecycle.get(childId);
-      if (current?.kind === "agent" && status) items.set(current.id, { ...current, status, updatedAt: event.occurredAt });
-      continue;
-    }
-    if (event.method === "x.ai/session_notification" || event.method === "child/x.ai/session_notification") {
-      const childId = text(payload.sessionId);
-      if (!childId || !subagentLinks.byChild.has(childId)) continue;
-      const current = childId ? findCurrentAgent(items, childId) : undefined;
-      const status = childNotificationStatus(payload, current?.status);
-      if (status) childLifecycle.set(childId, status);
-      if (!current) continue;
-      items.set(current.id, { ...current, status: status || current.status, currentActivity: text(payload.message) || current.currentActivity, updatedAt: event.occurredAt });
       continue;
     }
     if (event.method !== "session/update:tool_call" && event.method !== "session/update:tool_call_update") continue;
@@ -280,54 +148,49 @@ function projectWorkItems(events: TaskEventEnvelope[]): WorkItemSnapshot[] {
     const advertisedName = text(payload.toolName)?.toLowerCase() || null;
     if (toolCallId && advertisedName) toolNames.set(toolCallId, advertisedName);
     const toolName = advertisedName || (toolCallId ? toolNames.get(toolCallId) || null : null);
-    const linkedSubagent = toolCallId && toolName === "spawn_subagent" ? subagentLinks.byTool.get(toolCallId) : undefined;
-    const advertisedTargets = linkedSubagent?.childSessionId ? [linkedSubagent.childSessionId] : stringList(payload.activityIds);
+    if (toolName === "spawn_subagent") continue;
+    const advertisedTargets = stringList(payload.activityIds);
     if (toolCallId && advertisedTargets.length) toolTargets.set(toolCallId, advertisedTargets);
     const activityIds = advertisedTargets.length ? advertisedTargets : toolCallId ? toolTargets.get(toolCallId) || [] : [];
     if (isControlTool(toolName)) {
       const results = Array.isArray(payload.activityResults) ? payload.activityResults.map(record) : [];
-      for (const result of results) updateWork(items, text(result.activityId), workStatus(text(result.status)), text(result.outputTail), event.occurredAt);
+      for (const result of results) {
+        const activityId = text(result.activityId);
+        if (activityId && findCurrentAgent(items, activityId)) continue;
+        updateWork(items, activityId, workStatus(text(result.status)), text(result.outputTail), event.occurredAt);
+      }
       if (!results.length && (toolName === "kill_command_or_subagent" || toolName === "scheduler_delete") && text(payload.status)?.toLowerCase() === "completed") {
-        activityIds.forEach((id) => updateWork(items, id, "cancelled", text(payload.outputTail), event.occurredAt));
+        activityIds.filter((id) => !findCurrentAgent(items, id))
+          .forEach((id) => updateWork(items, id, "cancelled", text(payload.outputTail), event.occurredAt));
       }
       continue;
     }
     if (!toolCallId) continue;
     const kind = workKind(payload, toolName);
+    if (kind === "agent") continue;
     const previousId = toolToActivity.get(toolCallId) || toolCallId;
     const activityId = activityIds[0] || toolToActivity.get(toolCallId) || null;
-    const resumeSource = linkedSubagent?.resumedFrom || null;
-    const resumeCandidate = resumeSource ? findCurrentAgent(items, resumeSource) : undefined;
-    const alreadyResumed = resumeSource && activityId
-      ? findCurrentAgent(items, activityId)
-      : undefined;
-    const resumed = resumeCandidate && (resumeCandidate.childSessionId === linkedSubagent?.resumedFrom || resumeCandidate.activityId === linkedSubagent?.resumedFrom)
-      ? resumeCandidate
-      : alreadyResumed?.telemetry?.resumedFrom === resumeSource ? alreadyResumed : undefined;
-    const id = resumed?.id || activityId || toolCallId;
-    const current = resumed || items.get(id) || findCurrentWork(items, previousId) || items.get(previousId);
+    const id = activityId || toolCallId;
+    const current = items.get(id) || findCurrentWork(items, previousId) || items.get(previousId);
     if (!kind && !current) continue;
     if (activityId) toolToActivity.set(toolCallId, activityId);
     if (previousId !== id) items.delete(previousId);
     const resolvedKind = kind || current!.kind;
-    let status = resumed ? "running" : TERMINAL_WORK.has(current?.status || "pending")
+    let status = TERMINAL_WORK.has(current?.status || "pending")
       ? current!.status
       : workStatus(text(payload.status), current?.status, event.method === "session/update:tool_call" ? "pending" : "running");
     if (!TERMINAL_WORK.has(current?.status || "pending") && status === "completed") status = "running";
     const candidateTitle = compact(text(payload.title));
-    const agentTitle = resolvedKind === "agent"
-      ? stableAgentTitle(current?.title || null, candidateTitle || linkedSubagent?.title || null)
-      : null;
     items.set(id, {
       id,
       kind: resolvedKind,
       activityId,
-      childSessionId: resolvedKind === "agent" ? activityId : null,
-      title: resolvedKind === "agent" ? agentTitle : candidateTitle || current?.title || null,
+      childSessionId: null,
+      title: candidateTitle || current?.title || null,
       status,
       currentActivity: text(payload.message) || candidateTitle || current?.currentActivity || null,
       outputTail: text(payload.outputTail) || current?.outputTail || null,
-      telemetry: linkedSubagent?.resumedFrom ? mergeWorkTelemetry(current?.telemetry || null, { resumedFrom: linkedSubagent.resumedFrom }) : current?.telemetry || null,
+      telemetry: current?.telemetry || null,
       startedAt: current?.startedAt || event.occurredAt,
       updatedAt: event.occurredAt,
     });
@@ -340,14 +203,6 @@ function projectWorkItems(events: TaskEventEnvelope[]): WorkItemSnapshot[] {
   }).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
 
-function childNotificationStatus(payload: Record<string, unknown>, current?: WorkItemStatus): WorkItemStatus | null {
-  const type = text(payload.type)?.toLowerCase();
-  const reason = text(payload.stopReason)?.toLowerCase() || text(payload.reason)?.toLowerCase() || "";
-  if (type === "turn_completed") return reason.includes("cancel") || reason.includes("interrupt") ? "cancelled" : "completed";
-  const status = text(payload.status);
-  return status ? workStatus(status, current) : null;
-}
-
 function confirmsWorkItem(event: TaskEventEnvelope, item: WorkItemSnapshot): boolean {
   const payload = record(event.payload);
   const runtimeIds = new Set([
@@ -357,6 +212,12 @@ function confirmsWorkItem(event: TaskEventEnvelope, item: WorkItemSnapshot): boo
   ].filter((id): id is string => Boolean(id)));
   const toolName = text(payload.toolName)?.toLowerCase() || null;
   const controlTool = isControlTool(toolName);
+  if (item.kind === "agent") {
+    return (
+      runtimeIds.has(text(payload.subagentId) || "")
+      || runtimeIds.has(text(payload.childSessionId) || "")
+    ) && isNativeWorkEvidence(event.method, payload);
+  }
   const resultConfirms = Array.isArray(payload.activityResults) && payload.activityResults.some((value) => {
     const id = text(record(value).activityId);
     const status = text(record(value).status);
@@ -393,7 +254,6 @@ function isNativeWorkEvidence(method: string, payload: Record<string, unknown>):
 function applyStructuredWorkLifecycle(
   items: Map<string, WorkItemSnapshot>,
   toolToActivity: Map<string, string>,
-  subagentLinks: ReturnType<typeof projectSubagentLinks>,
   event: TaskEventEnvelope,
   payload: Record<string, unknown>,
 ): boolean {
@@ -448,28 +308,15 @@ function applyStructuredWorkLifecycle(
     const subagentId = text(payload.subagentId);
     const childSessionId = text(payload.childSessionId) || subagentId;
     if (!subagentId && !childSessionId) return true;
-    const toolCallId = text(payload.toolCallId);
-    const link = (toolCallId ? subagentLinks.byTool.get(toolCallId) : undefined)
-      || (childSessionId ? subagentLinks.byChild.get(childSessionId) : undefined);
-    if (!link) return true;
     const nativeId = childSessionId || subagentId!;
-    const resumedFrom = kind === "subagent_spawned" ? text(record(payload.telemetry).resumedFrom) || link.resumedFrom : null;
+    const resumedFrom = kind === "subagent_spawned"
+      ? text(record(payload.telemetry).resumedFrom) || text(payload.resumedFrom)
+      : null;
     const resumeCandidate = resumedFrom ? findCurrentAgent(items, resumedFrom) : undefined;
-    // A resume creates a new native child session, but a linear continuation
-    // is one user-facing conversation. Preserve the root row while pointing it
-    // at the latest child. If the source already branched, retain a separate row.
-    const resumed = resumeCandidate && (resumeCandidate.childSessionId === resumedFrom || resumeCandidate.activityId === resumedFrom)
-      ? resumeCandidate
-      : undefined;
-    const spawned = findCurrentAgent(items, nativeId)
+    const current = findCurrentAgent(items, nativeId)
       || (subagentId ? findCurrentAgent(items, subagentId) : undefined)
-      || (toolCallId ? findWork(items, toolCallId) : undefined);
-    if (resumed && spawned && spawned.id !== resumed.id) items.delete(spawned.id);
-    const alreadyResumed = spawned && resumedFrom && spawned.childSessionId === nativeId && spawned.telemetry?.resumedFrom === resumedFrom
-      ? spawned
-      : undefined;
-    const current = resumed || alreadyResumed || spawned;
-    const id = resumed?.id || alreadyResumed?.id || (kind === "subagent_spawned" ? nativeId : current?.id || nativeId);
+      || resumeCandidate;
+    const id = current?.id || nativeId;
     const candidateTitle = compact(text(payload.title));
     const stableTitle = kind === "subagent_spawned" && candidateTitle && !isAgentPlaceholder(candidateTitle)
       ? candidateTitle
@@ -483,7 +330,6 @@ function applyStructuredWorkLifecycle(
       outputTail: text(payload.outputTail) || current?.outputTail || null,
       telemetry: mergeWorkTelemetry(current?.telemetry || null, payload.telemetry),
     });
-    if (toolCallId) toolToActivity.set(toolCallId, id);
     return true;
   }
   return false;
@@ -545,11 +391,9 @@ function workTurnId(events: TaskEventEnvelope[], item: WorkItemSnapshot): string
 
 function workKind(payload: Record<string, unknown>, toolName: string | null): WorkItemKind | null {
   const type = text(payload.activityType);
-  if (type === "subagent") return "agent";
   if (type === "background") return "task";
   if (type === "monitor") return "monitor";
   if (type === "loop") return "loop";
-  if (toolName === "spawn_subagent") return "agent";
   if (toolName === "monitor") return "monitor";
   if (toolName === "run_terminal_command" && payload.background === true) return "task";
   if (toolName === "scheduler_create" || toolName === "loop") return "loop";
@@ -595,32 +439,6 @@ function findCurrentWork(items: Map<string, WorkItemSnapshot>, id: string): Work
 function findCurrentAgent(items: Map<string, WorkItemSnapshot>, id: string): WorkItemSnapshot | undefined {
   const current = findCurrentWork(items, id);
   return current?.kind === "agent" ? current : undefined;
-}
-
-function isSupersededAgentSession(
-  items: Map<string, WorkItemSnapshot>,
-  links: ReturnType<typeof projectSubagentLinks>,
-  childSessionId: string,
-): boolean {
-  return [...items.values()].some((item) => {
-    if (item.kind !== "agent" || !item.childSessionId || item.childSessionId === childSessionId) return false;
-    let current: string | null = item.childSessionId;
-    const seen = new Set<string>();
-    while (current && !seen.has(current)) {
-      seen.add(current);
-      const resumedFrom: string | null = links.byChild.get(current)?.resumedFrom || null;
-      if (resumedFrom === childSessionId) return true;
-      current = resumedFrom;
-    }
-    return false;
-  });
-}
-function childActivity(updateType: string): string | null {
-  if (updateType === "agent_thought_chunk") return "Thinking";
-  if (updateType === "agent_message_chunk") return "Responding";
-  if (updateType === "tool_call" || updateType === "tool_call_update") return "Using tools";
-  if (updateType === "plan" || updateType === "plan_update") return "Updating plan";
-  return null;
 }
 function isControlTool(name: string | null): boolean { return name === "get_command_or_subagent_output" || name === "wait_commands_or_subagents" || name === "kill_command_or_subagent" || name === "scheduler_delete"; }
 function compareEvent(left: TaskEventEnvelope, right: TaskEventEnvelope): number { return left.connectionEpoch - right.connectionEpoch || left.sequence - right.sequence; }

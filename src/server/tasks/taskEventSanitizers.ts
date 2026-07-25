@@ -45,12 +45,7 @@ export function safeSessionUpdate(
   applyWorkLifecycle(update, safe);
   const toolName = string(tool.name);
   if (toolName && /^[a-z0-9][a-z0-9_:/.-]{0,127}$/i.test(toolName)) safe.toolName = toolName;
-  if (toolName === "spawn_subagent") {
-    const resumedFrom = activityId(rawInput.resume_from ?? rawInput.resumedFrom);
-    const promptFingerprint = fingerprint(rawInput.prompt);
-    if (resumedFrom) safe.resumedFrom = resumedFrom;
-    if (promptFingerprint) safe.promptFingerprint = promptFingerprint;
-  } else if (safe.sessionUpdate === "user_message_chunk") {
+  if (safe.sessionUpdate === "user_message_chunk") {
     const promptFingerprint = fingerprint(content.text);
     if (promptFingerprint) safe.promptFingerprint = promptFingerprint;
   }
@@ -268,9 +263,8 @@ function activityStatus(value: string | undefined): string | undefined {
   return ["pending", "running", "in_progress", "completed", "failed", "cancelled"].includes(status || "") ? status : undefined;
 }
 
-function safeActivityType(toolName: string | undefined, input: Record<string, unknown>): "subagent" | "background" | "monitor" | "loop" | undefined {
+function safeActivityType(toolName: string | undefined, input: Record<string, unknown>): "background" | "monitor" | "loop" | undefined {
   const normalized = toolName?.toLowerCase();
-  if (normalized === "spawn_subagent") return "subagent";
   if (normalized === "monitor") return "monitor";
   if (normalized === "run_terminal_command" && input.background === true) return "background";
   if (normalized === "scheduler_create" || normalized === "loop") return "loop";
@@ -285,11 +279,6 @@ function safeActivityIds(input: Record<string, unknown>): string[] {
     const candidate = string(value);
     return candidate && /^[a-z0-9][a-z0-9._:-]{2,127}$/i.test(candidate) ? [candidate] : [];
   }))].slice(0, 20);
-}
-
-function activityId(value: unknown): string | undefined {
-  const candidate = string(value);
-  return candidate && /^[a-z0-9][a-z0-9._:-]{2,127}$/i.test(candidate) ? candidate : undefined;
 }
 
 function fingerprint(value: unknown): string | undefined {
@@ -397,6 +386,7 @@ export function sanitizeXai(method: string, params: unknown): unknown {
     message: safeSignalText(signal, "message"),
     reason: safeSignalText(signal, "reason"),
     result: safeSignalText(signal, "result"),
+    outputTail: safeSignalOutput(signal),
     error: safeSignalText(signal, "error"),
     exception: safeSignalText(signal, "exception"),
     attempt: firstNumber(signal, ["attempt", "retryCount", "retry_count"]),
@@ -443,6 +433,14 @@ function safeSignalText(records: Record<string, unknown>[], key: string): string
   for (const record of records) {
     const value = string(record[key]);
     if (value) return redact(value.slice(0, 500));
+  }
+  return undefined;
+}
+
+function safeSignalOutput(records: Record<string, unknown>[]): string | undefined {
+  for (const record of records) {
+    const value = string(record.output);
+    if (value) return redact(value.slice(-16_000));
   }
   return undefined;
 }

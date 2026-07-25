@@ -89,9 +89,7 @@ export class TaskRuntimeProjection {
   readonly #semantic: TaskSemanticProjection;
   readonly #commands = new TaskCommandProjection();
   readonly #transcript: TaskRuntimeTranscript;
-  readonly #children = new Map<string, TaskRuntimeTranscript>();
   readonly #timeline = new Map<string, TaskStoredTimelineItem>();
-  readonly #childTimeline = new Map<string, Map<string, TaskStoredTimelineItem>>();
   readonly #timelineOrdinals = new Map<string, number>();
   readonly #officialEventIds = new Set<string>();
   readonly #media?: ProjectionMediaContext;
@@ -158,28 +156,15 @@ export class TaskRuntimeProjection {
   }
 
   childDetail(sessionId: string): ChildSessionDetail {
-    const transcript = this.#childTranscript(sessionId);
+    const detail = this.#readChild?.(sessionId) || null;
     const work = [...this.#context.activeWork, ...this.#context.history.flatMap((entry) => entry.kind === "work" ? [entry.work] : [])]
       .find((entry) => entry.childSessionId === sessionId || entry.id === sessionId);
-    const timeline = this.#childTimeline.get(sessionId);
-    const available = Boolean(transcript?.messages.length || timeline?.size);
     return {
       sessionId,
       status: work?.status || "unconfirmed",
-      transcriptAvailable: available,
-      detail: available ? {
-        snapshot: {
-          ...structuredClone(this.snapshot),
-          sessionId,
-          title: work?.title || "Subagent",
-          gates: [],
-          queue: { available: false, runningEntryId: null, entries: [] },
-        },
-        messages: structuredClone(transcript?.messages || []),
-        events: structuredClone([...(timeline?.values() || [])].sort(byOrdinal).map((entry) => entry.event)),
-        context: emptyContext(),
-      } : null,
-      reason: available ? null : "No structured child transcript is available yet.",
+      transcriptAvailable: Boolean(detail),
+      detail,
+      reason: detail ? null : "No structured child transcript is available yet.",
     };
   }
 
@@ -199,9 +184,6 @@ export class TaskRuntimeProjection {
     this.snapshot.taskId = sessionId;
     for (const event of this.#semantic.events) event.taskId = sessionId;
     for (const entry of this.#timeline.values()) entry.event.taskId = sessionId;
-    for (const timeline of this.#childTimeline.values()) {
-      for (const entry of timeline.values()) entry.event.taskId = sessionId;
-    }
   }
 
   addLocalUserMessage(
@@ -475,37 +457,9 @@ export class TaskRuntimeProjection {
   }
 
   #applyChildAcp(params: unknown): TaskRuntimeNotificationResult {
-    const value = asRecord(params);
-    const sessionId = string(value.sessionId);
-    const update = asRecord(value.update);
-    const updateType = string(update.sessionUpdate) || "unknown";
-    if (!sessionId) return result();
-    const safePayload = safeSessionUpdate(update, readMeta(value));
-    const turnId = string(readMeta(value).turnId) || string(readMeta(update).turnId) || `child:${sessionId}:turn`;
-    const event = this.#transientEvent("acp", `child/session/update:${updateType}`, turnId, { sessionId, ...safePayload });
-    const transcript = this.#childTranscript(sessionId);
-    if (updateType === "agent_message_chunk" || updateType === "agent_thought_chunk") {
-      const media = mediaForSessionUpdate(this.#media, this.snapshot.taskId, updateType, update);
-      transcript.appendAgent(
-        updateType === "agent_message_chunk" ? "assistant" : "thought",
-        update,
-        turnId,
-        true,
-        event,
-        updateType === "agent_message_chunk" ? media : [],
-      );
-      this.#semantic.touch();
-    } else if (updateType === "user_message_chunk") {
-      transcript.appendRemoteUser(update, turnId, true, event);
-      const before = this.#semantic.events.length;
-      this.#semantic.applyChildAcpNotification(params);
-      this.#captureSemanticEvents(before);
-    } else {
-      const before = this.#semantic.events.length;
-      this.#semantic.applyChildAcpNotification(params);
-      this.#captureSemanticEvents(before);
-    }
-    this.#refreshContext();
+    const before = this.#semantic.events.length;
+    this.#semantic.applyChildAcpNotification(params);
+    this.#captureSemanticEvents(before);
     return result();
   }
 
@@ -518,18 +472,9 @@ export class TaskRuntimeProjection {
   }
 
   #applyChildXai(method: string, params: unknown): TaskRuntimeNotificationResult {
-    const sessionId = string(asRecord(params).sessionId);
     const before = this.#semantic.events.length;
     this.#semantic.applyChildXaiNotification(method, params);
     const events = this.#captureSemanticEvents(before);
-    const type = string(asRecord(params).type);
-    const settled = method === "x.ai/session_notification" && (type === "turn_completed" || type === "turn_failed");
-    const transcript = sessionId ? this.#children.get(sessionId) : undefined;
-    if (settled && transcript) {
-      for (const message of transcript.messages) {
-        if (message.streaming) message.streaming = false;
-      }
-    }
     this.#publish(events);
     return result();
   }
@@ -566,11 +511,9 @@ export class TaskRuntimeProjection {
 
   #upsertTimeline(event: TaskEventEnvelope, remapCursor: boolean): TaskStoredTimelineItem | null {
     const scope = eventScope(event);
-    if (scope.kind === "child" && !scope.id) return null;
+    if (scope.kind === "child") return null;
     const itemId = scopedTimelineId(scope, timelineIdentity(event));
-    const target = scope.kind === "parent"
-      ? this.#timeline
-      : this.#childTimelineFor(scope.id);
+    const target = this.#timeline;
     const existing = target.get(itemId);
     const ordinal = existing?.ordinal ?? this.#nextTimelineOrdinal(scope);
     const cursor = remapCursor ? this.#nextCursor() : {
@@ -623,31 +566,6 @@ export class TaskRuntimeProjection {
     return { connectionEpoch: this.#connectionEpoch, sequence: ++this.#sequence };
   }
 
-  #childTranscript(sessionId: string): TaskRuntimeTranscript {
-    let transcript = this.#children.get(sessionId);
-    if (!transcript) {
-      const restored = this.#readChild?.(sessionId);
-      transcript = new TaskRuntimeTranscript(
-        this.snapshot,
-        new TaskCommandProjection(),
-        this.#media,
-        structuredClone(restored?.messages || []),
-      );
-      this.#children.set(sessionId, transcript);
-      for (const event of restored?.events || []) this.#upsertTimeline(event, false);
-    }
-    return transcript;
-  }
-
-  #childTimelineFor(sessionId: string): Map<string, TaskStoredTimelineItem> {
-    let timeline = this.#childTimeline.get(sessionId);
-    if (!timeline) {
-      timeline = new Map();
-      this.#childTimeline.set(sessionId, timeline);
-    }
-    return timeline;
-  }
-
   #nextTimelineOrdinal(scope: TaskStoreScope): number {
     const key = `${scope.kind}:${scope.id}`;
     const next = (this.#timelineOrdinals.get(key) || 0) + 1;
@@ -677,10 +595,6 @@ function delayedExecutionId(connectionEpoch: number, payload: Record<string, unk
   return promptId && typeof turnStartMs === "number" && Number.isSafeInteger(turnStartMs)
     ? `native:${connectionEpoch}:${promptId}:${turnStartMs}`
     : `turn_${sequence}`;
-}
-
-function emptyContext(): TaskOperationalContextSnapshot {
-  return { currentTodo: null, activeWork: [], history: [] };
 }
 
 function eventScope(event: TaskEventEnvelope): TaskStoreScope {

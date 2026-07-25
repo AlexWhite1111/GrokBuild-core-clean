@@ -149,7 +149,7 @@ export class TaskActor extends EventEmitter {
       if (session.modes?.currentModeId === "normal" || session.modes?.currentModeId === "plan") {
         this.#projection.snapshot.workMode = session.modes.currentModeId;
       }
-      await this.#permissions.establish(session.sessionId, this.#latestTurnId, "create");
+      await this.#permissions.establish(session.sessionId, this.#latestTurnId);
       this.#machine.send({ type: "READY" });
       return this.snapshot;
     } catch (error) {
@@ -172,7 +172,7 @@ export class TaskActor extends EventEmitter {
       const loaded = await this.#client.loadSession(sessionId).finally(() => this.#projection.endSessionReplay());
       applyTaskConfigOptions(this.#projection.snapshot, loaded.configOptions);
       if (loaded.modes?.currentModeId === "normal" || loaded.modes?.currentModeId === "plan") this.#projection.snapshot.workMode = loaded.modes.currentModeId;
-      await this.#permissions.establish(sessionId, this.#latestTurnId, "resume");
+      await this.#permissions.establish(sessionId, this.#latestTurnId);
       this.#projection.snapshot.error = null;
       this.#projection.snapshot.sandbox.source = "loaded-session";
       this.#machine.send({ type: "READY" });

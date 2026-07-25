@@ -83,7 +83,7 @@ export class TaskStore {
         const summaryPath = path.join(sessionsRoot, workspace, session, "summary.json");
         const summary = readObject(summaryPath, 1_048_576);
         const info = object(summary?.info);
-        if (!summary || summary.session_kind === "subagent" || info?.session_kind === "subagent") continue;
+        if (!summary || isChildSession(summary)) continue;
         const sessionId = text(info?.id) === session ? session : session;
         const cwd = text(info?.cwd) || decodeWorkspace(workspace);
         const projectId = this.projects.projectIdForCanonicalPath(cwd);
@@ -155,13 +155,13 @@ export class TaskStore {
     };
   }
 
-  readChildDetail(_taskId: string, sessionId: string): TaskDetailProjection | null {
-    const parent = this.row(_taskId);
+  readChildDetail(taskId: string, sessionId: string): TaskDetailProjection | null {
+    const parent = this.row(taskId);
     if (!parent) return null;
     const summaryPath = path.join(path.dirname(path.dirname(parent.summary_path)), sessionId, "summary.json");
     const summary = readObject(summaryPath, 1_048_576);
     const info = object(summary?.info);
-    if (!summary || (summary.session_kind !== "subagent" && info?.session_kind !== "subagent")) return null;
+    if (!summary || !isChildSession(summary)) return null;
     if (text(info?.id) && text(info?.id) !== sessionId) return null;
     const createdAt = timestamp(summary.created_at, fileTime(summaryPath));
     const updatedAt = timestamp(summary.updated_at ?? summary.last_active_at, createdAt);
@@ -256,7 +256,7 @@ function snapshotFrom(row: TaskRow, summary: Record<string, unknown>): TaskSnaps
     turn: "idle",
     currentPromptExecutionId: null,
     workMode: "normal",
-    permission: { requested: "ask", effective: "ask", base: "ask", modes: [] },
+    permission: officialPermission(row.summary_path),
     sandbox: {
       requested: sandbox,
       effective: sandbox,
@@ -568,6 +568,41 @@ function safeDirectories(directory: string): string[] {
   } catch {
     return [];
   }
+}
+
+function isChildSession(summary: Record<string, unknown>): boolean {
+  const kind = text(summary.session_kind) || text(object(summary.info)?.session_kind);
+  return kind === "subagent" || kind === "subagent_resume";
+}
+
+function officialPermission(summaryPath: string): TaskSnapshot["permission"] {
+  const file = path.join(path.dirname(summaryPath), "events.jsonl");
+  let yolo: boolean | null = null;
+  try {
+    if (fs.statSync(file).size > 64 * 1024 * 1024) throw new Error("events file too large");
+    for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+      let event: Record<string, unknown> | null = null;
+      try { event = object(JSON.parse(line)); } catch { /* skip damaged live tail */ }
+      if (!event) continue;
+      if (event.type === "yolo_toggled" && typeof event.enabled === "boolean") yolo = event.enabled;
+      if (event.type === "turn_started" && typeof event.yolo_mode === "boolean") yolo = event.yolo_mode;
+    }
+  } catch {
+    // A session without an official permission record remains at protocol default.
+  }
+  const effective = yolo === true ? "alwaysApprove" : "ask";
+  return {
+    requested: effective,
+    effective,
+    base: "ask",
+    modes: yolo == null ? [] : [{
+      mode: effective,
+      available: true,
+      effective: true,
+      hotSwitch: false,
+      source: "xai",
+    }],
+  };
 }
 
 function readObject(file: string, maxBytes: number): Record<string, unknown> | null {
