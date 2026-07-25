@@ -379,6 +379,9 @@ export function sanitizeXai(method: string, params: unknown): unknown {
   }
   const signal = xaiSignal(record);
   const protocol = signal.flatMap((value) => [value, readMeta(value)]);
+  const subagentId = firstString(signal, ["subagentId", "subagent_id"]);
+  const childSessionId = firstString(signal, ["childSessionId", "child_session_id"]) || subagentId;
+  const description = firstString(signal, ["description", "subagentType", "subagent_type"]);
   return {
     sessionId: string(record.sessionId),
     type: firstString(signal, ["sessionUpdate", "type", "kind", "event", "name", "notificationType", "notification_type"]) || method,
@@ -396,6 +399,9 @@ export function sanitizeXai(method: string, params: unknown): unknown {
     attempt: firstNumber(signal, ["attempt", "retryCount", "retry_count"]),
     maxAttempts: firstNumber(signal, ["maxAttempts", "max_attempts", "maxRetries", "max_retries"]),
     model: firstString(signal, ["model", "modelId", "model_id"]),
+    subagentId,
+    childSessionId,
+    title: description,
   };
 }
 

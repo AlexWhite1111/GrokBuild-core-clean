@@ -29,7 +29,10 @@ function projectSubagentLinks(events: TaskEventEnvelope[]): {
   const pending = new Map<string, ProjectedSubagentLink[]>();
   for (const event of [...events].sort(compareEvent)) {
     const payload = record(event.payload);
-    if (event.method === "session/update:subagent_spawned") {
+    if (
+      event.method === "session/update:subagent_spawned"
+      || (event.method === "x.ai/session_notification" && text(payload.type) === "subagent_spawned")
+    ) {
       const childSessionId = text(payload.childSessionId) || text(payload.subagentId);
       if (!childSessionId) continue;
       const nativeToolCallId = text(payload.toolCallId);
@@ -363,8 +366,8 @@ function confirmsWorkItem(event: TaskEventEnvelope, item: WorkItemSnapshot): boo
   // that target is evidence; a failed `task not found` response is not liveness.
   if (controlTool) return resultConfirms;
   if (resultConfirms) return true;
-  if (runtimeIds.has(text(payload.taskId) || "")) return isNativeWorkEvidence(event.method);
-  if (runtimeIds.has(text(payload.subagentId) || "") || runtimeIds.has(text(payload.childSessionId) || "")) return isNativeWorkEvidence(event.method);
+  if (runtimeIds.has(text(payload.taskId) || "")) return isNativeWorkEvidence(event.method, payload);
+  if (runtimeIds.has(text(payload.subagentId) || "") || runtimeIds.has(text(payload.childSessionId) || "")) return isNativeWorkEvidence(event.method, payload);
   if (runtimeIds.has(text(payload.sessionId) || "") && (event.method.startsWith("child/") || event.method.startsWith("x.ai/"))) return true;
   if (!event.method.startsWith("session/update:tool_call")) return false;
   const toolStatus = workStatus(text(payload.status));
@@ -372,7 +375,10 @@ function confirmsWorkItem(event: TaskEventEnvelope, item: WorkItemSnapshot): boo
   return stringList(payload.activityIds).some((id) => runtimeIds.has(id));
 }
 
-function isNativeWorkEvidence(method: string): boolean {
+function isNativeWorkEvidence(method: string, payload: Record<string, unknown>): boolean {
+  if (method === "x.ai/session_notification") {
+    return ["subagent_spawned", "subagent_progress", "subagent_finished"].includes(text(payload.type) || "");
+  }
   return method === "session/update:task_backgrounded"
     || method === "session/update:task_completed"
     || method === "session/update:monitor_event"
@@ -391,7 +397,11 @@ function applyStructuredWorkLifecycle(
   event: TaskEventEnvelope,
   payload: Record<string, unknown>,
 ): boolean {
-  const kind = event.method.startsWith("session/update:") ? event.method.slice("session/update:".length) : event.method;
+  const kind = event.method === "x.ai/session_notification"
+    ? text(payload.type)
+    : event.method.startsWith("session/update:")
+      ? event.method.slice("session/update:".length)
+      : event.method;
   if (kind === "task/work:stop_requested") {
     const current = findWork(items, text(payload.workItemId) || "");
     if (current && !TERMINAL_WORK.has(current.status)) items.set(current.id, { ...current, currentActivity: "Stopping", updatedAt: event.occurredAt });

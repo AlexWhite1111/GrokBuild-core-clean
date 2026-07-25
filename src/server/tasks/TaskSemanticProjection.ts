@@ -486,6 +486,18 @@ export class TaskSemanticProjection {
     this.record("xai", method, presentationTurn, payload, params);
     const ownSession =
       string(asRecord(payload).sessionId) === this.snapshot.sessionId;
+    const completedPromptId = string(payloadRecord.promptId);
+    if (
+      ownSession
+      && completedPromptId
+      && this.snapshot.queue.runningEntryId === completedPromptId
+      && (
+        method === "x.ai/session/prompt_complete"
+        || (method === "x.ai/session_notification" && (type === "turn_completed" || type === "turn_failed"))
+      )
+    ) {
+      this.snapshot.queue.runningEntryId = null;
+    }
     if (method === "x.ai/session_notification" && ownSession && (type === "model_changed" || type === "model_auto_switched")) {
       const modelId = string(payloadRecord.model);
       if (modelId && /^[A-Za-z0-9._:/-]{1,256}$/.test(modelId)) this.snapshot.modelId = modelId;

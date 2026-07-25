@@ -87,14 +87,14 @@ test("terminal receipts match an exact active turn and never guess among several
   assert.equal(context.completionReceipt({}).turnId, "turn-a");
 });
 
-test("the official underscore session update projects a live subagent", (t) => {
+test("the official live session notification projects a subagent", (t) => {
   const { client, projection } = liveProjection(t);
   client.emit("notification", {
-    method: "_x.ai/session/update",
+    method: "x.ai/session_notification",
     params: {
       sessionId: "parent-session",
-      update: {
-        sessionUpdate: "subagent_spawned",
+      notification: {
+        type: "subagent_spawned",
         subagent_id: "child-session",
         child_session_id: "child-session",
         description: "goal achievement skeptic",
@@ -113,6 +113,45 @@ test("the official underscore session update projects a live subagent", (t) => {
     status: "running",
     title: "goal achievement skeptic",
   }]);
+});
+
+test("an official prompt completion clears only its stale running queue slot", (t) => {
+  const { client, projection } = liveProjection(t);
+  client.emit("notification", {
+    method: "x.ai/queue/changed",
+    params: {
+      sessionId: "parent-session",
+      runningPromptId: "prompt-b",
+      entries: [],
+    },
+  });
+  client.emit("notification", {
+    method: "x.ai/session/prompt_complete",
+    params: {
+      sessionId: "parent-session",
+      promptId: "prompt-a",
+      stopReason: "cancelled",
+    },
+  });
+  assert.equal(projection.snapshot.queue.runningEntryId, "prompt-b");
+
+  client.emit("notification", {
+    method: "x.ai/queue/changed",
+    params: {
+      sessionId: "parent-session",
+      runningPromptId: "prompt-a",
+      entries: [],
+    },
+  });
+  client.emit("notification", {
+    method: "x.ai/session/prompt_complete",
+    params: {
+      sessionId: "parent-session",
+      promptId: "prompt-a",
+      stopReason: "cancelled",
+    },
+  });
+  assert.equal(projection.snapshot.queue.runningEntryId, null);
 });
 
 test("late chunks from one official prompt stay in one assistant message", (t) => {

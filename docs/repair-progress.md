@@ -53,17 +53,25 @@
 - 历史 Plan 只认 `current_mode_update`/`session/load`；恢复权限只读官方 session roster，不反写默认值。
 - 卸载任务可显式恢复；已恢复的 Plan 可通过官方 `setMode(normal)` 退出。
 - busy Goal 控制先取消当前官方执行再串行下发，不进入普通 prompt 队列；`infra_paused` 按官方状态显示暂停。
+- 官方 prompt 终态按精确 prompt id 清理旧队列占位，Goal 编辑不会卡在等待接收。
 - 桌面后端重启后复用既有版本检测并刷新页面，不保留永久转圈的旧连接。
-- 延迟回复用官方 prompt identity 合并 chunk；官方 `_x.ai/session/update` 子代理生命周期进入共享 Context projector。
+- 延迟回复用官方 prompt identity 合并 chunk；实时 `x.ai/session_notification` 与磁盘 session update 共用子代理 Context projector。
 
 ## 最终验证
 
 - `npm run typecheck`：通过。
 - `npm run test:segmentation`：94 / 94 通过。
-- `npm run test:task-runtime`：87 / 87 通过。
+- `npm run test:task-runtime`：88 / 88 通过。
 - `npm run build`：Web、Server、Electron Shell 通过。
 - `npm run architecture`：通过；无未使用代码，重复率低于阈值。
 - `npm audit --omit=dev`：生产依赖 0 个漏洞。
+
+## 桌面 UI 验证
+
+- 仅通过桌面 UI 建立 Goal；Goal 条和 live 子代理立即投影。
+- busy Goal 的暂停、继续、编辑保存、删除均完成，未再卡在等待接收。
+- 卸载任务恢复后可正常发送消息，Paused Goal、权限和子代理历史仍可见。
+- 仅通过加号建立 Plan；详情投影和“不批准”收尾正常。
 
 ## 维护入口
 
