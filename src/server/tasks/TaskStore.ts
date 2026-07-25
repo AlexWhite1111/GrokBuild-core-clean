@@ -34,6 +34,7 @@ export interface TaskRow {
   created_at: string;
   updated_at: string;
   summary_path: string;
+  has_user_turn: boolean;
 }
 
 export interface TaskStoreScope {
@@ -70,7 +71,7 @@ export class TaskStore {
       if (!detail) return [];
       const haystack = `${row.title}\n${detail.messages.filter((message) => message.role === "user").map((message) => message.text).join("\n")}`.toLocaleLowerCase();
       return terms.every((term) => haystack.includes(term))
-        ? [listItem(detail.snapshot, row.pinned === 1, this.isArchived(row.session_id))]
+        ? [listItem(detail.snapshot, row.pinned === 1, this.isArchived(row.session_id), detail.messages.some((message) => message.role === "user"))]
         : [];
     });
   }
@@ -104,6 +105,7 @@ export class TaskStore {
           created_at: new Date(createdAt).toISOString(),
           updated_at: new Date(Math.max(createdAt, updatedAt)).toISOString(),
           summary_path: summaryPath,
+          has_user_turn: (nonnegativeInteger(summary.num_messages) ?? 0) > 0,
         });
       }
     }
@@ -178,6 +180,7 @@ export class TaskStore {
       created_at: new Date(createdAt).toISOString(),
       updated_at: new Date(Math.max(createdAt, updatedAt)).toISOString(),
       summary_path: summaryPath,
+      has_user_turn: (nonnegativeInteger(summary.num_messages) ?? 0) > 0,
     });
   }
 
@@ -520,11 +523,12 @@ function contentText(content: unknown): string {
   }).join("\n").trim();
 }
 
-function listItem(snapshot: TaskSnapshot, pinned: boolean, archived: boolean): TaskListItem {
+function listItem(snapshot: TaskSnapshot, pinned: boolean, archived: boolean, hasUserTurn: boolean): TaskListItem {
   return {
     taskId: snapshot.taskId,
     projectId: snapshot.projectId,
     sessionId: snapshot.sessionId,
+    hasUserTurn,
     title: snapshot.title,
     status: "unloaded:idle",
     active: false,
@@ -544,6 +548,7 @@ function rowListItem(row: TaskRow, archived: boolean): TaskListItem {
     taskId: row.task_id,
     projectId: row.project_id,
     sessionId: row.session_id,
+    hasUserTurn: row.has_user_turn,
     title: row.title,
     status: row.state,
     active: false,

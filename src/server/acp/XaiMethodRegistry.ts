@@ -1,7 +1,7 @@
 import type { InitializeResponse } from "@agentclientprotocol/sdk";
 
 type XaiAvailability = "advertised" | "probed" | "unavailable" | "policyLocked";
-export type XaiMethodKind = "request" | "notification" | "reverseRequest";
+export type XaiMethodKind = "request" | "notification" | "reverseRequest" | "event";
 
 export interface XaiMethodDescriptor {
   method: XaiMethod;
@@ -55,7 +55,7 @@ export const XAI_METHODS = {
 export type XaiMethod = (typeof XAI_METHODS)[keyof typeof XAI_METHODS];
 
 const DEFINITIONS: ReadonlyArray<Omit<XaiMethodDescriptor, "availability">> = [
-  { method: XAI_METHODS.queueChanged, kind: "reverseRequest", sideEffect: "none" },
+  { method: XAI_METHODS.queueChanged, kind: "event", sideEffect: "none" },
   { method: XAI_METHODS.queueRemove, kind: "notification", sideEffect: "write" },
   { method: XAI_METHODS.queueReorder, kind: "notification", sideEffect: "write" },
   { method: XAI_METHODS.queueEdit, kind: "notification", sideEffect: "write" },
@@ -64,19 +64,19 @@ const DEFINITIONS: ReadonlyArray<Omit<XaiMethodDescriptor, "availability">> = [
   { method: XAI_METHODS.interject, kind: "request", sideEffect: "write" },
   { method: XAI_METHODS.askUserQuestion, kind: "reverseRequest", sideEffect: "none" },
   { method: XAI_METHODS.exitPlanMode, kind: "reverseRequest", sideEffect: "none" },
-  { method: XAI_METHODS.promptComplete, kind: "reverseRequest", sideEffect: "none" },
-  { method: XAI_METHODS.sessionInterjection, kind: "reverseRequest", sideEffect: "none" },
-  { method: XAI_METHODS.sessionNotification, kind: "reverseRequest", sideEffect: "none" },
-  { method: XAI_METHODS.sessionUpdate, kind: "notification", sideEffect: "none" },
+  { method: XAI_METHODS.promptComplete, kind: "event", sideEffect: "none" },
+  { method: XAI_METHODS.sessionInterjection, kind: "event", sideEffect: "none" },
+  { method: XAI_METHODS.sessionNotification, kind: "event", sideEffect: "none" },
+  { method: XAI_METHODS.sessionUpdate, kind: "event", sideEffect: "none" },
   { method: XAI_METHODS.sessionsList, kind: "request", sideEffect: "read" },
-  { method: XAI_METHODS.sessionsChanged, kind: "notification", sideEffect: "none" },
-  { method: XAI_METHODS.settingsUpdate, kind: "notification", sideEffect: "none" },
+  { method: XAI_METHODS.sessionsChanged, kind: "event", sideEffect: "none" },
+  { method: XAI_METHODS.settingsUpdate, kind: "event", sideEffect: "none" },
   { method: XAI_METHODS.yoloModeChanged, kind: "notification", sideEffect: "write" },
-  { method: XAI_METHODS.fsNotify, kind: "notification", sideEffect: "none" },
-  { method: XAI_METHODS.fsIndex, kind: "notification", sideEffect: "none" },
-  { method: XAI_METHODS.fsIndexDelta, kind: "notification", sideEffect: "none" },
-  { method: XAI_METHODS.fuzzyStatus, kind: "notification", sideEffect: "none" },
-  { method: XAI_METHODS.worktreeStatus, kind: "notification", sideEffect: "none" },
+  { method: XAI_METHODS.fsNotify, kind: "event", sideEffect: "none" },
+  { method: XAI_METHODS.fsIndex, kind: "event", sideEffect: "none" },
+  { method: XAI_METHODS.fsIndexDelta, kind: "event", sideEffect: "none" },
+  { method: XAI_METHODS.fuzzyStatus, kind: "event", sideEffect: "none" },
+  { method: XAI_METHODS.worktreeStatus, kind: "event", sideEffect: "none" },
   { method: XAI_METHODS.gitStatus, kind: "request", sideEffect: "read" },
   { method: XAI_METHODS.gitDiffs, kind: "request", sideEffect: "read" },
   { method: XAI_METHODS.gitStage, kind: "request", sideEffect: "write" },
@@ -132,17 +132,27 @@ export class XaiMethodRegistry {
     }
     const meta = response._meta as Record<string, unknown> | undefined;
     if (meta?.grokShell === true) {
-      for (const method of GROK_SHELL_EXTENSION_CONTRACT) this.observe(method, "advertised");
+      for (const method of GROK_SHELL_EXTENSION_CONTRACT) this.observe(method, "probed");
       if (supportsGrokShellHistory(meta.agentVersion)) {
         for (const method of GROK_SHELL_PROBED_CONTRACT) this.observe(method, "probed");
       }
     }
   }
 
-  observe(method: XaiMethod, availability: "advertised" | "probed" = "advertised"): void {
+  observe(
+    method: XaiMethod,
+    availability: "advertised" | "probed" = "probed",
+    kind?: Exclude<XaiMethodKind, "event">,
+  ): void {
     const current = this.#methods.get(method);
     if (!current || current.availability === "policyLocked") return;
-    this.#methods.set(method, { ...current, availability, reason: undefined });
+    const resolvedAvailability = current.availability === "advertised" ? "advertised" : availability;
+    this.#methods.set(method, {
+      ...current,
+      ...(kind ? { kind } : {}),
+      availability: resolvedAvailability,
+      reason: undefined,
+    });
   }
 
   unavailable(method: XaiMethod, reason: string): void {

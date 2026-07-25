@@ -31,7 +31,7 @@ function MermaidPreview({ source, controller, detail, comfortablePercent, minimu
     }).catch(() => { if (active) setState(false); });
     return () => { active = false; };
   }, [id, source, themeRevision]);
-  return <PreviewState value={state} controller={controller} detail={detail} comfortablePercent={comfortablePercent} minimumSize={minimumSize} tightBounds />;
+  return <PreviewState value={state} controller={controller} detail={detail} comfortablePercent={comfortablePercent} minimumSize={minimumSize} />;
 }
 
 function SvgPreview({ source, controller, detail, comfortablePercent, minimumSize }: DiagramPreviewProps) {
@@ -70,6 +70,7 @@ function mermaidConfiguration(): MermaidConfig {
   return {
     startOnLoad: false,
     securityLevel: "strict",
+    suppressErrorRendering: true,
     theme: "base",
     htmlLabels: false,
     flowchart: { useMaxWidth: true },
@@ -77,11 +78,11 @@ function mermaidConfiguration(): MermaidConfig {
   };
 }
 
-function PreviewState({ value, controller, detail, comfortablePercent, minimumSize, tightBounds = false }: { value: string | false | null; controller?: VisualCanvasController; detail?: boolean; comfortablePercent?: number; minimumSize?: number; tightBounds?: boolean }) {
+function PreviewState({ value, controller, detail, comfortablePercent, minimumSize }: { value: string | false | null; controller?: VisualCanvasController; detail?: boolean; comfortablePercent?: number; minimumSize?: number }) {
   const { t } = useTranslation();
   if (value === null) return <div className={styles.previewLoading} aria-label={t("loading")} />;
   if (value === false) return <div className={styles.renderError}>{t("renderFailed")}</div>;
-  return <DiagramViewport svg={value} controller={controller} detail={detail} comfortablePercent={comfortablePercent} minimumSize={minimumSize} tightBounds={tightBounds} />;
+  return <DiagramViewport svg={value} controller={controller} detail={detail} comfortablePercent={comfortablePercent} minimumSize={minimumSize} />;
 }
 
 function DataPreview({ kind, source, detail }: { kind: Exclude<StaticPreviewKind, "mermaid" | "svg" | "dot" | "spice">; source: string; detail: boolean }) {

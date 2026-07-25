@@ -1,9 +1,9 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, Code2, ExternalLink, Eye, FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { LocalRunArtifact, LocalRunSnapshot, UiPreferences } from "../../shared/contracts.js";
+import type { LocalRunArtifact, LocalRunSnapshot } from "../../shared/contracts.js";
 import type { ApiClient } from "../api/ApiClient.js";
+import { useUiPreferences } from "../api/hooks.js";
 import { DiagramViewport } from "./DiagramViewport.js";
 import { HtmlPreview } from "./HtmlPreview.js";
 import { InteractiveRunPreview } from "./InteractiveRunPreview.js";
@@ -80,7 +80,7 @@ function ArtifactPreview({ api, runId, artifact }: { api: ApiClient; runId: stri
     const svg = sanitizeSvgMarkup(data);
     return <Artifact caption={caption}>{svg ? <DiagramViewport svg={svg} /> : <div className={styles.renderError}>SVG unavailable</div>}</Artifact>;
   }
-  if (artifact.kind === "html") return <Artifact caption={caption}><HtmlPreview language="html" source={data} /></Artifact>;
+  if (artifact.kind === "html") return <Artifact caption={caption}><HtmlPreview api={api} language="html" source={data} /></Artifact>;
   if (artifact.kind === "pdf") return <Artifact caption={caption}><iframe className={styles.pdfArtifact} data-shape="control" src={data} title={artifact.name} /></Artifact>;
   return <Artifact caption={caption}><pre data-copy-rendered className={styles.runOutput}>{prettyText(artifact.kind, data)}</pre></Artifact>;
 
@@ -90,7 +90,7 @@ function ArtifactPreview({ api, runId, artifact }: { api: ApiClient; runId: stri
 }
 
 function ArtifactImage({ src, alt }: { src: string; alt: string }) {
-  const preferences = useQueryClient().getQueryData<UiPreferences>(["ui-preferences"]);
+  const preferences = useUiPreferences().data;
   const controller = useVisualCanvasController(preferences?.mediaInitialSize || "native");
   const [natural, setNatural] = useState({ width: 1024, height: 768 });
   return <VisualCanvas

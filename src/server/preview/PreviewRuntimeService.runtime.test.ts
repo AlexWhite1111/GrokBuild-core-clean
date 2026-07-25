@@ -74,6 +74,32 @@ test("typed workspace modules are cached and invalidated by file metadata", asyn
   assert.notEqual(changed.etag, first.etag);
 });
 
+test("preview sizing observes intrinsic body content and publishes only real height changes", () => {
+  const service = new PreviewRuntimeService("");
+  const runtime = service.runtime();
+  assert.match(runtime, /let height=body\.offsetHeight/);
+  assert.match(runtime, /for\(const child of body\.children\)/);
+  assert.match(runtime, /if\(height===lastHeight\)return/);
+  assert.match(runtime, /observer\.observe\(document\.body\)/);
+  assert.doesNotMatch(runtime, /new MutationObserver/);
+  assert.doesNotMatch(runtime, /observer\.observe\(document\.documentElement\)/);
+});
+
+test("preview chrome does not add height outside authored viewport content", async (context) => {
+  const fixture = await previewFixture(context);
+  const service = new PreviewRuntimeService(fixture.cache);
+  const prepared = await service.prepare({
+    language: "javascript",
+    source: "document.getElementById('app').textContent = 'ready';",
+    embedded: false,
+  }, fixture.workspace);
+  const document = await service.index(prepared.hash);
+
+  assert.match(document, /\.grok-preview-placeholder,\.preview-root\{padding:18px\}/);
+  assert.match(document, /class="grok-preview-placeholder"/);
+  assert.doesNotMatch(document, /body\{[^}]*padding:18px/);
+});
+
 async function previewFixture(context: test.TestContext): Promise<{ root: string; workspace: string; cache: string }> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "grok-preview-runtime-"));
   const workspace = path.join(root, "workspace");

@@ -623,6 +623,8 @@ export interface TaskListItem {
   taskId: string;
   projectId: string;
   sessionId: string | null;
+  /** Directly reported by the official Session transcript/summary. */
+  hasUserTurn: boolean;
   title: string;
   status: string;
   active: boolean;

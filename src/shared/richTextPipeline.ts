@@ -11,7 +11,7 @@ import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { normalizeMathDelimiters } from "./richText.js";
-import { needsModuleScript } from "./previewModules.js";
+import { needsModuleScript, supportsBrowserPreview } from "./previewModules.js";
 import { rehypeMediaFallbacks, rehypeMediaPlaceholders, remarkLocalMedia } from "./richTextMedia.js";
 import {
   DEFAULT_RICH_TEXT_RENDER_POLICY,
@@ -308,7 +308,8 @@ function containsExecutableRaw(node: HtmlTreeNode): boolean {
 }
 
 function needsLiveRuntime(value: string): boolean {
-  return /<!doctype|<\/?html\b|<\/?(?:script|style|iframe|object|embed|canvas|form|button|input|select|textarea|video|audio|svg|link|meta|base)\b|\bon[a-z]+\s*=|javascript:/i.test(value);
+  return /<!doctype|<\/?html\b|<\/?(?:script|style|iframe|object|embed|canvas|form|button|input|select|textarea|video|audio|svg|link|meta|base)\b|\bon[a-z]+\s*=|javascript:/i.test(value)
+    || (/\bstyle\s*=/i.test(value) && /<(?:address|article|aside|body|div|footer|header|main|nav|section|table)(?:\s|>)/i.test(value));
 }
 
 const SAFE_INLINE_HTML_TAGS = new Set([
@@ -545,7 +546,7 @@ function bundleWebChildren(parent: HtmlTreeNode, source: string): void {
 
   for (let index = 0; index < parent.children.length; index += 1) {
     const first = webPartFromNode(parent.children[index]);
-    if (!first) continue;
+    if (!first || !supportsBrowserPreview(first.language, first.source)) continue;
 
     const parts = [first];
     let lastPartIndex = index;
@@ -560,6 +561,7 @@ function bundleWebChildren(parent: HtmlTreeNode, source: string): void {
       }
       const part = webPartFromNode(node);
       if (!part
+        || !supportsBrowserPreview(part.language, part.source)
         || (part.kind === "markup" && (markupCount > 0 || isSelfContainedMarkup(part)))
         || (part.kind === "script" && scriptCount > 0)) break;
       parts.push(part);

@@ -52,7 +52,8 @@ export function CapacityBar({ workspace }: { workspace: WorkspaceProjection }) {
   return <PopoverRoot>
     <PopoverTrigger asChild>
       <Control recipe="text" hover="none" shape="none" className={styles.capacity} aria-label={t("capacitySummary", { active: supervisor.activeAgents })}>
-        <Meter slots={capacitySlots(supervisor).map((slot) => ({ id: slot.number, active: slot.active, enabled: slot.enabled, tone: slot.tone === "empty" ? "neutral" : slot.tone }))} />
+        <Meter className={styles.capacityMeter} slots={capacitySlots(supervisor).map((slot) => ({ id: slot.number, active: slot.active, enabled: slot.enabled, tone: slot.tone === "empty" ? "neutral" : slot.tone }))} />
+        <span className={styles.capacityValue} aria-hidden>{supervisor.activeAgents}/16</span>
       </Control>
     </PopoverTrigger>
     <PopoverContent className={styles.capacityPopover} sideOffset={4} align="start">

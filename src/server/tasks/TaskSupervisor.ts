@@ -99,7 +99,12 @@ export class TaskSupervisor extends EventEmitter {
       const sessionId = actor.snapshot.sessionId || actor.snapshot.taskId;
       const archived = this.#store.isArchived(sessionId);
       if (archived && !includeArchived) continue;
-      const task = listItemFromSnapshot(actor.snapshot, this.#isPinned(actor.snapshot.taskId), archived);
+      const task = listItemFromSnapshot(
+        actor.snapshot,
+        this.#isPinned(actor.snapshot.taskId),
+        archived,
+        actor.detail.messages.some((message) => message.role === "user"),
+      );
       if (!query || `${task.title}\n${actor.detail.messages.filter((message) => message.role === "user").map((message) => message.text).join("\n")}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) {
         bySession.set(task.sessionId || task.taskId, task);
       }
@@ -367,7 +372,12 @@ export class TaskSupervisor extends EventEmitter {
   }
   activeForQuit(): TaskListItem[] {
     return [...this.#actors.values()]
-      .map((actor) => listItemFromSnapshot(actor.snapshot, this.#isPinned(actor.snapshot.taskId)))
+      .map((actor) => listItemFromSnapshot(
+        actor.snapshot,
+        this.#isPinned(actor.snapshot.taskId),
+        false,
+        actor.detail.messages.some((message) => message.role === "user"),
+      ))
       .filter((task) => task.active || task.needsAttention);
   }
   async shutdown(): Promise<void> {
@@ -437,6 +447,7 @@ export class TaskSupervisor extends EventEmitter {
         created_at: snapshot.createdAt,
         updated_at: snapshot.updatedAt,
         summary_path: "",
+        has_user_turn: actor.detail.messages.some((message) => message.role === "user"),
       };
     }
     const row = this.#store.row(taskId);

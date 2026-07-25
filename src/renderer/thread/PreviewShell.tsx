@@ -9,7 +9,7 @@ export function PreviewExpandButton({ onClick }: { onClick: () => void }) {
   return <Control recipe="icon" density="compact" onClick={onClick} aria-label={t("expandPreview")}><Maximize2 size={13} /></Control>;
 }
 
-export function PreviewShell({ open, onOpenChange, accessibleTitle, toolbarTitle, actions, bottomStart, tone = "neutral", children, contentClassName = "" }: {
+export function PreviewShell({ open, onOpenChange, accessibleTitle, toolbarTitle, actions, bottomStart, tone = "neutral", edgeToEdge = false, children, contentClassName = "" }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   accessibleTitle: string;
@@ -17,11 +17,12 @@ export function PreviewShell({ open, onOpenChange, accessibleTitle, toolbarTitle
   actions?: ReactNode;
   bottomStart?: ReactNode;
   tone?: "neutral" | "inverse";
+  edgeToEdge?: boolean;
   children: ReactNode;
   contentClassName?: string;
 }) {
   const { t } = useTranslation();
-  return <Modal open={open} onOpenChange={onOpenChange} title={accessibleTitle} titleHidden size="full" bodyInset="none" className={styles.modal}>
+  return <Modal open={open} onOpenChange={onOpenChange} title={accessibleTitle} titleHidden size="full" bodyInset="none" className={`${styles.modal} ${edgeToEdge ? styles.edgeToEdge : ""}`}>
     <div className={styles.shell} data-tone={tone}>
       <div className={`${styles.content} ${contentClassName}`}>{children}</div>
       <div className={styles.toolbar}>

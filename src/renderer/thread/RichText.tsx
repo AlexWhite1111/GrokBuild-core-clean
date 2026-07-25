@@ -131,7 +131,8 @@ export const RichText = memo(function RichText({
     renderPolicy,
     mediaScale,
     density,
-  }), [baseRenderer, density, framedText, media, mediaScale, paths, renderPolicy, resolvedLinks, taskId]);
+    streaming,
+  }), [baseRenderer, density, framedText, media, mediaScale, paths, renderPolicy, resolvedLinks, streaming, taskId]);
   const richDocument = document || portableResponse?.document || fallbackDocument;
   const sourceDocument = useMemo(() => annotateMarkdownSourceBlocks(richDocument, framedText), [framedText, richDocument]);
   const markdown = useMemo(() => toJsxRuntime(sourceDocument, { Fragment, jsx, jsxs, components: renderer, passNode: true }), [renderer, sourceDocument]);
@@ -171,8 +172,9 @@ function richComponents(base: RichComponents, context: {
   renderPolicy: RichTextRenderPolicy;
   mediaScale?: number;
   density: RichTextDensity;
+  streaming: boolean;
 }): RichComponents {
-  const { taskId, text, paths, media, localLinks, renderPolicy, mediaScale, density } = context;
+  const { taskId, text, paths, media, localLinks, renderPolicy, mediaScale, density, streaming } = context;
   const byDisplayPath = new Map(paths.map((path) => [path.displayPath, path]));
   const code: NonNullable<RichComponents["code"]> = ({ className, children, node, ...props }) => {
     const value = plainText(children);
@@ -193,7 +195,7 @@ function richComponents(base: RichComponents, context: {
     pre({ node, ...props }: { node?: unknown; [key: string]: unknown }) {
       const block = codeFence(node);
       return block
-        ? <CodeBlock {...block} taskId={taskId} compact={density === "compact"} markdownSource={markdownSourceRange(props)} />
+        ? <CodeBlock {...block} taskId={taskId} compact={density === "compact"} streaming={streaming} markdownSource={markdownSourceRange(props)} />
         : <pre {...props} />;
     },
     code,
@@ -205,6 +207,7 @@ function richComponents(base: RichComponents, context: {
             taskId={taskId}
             compact={density === "compact"}
             implicit
+            streaming={streaming}
             markdownSource={nodeOffsets(_node) || undefined}
           />
         : null;
@@ -223,6 +226,7 @@ function richComponents(base: RichComponents, context: {
             taskId={taskId}
             compact={density === "compact"}
             implicit
+            streaming={streaming}
             markdownSource={nodeOffsets(_node) || undefined}
           />
         : null;

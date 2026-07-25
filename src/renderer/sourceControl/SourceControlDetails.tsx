@@ -74,10 +74,11 @@ function ChangeRow({ file, staged, selected, locked, onSelect, onRun, onDiscard 
   onDiscard(paths: string[]): void;
 }) {
   const { t } = useTranslation();
+  const tone = changeTone(file, staged);
   const action = staged
     ? { label: t("unstageChange"), icon: ListMinus, disabled: locked, onClick: () => onRun({ action: "unstage", paths: [file.path] }) }
     : { label: t("stageChange"), icon: ListPlus, disabled: locked, onClick: () => onRun({ action: "stage", paths: [file.path] }) };
-  return <PanelRow icon={FileDiff} title={file.path} detail={staged ? t("staged") : changeLabel(file, t)} meta={`${file.indexStatus}${file.worktreeStatus}`} tone={file.conflicted ? "danger" : selected || staged ? "accent" : "neutral"} onClick={() => onSelect({ path: file.path, staged })} actions={[action, ...(!staged ? [{ label: t("discardChanges"), icon: Trash2, tone: "danger" as const, disabled: locked, onClick: () => onDiscard([file.path]) }] : [])]} />;
+  return <PanelRow icon={FileDiff} title={file.path} detail={staged ? t("staged") : changeLabel(file, t)} meta={<span className={styles.changeStatus} data-tone={tone}>{`${file.indexStatus}${file.worktreeStatus}`}</span>} tone={tone} selected={selected} onClick={() => onSelect({ path: file.path, staged })} actions={[action, ...(!staged ? [{ label: t("discardChanges"), icon: Trash2, tone: "danger" as const, disabled: locked, onClick: () => onDiscard([file.path]) }] : [])]} />;
 }
 
 export function SourceControlWorktrees({ snapshot, locked, onPrune, onRemove }: { snapshot: SourceControlSnapshot; locked: boolean; onPrune(): void; onRemove(worktree: SourceControlWorktree): void }) {
@@ -92,4 +93,10 @@ function changeLabel(file: Pick<SourceControlFile, "untracked" | "conflicted">, 
   if (file.conflicted) return translate("conflict");
   if (file.untracked) return translate("untracked");
   return translate("modified");
+}
+
+function changeTone(file: Pick<SourceControlFile, "untracked" | "conflicted">, staged: boolean): "success" | "warning" | "info" | "danger" {
+  if (file.conflicted) return "danger";
+  if (file.untracked) return "info";
+  return staged ? "success" : "warning";
 }

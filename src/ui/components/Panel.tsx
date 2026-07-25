@@ -6,7 +6,7 @@ import { UiIcon, type UiIconSource } from "./Icon.js";
 import { Text } from "./Text.js";
 import styles from "./Panel.module.css";
 
-type PanelTone = "neutral" | "accent" | "success" | "warning" | "danger";
+type PanelTone = "neutral" | "accent" | "success" | "warning" | "danger" | "info";
 
 export function PanelSection({ title, icon, count, active = false, action, children }: {
   title: ReactNode;
@@ -28,7 +28,7 @@ export function PanelSection({ title, icon, count, active = false, action, child
   </section>;
 }
 
-export function PanelRow({ icon, title, detail, meta, trailing, actions = [], onClick, tone = "neutral", wrap = false, contentText = false }: {
+export function PanelRow({ icon, title, detail, meta, trailing, actions = [], onClick, selected = false, tone = "neutral", wrap = false, contentText = false }: {
   icon?: UiIconSource;
   title: ReactNode;
   detail?: ReactNode;
@@ -36,6 +36,7 @@ export function PanelRow({ icon, title, detail, meta, trailing, actions = [], on
   trailing?: ReactNode;
   actions?: Array<{ label: string; onClick: () => void; icon: UiIconSource; tone?: PanelTone; disabled?: boolean }>;
   onClick?: () => void;
+  selected?: boolean;
   tone?: PanelTone;
   wrap?: boolean;
   contentText?: boolean;
@@ -58,7 +59,7 @@ export function PanelRow({ icon, title, detail, meta, trailing, actions = [], on
     ...(contentText ? typographyScope("content") : {}),
   } as const;
   const row = onClick
-    ? <Control {...shared} recipe="row" density="standard" onClick={onClick}>{content}</Control>
+    ? <Control {...shared} recipe="row" density="standard" selected={selected} onClick={onClick}>{content}</Control>
     : <div {...shared}>{content}</div>;
   if (!actions.length) return row;
   return <div className={styles.rowFrame}>

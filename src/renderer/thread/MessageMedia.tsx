@@ -1,8 +1,9 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { PathReferenceSummary, TaskMediaAttachment, TaskMediaLease, UiPreferences } from "../../shared/contracts.js";
+import { useUiPreferences } from "../api/hooks.js";
 import { useBootstrap } from "../api/BootstrapContext.js";
 import { Control, Notice, PathChip, Spinner, Surface } from "../../ui/components/index.js";
 import { PreviewShell } from "./PreviewShell.js";
@@ -35,8 +36,7 @@ export function MessageMedia({ taskId, items, sourceText, density = "body", defa
   density?: "body" | "compact";
   defaultScale?: number;
 }) {
-  const queryClient = useQueryClient();
-  const preferences = queryClient.getQueryData<UiPreferences>(["ui-preferences"]);
+  const preferences = useUiPreferences().data;
   const preferredScale = defaultScale ?? preferences?.mediaPreviewScale ?? 70;
   const initialSize = preferences?.mediaInitialSize ?? "native";
   const minimumSize = preferences?.mediaMinimumSize ?? 64;
@@ -246,9 +246,9 @@ function ImageMedia({ item, geometryKey, url, width, defaultScale, initialSize, 
 }
 
 function ZoomableImage({ open, onOpenChange, src, alt, sourceChip }: { open: boolean; onOpenChange: (open: boolean) => void; src: string; alt: string; sourceChip: ReactNode }) {
-  const controller = useVisualCanvasController("fit");
+  const controller = useVisualCanvasController(imagePreviewMode());
   const [natural, setNatural] = useState({ width: 1600, height: 900 });
-  return <PreviewShell open={open} onOpenChange={onOpenChange} accessibleTitle={alt} actions={<VisualCanvasControls controller={controller} tone="inverse" />} bottomStart={sourceChip} tone="inverse" contentClassName={styles.lightboxBody}>
+  return <PreviewShell open={open} onOpenChange={onOpenChange} accessibleTitle={alt} actions={<VisualCanvasControls controller={controller} tone="inverse" />} bottomStart={sourceChip} tone="inverse" edgeToEdge contentClassName={styles.lightboxBody}>
     <VisualCanvas ariaLabel={alt} className={styles.zoomStage} contentClassName={styles.zoomContent} controller={controller} naturalWidth={natural.width} naturalHeight={natural.height} detail>
       <img className={styles.zoomImage} src={src} alt={alt} draggable={false} onLoad={(event) => {
         const image = event.currentTarget;
@@ -256,6 +256,10 @@ function ZoomableImage({ open, onOpenChange, src, alt, sourceChip }: { open: boo
       }} />
     </VisualCanvas>
   </PreviewShell>;
+}
+
+function imagePreviewMode(): "fit" | "fill" {
+  return window.matchMedia("(max-width: 760px), (pointer: coarse) and (max-width: 900px)").matches ? "fill" : "fit";
 }
 
 interface MediaCaptionProps {

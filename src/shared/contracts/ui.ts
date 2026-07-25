@@ -17,6 +17,27 @@ export const FONT_WEIGHT_DEFAULT = 450;
 export const FONT_WEIGHT_MIN = 300;
 export const FONT_WEIGHT_MAX = 700;
 
+export const DEFAULT_CODE_PREVIEW_POLICY = {
+  interactive: true,
+  languages: {
+    html: true,
+    css: true,
+    javascript: true,
+    typescript: true,
+  },
+} as const;
+
+const CodePreviewPolicySchema = z.object({
+  interactive: z.boolean(),
+  languages: z.object({
+    html: z.boolean(),
+    css: z.boolean(),
+    javascript: z.boolean(),
+    typescript: z.boolean(),
+  }),
+});
+export type CodePreviewPolicy = z.infer<typeof CodePreviewPolicySchema>;
+
 export const SavedContextResourceSchema = z.object({
   path: PathReferenceSummarySchema,
   addedAt: z.string().datetime(),
@@ -46,6 +67,7 @@ const UiPreferencesObjectSchema = z.object({
   contextWidth: z.number().int().min(280).max(520).default(380),
   showContextUsage: z.boolean().default(true),
   collapseWorkProcessByDefault: z.boolean().default(true),
+  codePreview: CodePreviewPolicySchema.default(DEFAULT_CODE_PREVIEW_POLICY),
   richTextRenderPolicy: RichTextRenderPolicySchema.default(DEFAULT_RICH_TEXT_RENDER_POLICY),
 });
 export const UiPreferencesSchema = z.preprocess(
@@ -77,6 +99,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   contextWidth: 380,
   showContextUsage: true,
   collapseWorkProcessByDefault: true,
+  codePreview: DEFAULT_CODE_PREVIEW_POLICY,
   richTextRenderPolicy: DEFAULT_RICH_TEXT_RENDER_POLICY,
 };
 

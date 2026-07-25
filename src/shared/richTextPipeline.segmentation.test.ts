@@ -171,6 +171,21 @@ describe("rich-text code segmentation", () => {
       assert.match(live[0], /<script data-grok-bundle>/);
     });
 
+    it("keeps Node code outside an adjacent browser HTML bundle", () => {
+      const root = parse([
+        "```html",
+        "<main>Ready</main>",
+        "```",
+        "",
+        "```javascript",
+        "#!/usr/bin/env node",
+        "console.log(process.version);",
+        "```",
+      ].join("\n"));
+      assert.equal(liveSources(root).length, 0);
+      assert.equal(elements(root, "pre").length, 2);
+    });
+
     it("accepts CSS before the markup fence", () => {
       const root = parse([
         "```css", ".card { color: cyan; }", "```",
@@ -268,6 +283,10 @@ describe("rich-text code segmentation", () => {
 
     it("promotes interactive block HTML to a live island", () => {
       assert.equal(elements(parse("<div><button onclick=\"go()\">Go</button></div>"), RICH_LIVE_HTML_TAG).length, 1);
+    });
+
+    it("routes styled block HTML through the isolated live preview", () => {
+      assert.equal(elements(parse("<div style=\"color: red\">Styled content</div>"), RICH_LIVE_HTML_TAG).length, 1);
     });
 
     it("keeps inline span markup inside prose", () => {

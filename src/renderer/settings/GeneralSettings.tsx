@@ -110,6 +110,12 @@ export function GeneralSettings() {
       presentation: { ...preferences.richTextRenderPolicy.presentation, [key]: value },
     },
   });
+  const updateCodePreviewLanguage = (language: keyof UiPreferences["codePreview"]["languages"], value: boolean) => update({
+    codePreview: {
+      ...preferences.codePreview,
+      languages: { ...preferences.codePreview.languages, [language]: value },
+    },
+  });
   return <div className={styles.settingsSections}>
     <SettingSection title={t("grokHomeProfiles")} description={t("grokHomeProfilesDescription")}>
       <GrokHomeProfileSetting />
@@ -148,6 +154,19 @@ export function GeneralSettings() {
     <SettingSection title={t("rendering")} description={t("renderingDescription")}>
       <SettingCard grouped title={t("collapseWorkProcessByDefault")} description={t("collapseWorkProcessByDefaultDescription")}><Switch checked={preferences.collapseWorkProcessByDefault} onChange={(event) => update({ collapseWorkProcessByDefault: event.target.checked })} label={t("collapseWorkProcessByDefaultToggle")} /></SettingCard>
       <SettingCard grouped title={t("showContextUsage")} description={t("showContextUsageDescription")}><Switch checked={preferences.showContextUsage} onChange={(event) => update({ showContextUsage: event.target.checked })} label={t("showContextUsageToggle")} /></SettingCard>
+      <SettingCard grouped title={t("codePreviewRendering")} description={t("codePreviewRenderingDescription")}>
+        <div className={styles.policyGroups}>
+          <div className={styles.policyGroup} data-shape="control">
+            <div className={styles.policyHeading}><Code2 size={13} /><Text as="strong" size="label">{t("interactiveCodePreview")}</Text></div>
+            <Switch checked={preferences.codePreview.interactive} onChange={(event) => update({ codePreview: { ...preferences.codePreview, interactive: event.target.checked } })} label={t("interactiveCodePreviewToggle")} />
+          </div>
+          <div className={styles.policyGroup} data-shape="control">
+            <div className={styles.policyHeading}><Code2 size={13} /><Text as="strong" size="label">{t("codePreviewLanguages")}</Text></div>
+            {(["html", "css", "javascript", "typescript"] as const).map((language) =>
+              <Switch key={language} checked={preferences.codePreview.languages[language]} onChange={(event) => updateCodePreviewLanguage(language, event.target.checked)} label={t(`codePreview_${language}`)} />)}
+          </div>
+        </div>
+      </SettingCard>
       <SettingCard grouped title={t("richTextMediaRendering")} description={t("richTextMediaRenderingDescription")}>
         <div className={styles.policyGroups}>
           {(["nativeMedia", "localMedia"] as const).map((source) => <div className={styles.policyGroup} data-shape="control" key={source}>

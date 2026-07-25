@@ -29,6 +29,23 @@ test("legacy corner scale migrates once to a direct pixel radius", () => {
   }
 });
 
+test("older UI preferences receive the canonical code preview policy", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "grok-ui-state-"));
+  try {
+    const state = new JsonStateStore(path.join(root, "app-state.json"));
+    const stored = { ...DEFAULT_UI_PREFERENCES } as Record<string, unknown>;
+    delete stored.codePreview;
+    state.set("ui.preferences", stored);
+
+    assert.deepEqual(new UiStateStore(state).preferences().codePreview, {
+      interactive: true,
+      languages: { html: true, css: true, javascript: true, typescript: true },
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("transferDraft moves a new-task draft to the official task key", () => {
   const root = mkdtempSync(path.join(tmpdir(), "grok-ui-state-"));
   try {

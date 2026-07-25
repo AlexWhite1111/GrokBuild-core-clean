@@ -80,7 +80,9 @@ function nodePositions(nodes: string[]): Map<string, Point> {
   const groundIndex = nodes.findIndex((node) => node === "0" || /^gnd!?$/i.test(node));
   const regular = nodes.filter((_, index) => index !== groundIndex);
   regular.forEach((node, index) => {
-    const angle = -Math.PI / 2 + index * Math.PI * 2 / Math.max(regular.length, 1);
+    const angle = groundIndex < 0
+      ? -Math.PI / 2 + index * Math.PI * 2 / Math.max(regular.length, 1)
+      : regular.length === 1 ? -Math.PI / 2 : -Math.PI + index * Math.PI / (regular.length - 1);
     result.set(node.toLowerCase(), { x: 450 + Math.cos(angle) * 350, y: 205 + Math.sin(angle) * 145 });
   });
   if (groundIndex >= 0) result.set(nodes[groundIndex].toLowerCase(), { x: 450, y: 385 });

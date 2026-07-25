@@ -354,7 +354,7 @@ function escapeClosingTag(value: string, tag: "script" | "style"): string { retu
 function escapeHtml(value: string): string { return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 function emptyGraph(): PreviewGraphSummary { return { moduleCount: 0, localModuleCount: 0, packages: [] }; }
 
-const BASE_STYLE = `:root{color-scheme:light dark}*{box-sizing:border-box}html,body{min-height:100%}body{margin:0;padding:18px;color:var(--color-text,#292620);background:var(--color-canvas,#f5f0e5);font:14px/1.55 var(--font-body,system-ui,-apple-system,sans-serif)}button,input,select,textarea{font:inherit}img,svg,video,canvas{max-width:100%;height:auto}`;
+const BASE_STYLE = `:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;color:var(--color-text,#292620);background:var(--color-canvas,#f5f0e5);font:14px/1.55 var(--font-body,system-ui,-apple-system,sans-serif)}.grok-preview-placeholder,.preview-root{padding:18px}button,input,select,textarea{font:inherit}img,svg,video,canvas{max-width:100%;height:auto}`;
 const EMBED_STYLE = `:root{color-scheme:light dark}*{box-sizing:border-box}html,body{margin:0;padding:0;background:transparent;color:var(--color-text,inherit);font-family:var(--font-body,inherit)}`;
-const SCRIPT_BODY = `<main id="app"><h2>JavaScript Preview</h2><p>Use <code>document.getElementById('app')</code> to render here.</p></main>`;
+const SCRIPT_BODY = `<main id="app"><div class="grok-preview-placeholder"><h2>JavaScript Preview</h2><p>Use <code>document.getElementById('app')</code> to render here.</p></div></main>`;
 const SAMPLE_BODY = `<main id="app" class="preview-root"><h2>Preview</h2><p>Typography, controls and tables render here.</p><p><button>Button</button> <input placeholder="Input"> <select><option>Option</option></select></p><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>Sample</td><td>42</td></tr></tbody></table></main>`;

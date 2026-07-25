@@ -1,6 +1,6 @@
 # Session Projection Repair Progress
 
-最后更新：2026-07-25
+最后更新：2026-07-26
 
 ## 恢复工作方式
 
@@ -27,6 +27,9 @@
 - [x] P9：用首个官方 `goal_updated` 完成 Goal 提交回执，删除 15 秒无意义等待。
 - [x] P10：删除 Goal 最新消息挂靠和 tool update 伪回合；恢复官方 Goal 首条用户消息。
 - [x] P11：统一子 Agent 官方 Session 读取与复用链；恢复历史官方权限状态。
+- [x] P12：统一代码解析与本地预览服务，删除 Renderer 第二运行时并隔离 Node/CommonJS。
+- [x] P13：稳定代码预览高度与源码滚轮分区，删除 iframe 尺寸反馈环。
+- [x] P14：统一 Git/工作区视觉；修正诊断能力证据；收口图片尺寸、手机灯箱与空 New Task 复用。
 
 ## 已确认不变量
 
@@ -68,12 +71,27 @@
 - 子 Agent 状态只由官方 `subagent_spawned/progress/finished` 改变；已删除 tool/prompt 指纹配对、队列终态推断和第二套 child transcript/timeline。
 - 子 Agent 复用只读官方 `resumedFrom`，稳定保留一条会话并指向最新 child Session；`Not Refuted` 等输出原样来自官方完成事件。
 - 历史权限从官方 `events.jsonl` 的 `turn_started.yolo_mode` / `yolo_toggled.enabled` 恢复，不再统一硬编码为 Ask。
+- 围栏与隐式代码共用 `codeCapability`；HTML/CSS/JavaScript/TypeScript 只通过本地 Preview Service 运行，无服务时保留源码。
+- Node/CommonJS 在代码块合并前即被排除，不进入浏览器 HTML bundle；相邻浏览器代码仍按原规则合并。
+- Renderer `srcDoc` 预览运行时及其 import-map fallback 已删除，后端 `PreviewRuntimeService` 是唯一执行管线。
+- 带样式的块级 HTML 进入隔离预览；行内 HTML 仍沿用原有安全净化，不放宽应用 DOM。
+- 设置页 Rendering 分组可控制交互预览及四类 Web 语言；关闭只影响执行，不影响语法高亮与源码。
+- 纯源码行高继续只取 `--font-code-line-height`；左 3/4 滚轮只移动对话，右 1/4 只移动代码框。
+- 代码框使用一个非被动原生 wheel 监听，已删除合成 wheel、捕获/冒泡双路由和内部滚动目标遍历。
+- Preview Runtime 只观察 body 的真实内容高度并去重；不再监听根节点尺寸与全 DOM mutation。
+- 作者页面 body 不再附加外层 padding；默认占位内容单独留白，`100vh` 不再形成 iframe 高度正反馈。
+- Git 状态、工作区选择和提示色只使用全局主题语义变量；深浅主题不再各模块自定义颜色。
+- Diagnostics 只显示本次连接由 initialize 声明或版本/运行时验证的 x.ai 能力，并标明真实事件方向。
+- 普通图片正文仍使用原生/舒适/取小/取大公式；设置变化直接重算已显示图片，不整页刷新。
+- 图片灯箱只有一份视图状态；手机默认 cover、电脑默认 contain，Fit 返回各自初始模式。
+- 图片双击将三个实际像素尺寸排序后循环；小于 `max(12px, 5%)` 的近似档位自动跳过。
+- New Task 仅依据官方 Session 的 `num_messages`/用户历史复用当前 Project 的空 Session，不用标题或时间推断。
 
 ## 最终验证
 
 - `npm run typecheck`：通过。
-- `npm run test:segmentation`：94 / 94 通过。
-- `npm run test:task-runtime`：98 / 98 通过。
+- `npm run test:segmentation`：96 / 96 通过。
+- `npm run test:task-runtime`：114 / 114 通过。
 - `npm run build`：Web、Server、Electron Shell 通过。
 - `npm run architecture`：通过；无未使用代码，重复率低于阈值。
 - `npm audit --omit=dev`：生产依赖 0 个漏洞。
@@ -88,6 +106,13 @@
 - UUIDv7 官方任务完成通知通过 Electron IPC，终端不再出现 `Invalid task id`。
 - 仅通过加号建立 Plan；详情投影和“不批准”收尾正常。
 - 重开官方历史 Session 后，首条 Goal 用户消息存在，完成条位于对应 Goal 回合之后，空白消息条为 0。
+- 重启 Electron 并恢复官方代码测试 Session：浏览器 JavaScript 与样式 HTML 正常预览；相邻 Node 围栏独立保留源码且无运行入口。
+- Electron 中由 Grok 生成四段无外部依赖的标准样例：完整内联 HTML、独立 CSS、TypeScript、TSX 均显示预期颜色；HTML 与 TypeScript 按钮分别实测变为 `HTML ACTIVE`、`TS ACTIVE`。
+- 旧样例的 HTML 资源错误来自其显式引用但未提供的 `styles.css` / `main.ts`；不为不完整输入扩张预览协议或增加第二套合并逻辑。
+- 多预览历史任务连续截图主内容零位移；静置后 Electron、Renderer 与 GPU 进程均为 0.0% CPU。
+- Electron 连续点击两次“新任务”保持同一官方 task id，未再创建 Untitled Session。
+- 手机模拟视口 `390×844`：灯箱和视口均为全屏，图片 cover 为 `633×844`；Fit 仍返回 cover。
+- 手机真实双击顺序实测 `633×844 → 864×1152 → 273×364 → 633×844`，按实际尺寸正确回环。
 
 ## 维护入口
 

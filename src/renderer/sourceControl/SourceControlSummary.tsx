@@ -83,8 +83,8 @@ export function SourceControlSummaryHeader(props: {
     </PopoverRoot>
     <span className={styles.summaryMeta} aria-label={t("sourceControlSummary", { changes: props.snapshot.files.length, ahead: props.snapshot.branch.ahead, behind: props.snapshot.branch.behind })}>
       <span>{t("changeCount", { count: props.snapshot.files.length })}</span>
-      {props.snapshot.branch.ahead > 0 && <span>↑{props.snapshot.branch.ahead}</span>}
-      {props.snapshot.branch.behind > 0 && <span>↓{props.snapshot.branch.behind}</span>}
+      {props.snapshot.branch.ahead > 0 && <span data-direction="ahead">↑{props.snapshot.branch.ahead}</span>}
+      {props.snapshot.branch.behind > 0 && <span data-direction="behind">↓{props.snapshot.branch.behind}</span>}
     </span>
     <span className={styles.headerActions}><Control recipe="icon" density="compact" aria-label={t("refresh")} title={t("refresh")} disabled={props.pending} onClick={props.onRefresh}><RefreshCw size={13} /></Control></span>
   </header>;
@@ -117,7 +117,7 @@ export function SourceControlSummary(props: {
     {!props.snapshot.branch.upstream && props.snapshot.remotes.length > 0 && <Field label={t("remote")}><ThemedSelect className={styles.remoteSelect} value={props.remote} options={props.snapshot.remotes.map((value) => ({ value, label: value }))} onValueChange={props.setRemote} ariaLabel={t("remote")} disabled={props.locked} /></Field>}
     {!props.snapshot.branch.upstream && props.snapshot.remotes.length === 0 && <Notice tone="info" density="compact">{t("noRemoteConfigured")}</Notice>}
     <div className={styles.actionList}>
-      <Control recipe="row" selected className={styles.actionRow} disabled={props.locked || !canCommit} onClick={props.onCommit}><Check size={14} /><span>{t("commit")}</span></Control>
+      <Control recipe="row" selected={canCommit} className={styles.actionRow} disabled={props.locked || !canCommit} onClick={props.onCommit}><Check size={14} /><span>{t("commit")}</span></Control>
       <Control recipe="row" className={styles.actionRow} disabled={props.locked || !canCommit || !canPush} onClick={props.onCommitAndPush}><Send size={14} /><span>{t("commitAndPush")}</span></Control>
       <Control recipe="row" className={styles.actionRow} disabled={props.locked || !canPush} onClick={props.onPush}><Send size={14} /><span>{t("push")}</span></Control>
     </div>

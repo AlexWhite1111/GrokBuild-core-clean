@@ -102,7 +102,7 @@ export interface CapabilitySnapshot {
     };
     xai: Array<{
       method: string;
-      kind: "request" | "notification" | "reverseRequest";
+      kind: "request" | "notification" | "reverseRequest" | "event";
       sideEffect: "none" | "read" | "write";
       availability: "advertised" | "probed" | "unavailable" | "policyLocked";
       reason?: string;

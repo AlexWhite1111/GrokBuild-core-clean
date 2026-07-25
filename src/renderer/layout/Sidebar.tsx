@@ -24,6 +24,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const [workspaceDropError, setWorkspaceDropError] = useState<string | null>(null);
   const visibleProjects = workspace.projects.filter((project) => `${project.name} ${project.displayPath}`.toLowerCase().includes(projectQuery.toLowerCase()));
   const projectTasks = useMemo(() => workspace.tasks.filter((task) => task.projectId === activeProject?.projectId), [activeProject?.projectId, workspace.tasks]);
+  const pendingNewTask = projectTasks.find((task) => task.sessionId && !task.hasUserTurn);
   const attention = workspace.tasks.filter((task) => task.needsAttention).length;
   const lanShare = useLanShare();
   useEffect(() => { void window.grokDesktop?.setAttentionCount(attention); }, [attention]);
@@ -55,7 +56,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
     >
       <nav className={styles.primary}>
         <Control recipe="row" className={styles.navButton} asChild>
-          <Link to="/new"><Plus size={15} /><span>{t("newTask")}</span></Link>
+          <Link to={pendingNewTask ? `/tasks/${pendingNewTask.taskId}` : "/new"}><Plus size={15} /><span>{t("newTask")}</span></Link>
         </Control>
         <Control recipe="row" className={styles.navButton} onClick={onSearch}>
           <Search size={15} /><span>{t("search")}</span><kbd>⌘K</kbd>
@@ -95,7 +96,7 @@ function ProjectPicker({ activeProject, projects, query, onQuery, onRemove, onAc
   const { t } = useTranslation();
   return <PopoverRoot>
     <PopoverTrigger asChild>
-      <Control recipe="row" className={styles.projectButton}>
+      <Control recipe="row" hover="color" className={styles.projectButton}>
         <span className={styles.projectIdentity}><strong>{activeProject.name}</strong><small>{activeProject.displayPath}</small></span>
         <ChevronDown size={12} />
       </Control>
@@ -114,8 +115,8 @@ function ProjectOption({ project, onActivate, onRemove }: {
   onRemove: (project: { projectId: string; name: string }) => void;
 }) {
   const { t } = useTranslation();
-  return <Surface className={styles.projectOption} appearance="plain" shape="control" interactive selected={project.active}>
-    <Control recipe="row" className={styles.projectSelect} onClick={() => onActivate(project.projectId)}>
+  return <Surface className={styles.projectOption} appearance="plain" shape="control" selected={project.active}>
+    <Control recipe="row" hover="none" className={styles.projectSelect} onClick={() => onActivate(project.projectId)}>
       <span><strong>{project.name}</strong><small>{project.displayPath}</small></span>{project.active && <Check size={13} />}
     </Control>
     <Control recipe="icon" density="compact" tone="danger" className={styles.removeProject} onClick={() => onRemove({ projectId: project.projectId, name: project.name })} aria-label={t("removeProject", { name: project.name })}><X size={12} /></Control>

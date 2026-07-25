@@ -304,10 +304,27 @@ const PREVIEW_RUNTIME = String.raw`(()=>{
   const id=query.get('instance')||'preview';
   const send=(type,value)=>parent.postMessage({channel,id,type,value},'*');
   const themeListeners=new Set(),visibilityListeners=new Set(),disposeListeners=new Set();
-  let theme={appearance:'light',variables:{}},hostVisible=true,visible=true,disposed=false;
+  let theme={appearance:'light',variables:{}},hostVisible=true,visible=true,disposed=false,lastHeight=-1;
   const text=value=>{try{return typeof value==='string'?value:JSON.stringify(value)}catch{return String(value)}};
   const notify=(listeners,value)=>listeners.forEach(listener=>{try{listener(value)}catch(error){send('console','error: '+text(error))}});
-  const resize=()=>{if(!disposed)send('resize',{height:Math.max(document.documentElement.scrollHeight,document.body?.scrollHeight||0),viewport:innerHeight})};
+  const contentHeight=()=>{
+    const body=document.body;
+    if(!body)return 1;
+    const top=body.getBoundingClientRect().top;
+    let height=body.offsetHeight;
+    for(const child of body.children){
+      const rect=child.getBoundingClientRect();
+      height=Math.max(height,rect.top-top+Math.max(rect.height,child.scrollHeight));
+    }
+    return Math.max(1,Math.ceil(height));
+  };
+  const resize=()=>{
+    if(disposed)return;
+    const height=contentHeight();
+    if(height===lastHeight)return;
+    lastHeight=height;
+    send('resize',{height,viewport:innerHeight});
+  };
   const applyTheme=value=>{
     if(!value||typeof value!=='object')return;
     theme=value;
@@ -319,7 +336,7 @@ const PREVIEW_RUNTIME = String.raw`(()=>{
   };
   const refreshVisible=()=>{const next=hostVisible&&document.visibilityState!=='hidden';if(next===visible)return;visible=next;notify(visibilityListeners,visible)};
   const setVisible=value=>{hostVisible=Boolean(value);refreshVisible()};
-  const dispose=()=>{if(disposed)return;disposed=true;observer.disconnect();mutation.disconnect();notify(disposeListeners);themeListeners.clear();visibilityListeners.clear();disposeListeners.clear()};
+  const dispose=()=>{if(disposed)return;disposed=true;observer.disconnect();notify(disposeListeners);themeListeners.clear();visibilityListeners.clear();disposeListeners.clear()};
   const subscribe=(set,listener)=>{if(typeof listener!=='function')return()=>{};set.add(listener);return()=>set.delete(listener)};
   const packageUrl=specifier=>'https://esm.sh/'+String(specifier);
   const api={
@@ -354,10 +371,7 @@ const PREVIEW_RUNTIME = String.raw`(()=>{
   },true);
   addEventListener('unhandledrejection',event=>send('console','error: unhandled rejection '+text(event.reason)));
   const observer=new ResizeObserver(resize);
-  observer.observe(document.documentElement);
-  const mutation=new MutationObserver(resize);
-  mutation.observe(document.documentElement,{childList:true,subtree:true,attributes:true,characterData:true});
-  const ready=()=>{send('ready',{version:api.version});resize()};
+  const ready=()=>{if(document.body)observer.observe(document.body);send('ready',{version:api.version});resize()};
   if(document.readyState==='loading')addEventListener('DOMContentLoaded',ready,{once:true});else queueMicrotask(ready);
   addEventListener('load',resize,true);
   requestAnimationFrame(resize);

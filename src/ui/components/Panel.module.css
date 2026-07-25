@@ -17,6 +17,7 @@
 .row[data-tone="success"] > [data-ui-icon] { color: var(--color-success); }
 .row[data-tone="warning"] > [data-ui-icon] { color: var(--color-warning); }
 .row[data-tone="danger"] > [data-ui-icon] { color: var(--color-danger); }
+.row[data-tone="info"] > [data-ui-icon] { color: var(--color-info); }
 .copy { display: grid; min-width: 0; grid-template-columns: minmax(0, auto) minmax(0, 1fr); align-items: baseline; gap: var(--space-5); }
 .trailing { display: flex; place-items: center; color: var(--color-text-muted); transition: color var(--motion-fast) var(--motion-easing); }
 .row[data-ui-control]:hover .trailing { color: var(--color-accent); }

@@ -2,13 +2,55 @@ import { parser as javascriptParser } from "@lezer/javascript";
 
 type SyntaxNodeLike = {
   name: string;
+  from: number;
+  to: number;
   firstChild: SyntaxNodeLike | null;
   nextSibling: SyntaxNodeLike | null;
   getChild(name: string): SyntaxNodeLike | null;
 };
 
 const FUNCTION_NODES = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunction", "MethodDeclaration"]);
-const REMOTE_MODULE_URL = /https?:\/\/(?:cdn\.jsdelivr\.net|unpkg\.com|esm\.sh|cdn\.skypack\.dev)\/[^\s"'`<>\\)]+/g;
+const NODE_GLOBALS = new Set(["Buffer", "__dirname", "__filename", "global", "module", "process", "require"]);
+const JSX_PARSER = javascriptParser.configure({ dialect: "jsx" });
+const TSX_PARSER = javascriptParser.configure({ dialect: "ts jsx" });
+const WEB_LANGUAGE_ALIASES = new Map<string, PreviewCodeFamily>([
+  ["html", "html"], ["htm", "html"],
+  ["css", "css"],
+  ["javascript", "javascript"], ["js", "javascript"],
+  ["typescript", "typescript"], ["ts", "typescript"],
+  ["jsx", "javascript"], ["tsx", "typescript"],
+]);
+
+export type PreviewCodeFamily = "html" | "css" | "javascript" | "typescript";
+
+export function previewCodeFamilies(language: string, source: string): PreviewCodeFamily[] {
+  const family = WEB_LANGUAGE_ALIASES.get(language.trim().toLowerCase());
+  if (!family) return [];
+  const families = new Set<PreviewCodeFamily>([family]);
+  if (family !== "html") return [...families];
+  if (/<style(?:\s|>)/i.test(source)) families.add("css");
+  for (const match of source.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    const type = /\btype\s*=\s*["']([^"']+)["']/i.exec(match[1])?.[1].toLowerCase() || "";
+    if (type === "importmap" || /json/.test(type)) continue;
+    families.add(/typescript|tsx/.test(type) ? "typescript" : "javascript");
+  }
+  return [...families];
+}
+
+/** Browser preview is deliberately excluded for sources that require Node globals. */
+export function supportsBrowserPreview(language: string, source: string): boolean {
+  const normalized = language.trim().toLowerCase();
+  const family = WEB_LANGUAGE_ALIASES.get(normalized);
+  if (!family) return false;
+  if (family === "css") return true;
+  if (family === "html") {
+    return [...source.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].every((match) => {
+      const type = /\btype\s*=\s*["']([^"']+)["']/i.exec(match[1])?.[1].toLowerCase() || "";
+      return type === "importmap" || /json/.test(type) || !scriptUsesNodeRuntime(match[2], /typescript|tsx/.test(type));
+    });
+  }
+  return !scriptUsesNodeRuntime(source, normalized === "typescript" || normalized === "ts" || normalized === "tsx");
+}
 
 export function hasTopLevelAwait(source: string): boolean {
   return nodeHasTopLevelAwait(javascriptParser.parse(source).topNode, 0);
@@ -33,22 +75,6 @@ export function collectRemotePreviewAlias(specifier: string, packages: Set<strin
   if (!aliases.has(`${remote.name}/`)) aliases.set(`${remote.name}/`, `${target}/`);
 }
 
-/** Import-map fallback for CDN modules whose own source uses bare package imports. */
-export function previewRemoteImportMap(source: string): string {
-  if (/<script\b[^>]*\btype\s*=\s*["']importmap["']/i.test(source)) return "";
-  const packages = new Set<string>();
-  const aliases = new Map<string, string>();
-  for (const match of source.matchAll(REMOTE_MODULE_URL)) collectRemotePreviewAlias(match[0], packages, aliases);
-  for (const specifier of importedSpecifiers(source)) {
-    if (isBareSpecifier(specifier)) packages.add(specifier);
-  }
-  const imports: Record<string, string> = Object.fromEntries([...aliases.entries()].sort(([left], [right]) => left.localeCompare(right)));
-  for (const specifier of [...packages].sort()) imports[specifier] ??= previewPackageUrl(specifier);
-  return Object.keys(imports).length
-    ? `<script type="importmap">${JSON.stringify({ imports }).replace(/</g, "\\u003c")}</script>`
-    : "";
-}
-
 function nodeHasTopLevelAwait(node: SyntaxNodeLike, functionDepth: number): boolean {
   const methodProperty = node.name === "Property" && Boolean(node.getChild("ParamList"));
   const nextDepth = functionDepth + (FUNCTION_NODES.has(node.name) || methodProperty ? 1 : 0);
@@ -59,16 +85,24 @@ function nodeHasTopLevelAwait(node: SyntaxNodeLike, functionDepth: number): bool
   return false;
 }
 
-function importedSpecifiers(source: string): string[] {
-  const result: string[] = [];
-  const pattern = /\b(?:from\s*|import\s*(?:\(\s*)?)["']([^"'\r\n]+)["']/g;
-  for (const match of source.matchAll(pattern)) result.push(match[1]);
-  return result;
-}
-
-function isBareSpecifier(value: string): boolean {
-  return Boolean(value) && !value.startsWith("./") && !value.startsWith("../") && !value.startsWith("/")
-    && !/^(?:[a-z][a-z\d+.-]*:|#)/i.test(value);
+function scriptUsesNodeRuntime(source: string, typed: boolean): boolean {
+  const tree = (typed ? TSX_PARSER : JSX_PARSER).parse(source);
+  const definitions = new Set<string>();
+  const definitionCursor = tree.cursor();
+  do {
+    if (definitionCursor.name === "VariableDefinition") {
+      definitions.add(source.slice(definitionCursor.from, definitionCursor.to));
+    }
+  } while (definitionCursor.next());
+  const cursor = tree.cursor();
+  do {
+    if (cursor.name === "Hashbang" && /\bnode\b/.test(source.slice(cursor.from, cursor.to))) return true;
+    if (cursor.name === "VariableName") {
+      const name = source.slice(cursor.from, cursor.to);
+      if (NODE_GLOBALS.has(name) && !definitions.has(name)) return true;
+    }
+  } while (cursor.next());
+  return false;
 }
 
 function remoteNpmPackage(specifier: string): { name: string; version: string; subpath: string } | null {

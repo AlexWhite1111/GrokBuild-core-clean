@@ -53,24 +53,6 @@ export function fitMediaSize(
   return { width: Math.max(1, width * factor), height: Math.max(1, height * factor) };
 }
 
-/** Fits to the shared media boundary; native mode preserves small-source pixels while comfortable mode may upscale. */
-export function fitMediaWithinBounds(
-  naturalWidth: number,
-  naturalHeight: number,
-  availableWidth: number,
-  availableHeight: number,
-  allowUpscale: boolean,
-): MediaFit {
-  const width = positive(naturalWidth);
-  const height = positive(naturalHeight);
-  const factor = Math.min(
-    positive(availableWidth) / width,
-    positive(availableHeight) / height,
-    allowUpscale ? Number.POSITIVE_INFINITY : 1,
-  );
-  return { width: Math.max(1, width * factor), height: Math.max(1, height * factor) };
-}
-
 /** Keeps inline media continuously resizable by rendered CSS pixels, independent of source resolution. */
 export function clampInlineMediaRatio(ratio: number, availableWidth: number, minimumRenderedPx = 64, naturalAspect = 1): number {
   const width = positive(availableWidth);

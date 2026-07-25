@@ -212,17 +212,17 @@ export class OfficialAcpClient extends EventEmitter {
 
     for (const method of PASSIVE_XAI_EVENTS) {
       clientApp.onNotification(method, z.unknown(), (context) => {
-        this.#observePassiveEvent(method, context.params);
+        this.#observePassiveEvent(method, context.params, "notification");
       });
       clientApp.onNotification(`_${method}`, z.unknown(), (context) => {
-        this.#observePassiveEvent(method, context.params);
+        this.#observePassiveEvent(method, context.params, "notification");
       });
       clientApp.onRequest(method, z.unknown(), (context) => {
-        this.#observePassiveEvent(method, context.params);
+        this.#observePassiveEvent(method, context.params, "reverseRequest");
         return {};
       });
       clientApp.onRequest(`_${method}`, z.unknown(), (context) => {
-        this.#observePassiveEvent(method, context.params);
+        this.#observePassiveEvent(method, context.params, "reverseRequest");
         return {};
       });
     }
@@ -532,8 +532,12 @@ export class OfficialAcpClient extends EventEmitter {
     this.emit("disconnect", error);
   }
 
-  #observePassiveEvent(method: XaiMethod, params: unknown): void {
-    this.registry.observe(method);
+  #observePassiveEvent(
+    method: XaiMethod,
+    params: unknown,
+    kind: "notification" | "reverseRequest",
+  ): void {
+    this.registry.observe(method, "probed", kind);
     this.emit("notification", { method, params });
   }
 }

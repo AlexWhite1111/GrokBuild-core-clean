@@ -5,6 +5,13 @@
   --color-file-success: color-mix(in srgb, var(--color-success) 78%, var(--color-text));
   --color-file-warning: color-mix(in srgb, var(--color-warning) 72%, var(--color-text));
   --color-file-code: color-mix(in srgb, var(--component-chip-accent, var(--color-accent)) 70%, var(--color-text));
+  --color-git-branch: color-mix(in srgb, var(--color-info) 76%, var(--color-text));
+  --color-git-staged: color-mix(in srgb, var(--color-success) 78%, var(--color-text));
+  --color-git-modified: color-mix(in srgb, var(--color-warning) 76%, var(--color-text));
+  --color-git-untracked: color-mix(in srgb, var(--color-info) 78%, var(--color-text));
+  --color-git-conflict: color-mix(in srgb, var(--color-danger) 82%, var(--color-text));
+  --color-workspace-hover: var(--color-interactive-hover);
+  --color-workspace-selected: var(--color-navigation-selected);
   --color-terminal-black: color-mix(in srgb, var(--color-canvas) 76%, black);
   --color-terminal-magenta: color-mix(in srgb, var(--color-accent) 58%, var(--color-info));
   --color-terminal-cyan: color-mix(in srgb, var(--color-info) 72%, var(--color-success));

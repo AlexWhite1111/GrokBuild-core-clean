@@ -1,5 +1,3 @@
-export interface VisualBounds { x: number; y: number; width: number; height: number }
-
 interface ResettableVisualView {
   mode: string;
   zoom: number;
@@ -15,14 +13,13 @@ export function resetVisualViewForContent<TView extends ResettableVisualView, TM
   return { ...view, mode, zoom: 1, x: 0, y: 0 };
 }
 
-export function centeredSvgViewBox(bounds: VisualBounds, padding = 12): VisualBounds {
-  const inset = Number.isFinite(padding) ? Math.max(0, padding) : 0;
-  return {
-    x: bounds.x - inset,
-    y: bounds.y - inset,
-    width: bounds.width + inset * 2,
-    height: bounds.height + inset * 2,
-  };
+export function inlineVisualHeightLimit(viewportHeight: number): number {
+  const height = Number.isFinite(viewportHeight) ? viewportHeight : 0;
+  return clamp(height * .6, 240, 640);
+}
+
+export function inlineVisualStageHeight(renderedHeight: number, padding: number, limit: number): number {
+  return Math.min(Math.max(1, renderedHeight) + Math.max(0, padding), Math.max(1, limit) + Math.max(0, padding));
 }
 
 export function constrainVisualOffset({ x, y, renderedWidth, renderedHeight, viewportWidth, viewportHeight, minimumVisible = 64 }: {
@@ -37,6 +34,32 @@ export function constrainVisualOffset({ x, y, renderedWidth, renderedHeight, vie
   const limitX = panLimit(renderedWidth, viewportWidth, minimumVisible);
   const limitY = panLimit(renderedHeight, viewportHeight, minimumVisible);
   return { x: clamp(x, -limitX, limitX), y: clamp(y, -limitY, limitY) };
+}
+
+export function scaleVisualOffset({
+  x,
+  y,
+  fromZoom,
+  toZoom,
+  anchorX,
+  anchorY,
+  nextAnchorX = anchorX,
+  nextAnchorY = anchorY,
+}: {
+  x: number;
+  y: number;
+  fromZoom: number;
+  toZoom: number;
+  anchorX: number;
+  anchorY: number;
+  nextAnchorX?: number;
+  nextAnchorY?: number;
+}): { x: number; y: number } {
+  const ratio = toZoom / Math.max(.0001, fromZoom);
+  return {
+    x: nextAnchorX - (anchorX - x) * ratio,
+    y: nextAnchorY - (anchorY - y) * ratio,
+  };
 }
 
 function panLimit(content: number, viewport: number, requestedVisible: number): number {

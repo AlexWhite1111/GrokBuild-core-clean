@@ -19,6 +19,7 @@
 .table > div:last-child { border-bottom: 0; }
 .tableHead { color: var(--color-text-muted); font-size: var(--type-micro) !important; text-transform: uppercase; }
 .table code { color: var(--color-info); font: var(--type-caption) var(--font-code); }
+.registryNote { margin: 0; padding: var(--space-9) var(--space-12); border-top: var(--border-hairline) solid var(--color-border-subtle); }
 .security { display: flex; align-items: center; gap: var(--space-9); padding: var(--space-14); color: var(--color-success); }
 .security p { margin: 0; color: var(--color-text-secondary); font-size: var(--type-label); line-height: calc(1.5 * var(--line-spacing-scale)); }
 .diagnosticList > div { display: grid; padding: var(--space-8) var(--space-12); grid-template-columns: minmax(160px, .8fr) minmax(220px, 1.4fr) 40px auto; gap: var(--space-9); align-items: center; border-bottom: var(--border-hairline) solid var(--color-border-subtle); font-size: var(--type-caption); }

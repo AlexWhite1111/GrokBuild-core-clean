@@ -1,4 +1,5 @@
-import { isSpiceNetlistSource } from "../../shared/contracts.js";
+import { isSpiceNetlistSource, type CodePreviewPolicy } from "../../shared/contracts.js";
+import { previewCodeFamilies, supportsBrowserPreview } from "../../shared/previewModules.js";
 
 export type StaticPreviewKind = "mermaid" | "svg" | "dot" | "spice" | "json" | "jsonc" | "jsonl" | "yaml" | "toml" | "csv" | "tsv" | "notebook";
 type ExecuteKind = "web" | "python" | "spice" | "shell";
@@ -7,6 +8,7 @@ export interface CodeCapability {
   language: string;
   preview?: StaticPreviewKind;
   execute?: ExecuteKind;
+  browserCompatible?: boolean;
   defaultView: "source" | "preview";
 }
 
@@ -37,5 +39,32 @@ const aliases: Record<string, Omit<CodeCapability, "language">> = {
 export function codeCapability(language?: string, source = ""): CodeCapability {
   const normalized = (language || "text").trim().toLowerCase();
   if ((normalized === "text" || normalized === "plaintext") && isSpiceNetlistSource(source)) return { language: "spice", ...aliases.spice };
-  return { language: normalized, ...(aliases[normalized] || { defaultView: "source" as const }) };
+  const capability = aliases[normalized] || { defaultView: "source" as const };
+  return {
+    language: normalized,
+    ...capability,
+    ...(capability.execute === "web" ? { browserCompatible: supportsBrowserPreview(normalized, source) } : {}),
+  };
+}
+
+export function webCodePreviewEnabled(
+  capability: CodeCapability,
+  source: string,
+  policy: CodePreviewPolicy,
+  serviceAvailable: boolean,
+): boolean {
+  return serviceAvailable
+    && policy.interactive
+    && capability.execute === "web"
+    && capability.browserCompatible === true
+    && previewCodeFamilies(capability.language, source).every((family) => policy.languages[family]);
+}
+
+export function codeDefaultView(
+  capability: CodeCapability,
+  webPreview: boolean,
+  streaming: boolean,
+): "source" | "preview" {
+  if (streaming || capability.defaultView !== "preview") return "source";
+  return capability.execute === "web" && !webPreview ? "source" : "preview";
 }

@@ -1,42 +1,20 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { UiPreferences } from "../../shared/contracts.js";
+import { useLayoutEffect, useMemo } from "react";
+import { useUiPreferences } from "../api/hooks.js";
 import { VisualCanvas, useVisualCanvasController, type VisualCanvasController } from "./VisualCanvas.js";
-import { centeredSvgViewBox, resetVisualViewForContent } from "./VisualCanvasGeometry.js";
+import { resetVisualViewForContent } from "./VisualCanvasGeometry.js";
 import styles from "./CodeBlock.module.css";
 
-export function DiagramViewport({ svg, controller: sharedController, detail = false, comfortablePercent, minimumSize, tightBounds = false }: { svg: string; controller?: VisualCanvasController; detail?: boolean; comfortablePercent?: number; minimumSize?: number; tightBounds?: boolean }) {
-  const queryClient = useQueryClient();
-  const preferences = queryClient.getQueryData<UiPreferences>(["ui-preferences"]);
+export function DiagramViewport({ svg, controller: sharedController, detail = false, comfortablePercent, minimumSize }: { svg: string; controller?: VisualCanvasController; detail?: boolean; comfortablePercent?: number; minimumSize?: number }) {
+  const preferences = useUiPreferences().data;
   const localController = useVisualCanvasController(detail ? "fit" : preferences?.mediaInitialSize || "native");
   const controller = sharedController || localController;
-  const declaredSize = useMemo(() => svgSize(svg), [svg]);
-  const [size, setSize] = useState(declaredSize);
-  const content = useRef<HTMLDivElement>(null);
+  const size = useMemo(() => svgSize(svg), [svg]);
   const setControllerView = controller.setView;
   useLayoutEffect(() => {
-    setSize(declaredSize);
     setControllerView((current) => resetVisualViewForContent(current, detail ? "fit" : current.mode));
-    if (!tightBounds) return;
-    const root = content.current?.querySelector("svg");
-    if (!root) return;
-    const measure = () => {
-      const measured = root.getBBox();
-      if (![measured.x, measured.y, measured.width, measured.height].every(Number.isFinite) || measured.width <= 0 || measured.height <= 0) return;
-      const viewBox = centeredSvgViewBox(measured);
-      root.setAttribute("viewBox", `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
-      root.setAttribute("preserveAspectRatio", "xMidYMid meet");
-      root.removeAttribute("width");
-      root.removeAttribute("height");
-      root.style.maxWidth = "none";
-      setSize({ width: viewBox.width, height: viewBox.height });
-    };
-    measure();
-    const frame = requestAnimationFrame(measure);
-    return () => cancelAnimationFrame(frame);
-  }, [declaredSize, detail, setControllerView, svg, tightBounds]);
+  }, [detail, setControllerView, svg]);
   return <VisualCanvas ariaLabel="Diagram viewport" className={styles.visual} contentClassName={styles.diagram} controller={controller} naturalWidth={size.width} naturalHeight={size.height} detail={detail} comfortablePercent={comfortablePercent ?? preferences?.mediaPreviewScale} minimumSize={minimumSize ?? preferences?.mediaMinimumSize}>
-    <div ref={content} data-diagram-canvas dangerouslySetInnerHTML={{ __html: svg }} />
+    <div data-diagram-canvas dangerouslySetInnerHTML={{ __html: svg }} />
   </VisualCanvas>;
 }
 

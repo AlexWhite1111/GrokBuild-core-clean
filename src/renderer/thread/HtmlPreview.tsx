@@ -1,16 +1,16 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type HTMLAttributes } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type HTMLAttributes } from "react";
 import type { PreviewPrepareResponse } from "../../shared/contracts.js";
-import { needsModuleScript, previewRemoteImportMap } from "../../shared/previewModules.js";
-import { useOptionalBootstrap } from "../api/BootstrapContext.js";
+import type { ApiClient } from "../api/ApiClient.js";
 import { THEME_APPLIED_EVENT } from "../../ui/theme/index.js";
 import styles from "./CodeBlock.module.css";
 
 type PreparedPreview =
   | { kind: "loading" }
   | { kind: "url"; value: string }
-  | { kind: "document"; value: string };
+  | { kind: "failed" };
 
 export function HtmlPreview({
+  api,
   language,
   source,
   taskId,
@@ -20,6 +20,7 @@ export function HtmlPreview({
   style: suppliedStyle,
   ...props
 }: {
+  api: ApiClient;
   language: string;
   source: string;
   taskId?: string;
@@ -27,49 +28,43 @@ export function HtmlPreview({
   embedded?: boolean;
 } & Omit<HTMLAttributes<HTMLDivElement>, "children">) {
   const id = useId();
-  const bootstrap = useOptionalBootstrap();
   const host = useRef<HTMLDivElement>(null);
   const iframe = useRef<HTMLIFrameElement>(null);
   const visible = useRef(true);
   const [consoleLines, setConsoleLines] = useState<string[]>([]);
   const [contentHeight, setContentHeight] = useState(() => initialPreviewHeight(embedded));
-  const fallbackDocument = useMemo(() => previewDocument(language, source, id, embedded), [embedded, id, language, source]);
-  const [prepared, setPrepared] = useState<PreparedPreview>(() => bootstrap ? { kind: "loading" } : { kind: "document", value: fallbackDocument });
+  const [prepared, setPrepared] = useState<PreparedPreview>({ kind: "loading" });
 
   useEffect(() => {
     let current = true;
     const request = new AbortController();
     setConsoleLines([]);
     setContentHeight(initialPreviewHeight(embedded));
-    if (!bootstrap) {
-      setPrepared({ kind: "document", value: fallbackDocument });
-      return () => { current = false; };
-    }
     const prepare = async () => {
       setPrepared({ kind: "loading" });
       let response: PreviewPrepareResponse;
       try {
-        response = await bootstrap.api.post<PreviewPrepareResponse>("/preview/prepare", { language, source, embedded, ...(taskId ? { taskId } : {}) }, request.signal);
+        response = await api.post<PreviewPrepareResponse>("/preview/prepare", { language, source, embedded, ...(taskId ? { taskId } : {}) }, request.signal);
       } catch (firstError) {
         if (!current || request.signal.aborted) return;
         if (!isTransportFailure(firstError)) {
           setConsoleLines([`preview: ${firstError instanceof Error ? firstError.message : String(firstError)}`]);
-          setPrepared({ kind: "document", value: fallbackDocument });
+          setPrepared({ kind: "failed" });
           return;
         }
         await delay(PREVIEW_RETRY_MS);
         if (!current || request.signal.aborted) return;
         try {
-          response = await bootstrap.api.post<PreviewPrepareResponse>("/preview/prepare", { language, source, embedded, ...(taskId ? { taskId } : {}) }, request.signal);
+          response = await api.post<PreviewPrepareResponse>("/preview/prepare", { language, source, embedded, ...(taskId ? { taskId } : {}) }, request.signal);
         } catch (secondError) {
           if (!current || request.signal.aborted) return;
-          if (!isTransportFailure(secondError)) setConsoleLines([`preview: ${secondError instanceof Error ? secondError.message : String(secondError)}`]);
-          setPrepared({ kind: "document", value: fallbackDocument });
+          setConsoleLines([`preview: ${secondError instanceof Error ? secondError.message : String(secondError)}`]);
+          setPrepared({ kind: "failed" });
           return;
         }
       }
       if (!current) return;
-      const url = new URL(response.path, new URL(bootstrap.api.bootstrap.apiBaseUrl).origin);
+      const url = new URL(response.path, new URL(api.bootstrap.apiBaseUrl).origin);
       url.searchParams.set("instance", id);
       setPrepared({ kind: "url", value: url.toString() });
     };
@@ -79,7 +74,7 @@ export function HtmlPreview({
       window.clearTimeout(timer);
       request.abort();
     };
-  }, [bootstrap, embedded, fallbackDocument, id, language, source, taskId]);
+  }, [api, embedded, id, language, source, taskId]);
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -131,9 +126,8 @@ export function HtmlPreview({
     data-embedded={embedded || undefined}
     style={style}
   >
-    {prepared.kind === "loading"
-      ? <div className={styles.previewLoading} />
-      : <iframe
+    {prepared.kind === "loading" && <div className={styles.previewLoading} />}
+    {prepared.kind === "url" && <iframe
           ref={iframe}
           title="HTML preview"
           sandbox="allow-downloads allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-scripts"
@@ -141,7 +135,7 @@ export function HtmlPreview({
           allowFullScreen
           referrerPolicy="no-referrer"
           onLoad={() => syncFrame(iframe.current, id, visible.current)}
-          {...(prepared.kind === "url" ? { src: prepared.value } : { srcDoc: prepared.value })}
+          src={prepared.value}
         />}
     {consoleLines.length > 0 && <pre data-copy-rendered className={styles.previewConsole}>{consoleLines.join("\n")}</pre>}
   </div>;
@@ -193,56 +187,14 @@ export function previewThemeSnapshot(): { appearance: "light" | "dark"; variable
   return { appearance: root.dataset.appearance === "dark" ? "dark" : "light", variables };
 }
 
-function previewDocument(language: string, source: string, id: string, embedded: boolean): string {
-  const normalized = language.toLowerCase();
-  const runtime = `<script>${previewBridge(id)}</script>`;
-  const head = `${previewHead()}${previewRemoteImportMap(source)}${runtime}`;
-  if (normalized === "html" || normalized === "htm") return completeHtmlDocument(promoteModuleScripts(source), head, embedded);
-  const body = normalized === "javascript" || normalized === "js" ? `${SCRIPT_BODY}<script${needsModuleScript(source) ? ' type="module"' : ""}>${escapeScript(source)}</script>`
-    : normalized === "css" ? `<style>${source.replace(/<\/style/gi, "<\\/style")}</style>${SAMPLE_BODY}`
-    : `<pre>${escapeHtml(source)}</pre>`;
-  const baseStyle = embedded ? EMBED_STYLE : BASE_STYLE;
-  return `<!doctype html><html><head>${head}<style>${baseStyle}</style></head><body>${body}</body></html>`;
-}
-
-function completeHtmlDocument(source: string, head: string, embedded: boolean): string {
-  if (!/<html(?:\s|>)/i.test(source)) {
-    const style = embedded ? EMBED_STYLE : BASE_STYLE;
-    return `<!doctype html><html><head>${head}<style>${style}</style></head><body>${source}</body></html>`;
-  }
-  let document = source;
-  if (/<head(?:\s|>)/i.test(document)) document = document.replace(/<head([^>]*)>/i, (match) => `${match}${head}`);
-  else document = document.replace(/<html([^>]*)>/i, (match) => `${match}<head>${head}</head>`);
-  return document;
-}
-
-function promoteModuleScripts(source: string): string {
-  return source.replace(/<script(?![^>]*\btype\s*=)([^>]*)>([\s\S]*?)<\/script>/gi, (full, attributes: string, code: string) => (
-    needsModuleScript(code) ? `<script type="module"${attributes}>${code}</script>` : full
-  ));
-}
-
-function previewBridge(id: string): string {
-  return `(()=>{const send=(type,value)=>parent.postMessage({channel:'grok-build-preview',id:${JSON.stringify(id)},type,value},'*');const text=v=>{try{return typeof v==='string'?v:JSON.stringify(v)}catch{return String(v)}};const resize=()=>send('resize',{height:Math.max(document.documentElement.scrollHeight,document.body?.scrollHeight||0),viewport:innerHeight});for(const level of ['log','info','warn','error']){const original=console[level];console[level]=(...args)=>{send('console',level+': '+args.map(text).join(' '));original.apply(console,args)}};addEventListener('error',event=>send('console','error: '+event.message));new ResizeObserver(resize).observe(document.documentElement);addEventListener('load',resize,true);addEventListener('DOMContentLoaded',()=>send('ready',{}),{once:true});requestAnimationFrame(resize)})();`;
-}
-
-function initialPreviewHeight(embedded = false): number { return embedded ? 1 : Math.max(320, Math.round(window.innerHeight * .6)); }
+function initialPreviewHeight(embedded = false): number { return embedded ? 1 : 160; }
 function delay(milliseconds: number): Promise<void> { return new Promise((resolve) => window.setTimeout(resolve, milliseconds)); }
 function isTransportFailure(error: unknown): boolean { return error instanceof TypeError && /fetch|network|load/i.test(error.message); }
 function normalizePreviewHeight(value: number | PreviewSize, embedded = false): number {
   const height = typeof value === "number" ? value : value.height;
-  const viewport = typeof value === "number" ? 0 : value.viewport;
-  const stableHeight = viewport > 0 && height - viewport <= 64 ? viewport : height;
-  return Math.max(embedded ? 1 : 160, Math.ceil(stableHeight));
+  return Math.max(embedded ? 1 : 160, Math.ceil(height));
 }
-function escapeScript(value: string): string { return value.replace(/<\/script/gi, "<\\/script"); }
-function escapeHtml(value: string): string { return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-function previewHead(): string { return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`; }
 
 const THEME_VARIABLE_PREFIXES = ["--color-", "--font-", "--radius-", "--syntax-", "--diff-", "--ansi-", "--motion-"];
 const PREVIEW_SETTLE_MS = 360;
 const PREVIEW_RETRY_MS = 180;
-const BASE_STYLE = `:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;padding:18px;color:var(--color-text,#292620);background:var(--color-canvas,#f5f0e5);font:14px/1.55 var(--font-body,system-ui,-apple-system,sans-serif)}button,input,select,textarea{font:inherit}img,svg,video,canvas{max-width:100%;height:auto}`;
-const EMBED_STYLE = `html,body{margin:0;padding:0;background:transparent}`;
-const SCRIPT_BODY = `<main id="app"><h2>JavaScript Preview</h2><p>Use <code>document.getElementById('app')</code> to render here.</p></main>`;
-const SAMPLE_BODY = `<main id="app" class="preview-root"><h2>Preview</h2><p>Typography, form controls and table styles are rendered here.</p><p><button>Button</button> <input placeholder="Input"> <select><option>Option</option></select></p><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>Sample</td><td>42</td></tr></tbody></table></main>`;
