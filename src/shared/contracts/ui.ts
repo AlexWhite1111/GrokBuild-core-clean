@@ -67,6 +67,7 @@ const UiPreferencesObjectSchema = z.object({
   contextWidth: z.number().int().min(280).max(520).default(380),
   showContextUsage: z.boolean().default(true),
   collapseWorkProcessByDefault: z.boolean().default(true),
+  streamingRefreshHz: z.union([z.literal(10), z.literal(15), z.literal(20), z.literal(30), z.literal(60)]).default(20),
   codePreview: CodePreviewPolicySchema.default(DEFAULT_CODE_PREVIEW_POLICY),
   richTextRenderPolicy: RichTextRenderPolicySchema.default(DEFAULT_RICH_TEXT_RENDER_POLICY),
 });
@@ -99,6 +100,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   contextWidth: 380,
   showContextUsage: true,
   collapseWorkProcessByDefault: true,
+  streamingRefreshHz: 20,
   codePreview: DEFAULT_CODE_PREVIEW_POLICY,
   richTextRenderPolicy: DEFAULT_RICH_TEXT_RENDER_POLICY,
 };

@@ -35,12 +35,15 @@ test("older UI preferences receive the canonical code preview policy", () => {
     const state = new JsonStateStore(path.join(root, "app-state.json"));
     const stored = { ...DEFAULT_UI_PREFERENCES } as Record<string, unknown>;
     delete stored.codePreview;
+    delete stored.streamingRefreshHz;
     state.set("ui.preferences", stored);
 
-    assert.deepEqual(new UiStateStore(state).preferences().codePreview, {
+    const preferences = new UiStateStore(state).preferences();
+    assert.deepEqual(preferences.codePreview, {
       interactive: true,
       languages: { html: true, css: true, javascript: true, typescript: true },
     });
+    assert.equal(preferences.streamingRefreshHz, 20);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

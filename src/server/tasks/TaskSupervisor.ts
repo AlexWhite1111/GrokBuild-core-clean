@@ -103,7 +103,7 @@ export class TaskSupervisor extends EventEmitter {
         actor.snapshot,
         this.#isPinned(actor.snapshot.taskId),
         archived,
-        actor.detail.messages.some((message) => message.role === "user"),
+        actor.hasUserMessages,
       );
       if (!query || `${task.title}\n${actor.detail.messages.filter((message) => message.role === "user").map((message) => message.text).join("\n")}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) {
         bySession.set(task.sessionId || task.taskId, task);
@@ -376,7 +376,7 @@ export class TaskSupervisor extends EventEmitter {
         actor.snapshot,
         this.#isPinned(actor.snapshot.taskId),
         false,
-        actor.detail.messages.some((message) => message.role === "user"),
+        actor.hasUserMessages,
       ))
       .filter((task) => task.active || task.needsAttention);
   }
@@ -394,7 +394,26 @@ export class TaskSupervisor extends EventEmitter {
       || this.#observedActors.has(actor)
     ) return;
     this.#observedActors.add(actor);
-    actor.on("change", () => this.emit("task.changed", actor.detail));
+    let pendingChange: NodeJS.Timeout | null = null;
+    let lastPublishedAt = 0;
+    const publish = () => {
+      pendingChange = null;
+      if (this.#actors.get(snapshot.taskId) !== actor) return;
+      lastPublishedAt = performance.now();
+      this.emit("task.changed", actor.detail);
+    };
+    actor.on("change", () => {
+      if (pendingChange) return;
+      const wait = taskChangeFrameMs(this.#state) - (performance.now() - lastPublishedAt);
+      if (wait <= 0) {
+        publish();
+        return;
+      }
+      pendingChange = setTimeout(() => {
+        publish();
+      }, wait);
+      pendingChange.unref();
+    });
   }
   #actorRuntime(projectId: string) {
     return {
@@ -447,7 +466,7 @@ export class TaskSupervisor extends EventEmitter {
         created_at: snapshot.createdAt,
         updated_at: snapshot.updatedAt,
         summary_path: "",
-        has_user_turn: actor.detail.messages.some((message) => message.role === "user"),
+        has_user_turn: actor.hasUserMessages,
       };
     }
     const row = this.#store.row(taskId);
@@ -481,6 +500,15 @@ export class TaskSupervisor extends EventEmitter {
       this.emit("task.retired", { taskId, reason: "limit-lowered" });
     }
   }
+}
+
+function taskChangeFrameMs(state: JsonStateStore): number {
+  const refreshHz = state.get<{ streamingRefreshHz?: number }>("ui.preferences")?.streamingRefreshHz;
+  return Math.round(1_000 / (
+    refreshHz === 10 || refreshHz === 15 || refreshHz === 20 || refreshHz === 30 || refreshHz === 60
+      ? refreshHz
+      : 20
+  ));
 }
 
 export function projectTaskDiagnostics(details: readonly TaskDetailProjection[]): Array<{ taskId: string | null; method: string; severity: string; count: number; firstSeenAt: string; lastSeenAt: string; summary: string }> {

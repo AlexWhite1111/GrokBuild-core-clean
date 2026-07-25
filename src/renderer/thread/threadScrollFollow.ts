@@ -1,11 +1,12 @@
-export type ThreadScrollFollowEvent = "release" | "settle";
+export type ThreadScrollFollowEvent = "release" | "scroll";
 
-export function nextThreadScrollFollow(following: boolean, event: ThreadScrollFollowEvent, atBottom: boolean): boolean {
-  return event === "release" ? false : atBottom || following;
+export function nextThreadScrollFollow(following: boolean, event: ThreadScrollFollowEvent, atBottom: boolean, movedTowardBottom = false): boolean {
+  if (event === "release") return false;
+  return following || (atBottom && movedTowardBottom);
 }
 
 export function threadAtBottom(element: Pick<HTMLElement, "scrollHeight" | "scrollTop" | "clientHeight">): boolean {
-  return element.scrollHeight - element.scrollTop - element.clientHeight <= 8;
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= 1;
 }
 
 export function threadLatestControl(atBottom: boolean, busy: boolean): "hidden" | "activity" | "latest" {

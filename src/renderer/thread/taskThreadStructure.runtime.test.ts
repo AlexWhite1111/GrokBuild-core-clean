@@ -18,8 +18,13 @@ test("pure text appends do not regroup the task timeline", () => {
     detail = {
       ...detail,
       snapshot: { ...detail.snapshot, revision: detail.snapshot.revision + 1 },
+      events: structuredClone(detail.events),
       messages: detail.messages.map((message) => message === target || message.blockId === target.blockId
-        ? { ...message, text: `${message.text}x` }
+        ? {
+            ...message,
+            text: `${message.text}x`,
+            lastEvent: { connectionEpoch: 1, sequence: index + 3 },
+          }
         : message),
     };
     projected = projector(detail);

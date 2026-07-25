@@ -30,6 +30,7 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   const pendingAnchor = useRef<{ taskId: string; value: TaskScrollAnchor } | null>(null);
   const restoring = useRef(true);
   const pinnedToBottom = useRef(true);
+  const previousScrollTop = useRef(0);
   const [savedState, setSavedState] = useState<TaskUiState | null>(null);
   const [stateLoaded, setStateLoaded] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -68,6 +69,7 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     setStateLoaded(false);
     setSavedState(null);
     pinnedToBottom.current = true;
+    previousScrollTop.current = 0;
     setAtBottom(true);
     if (!persistScroll) { setStateLoaded(true); return () => { current = false; }; }
     void api.get<TaskUiState>(`/ui/tasks/${detail.snapshot.taskId}`).then((state) => {
@@ -99,14 +101,17 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     const index = resolveScrollAnchorIndex(items, anchor);
     pinnedToBottom.current = false;
     setAtBottom(false);
-    virtualizer.scrollToIndex(index, { align: "start" });
     restoreFrame.current = requestAnimationFrame(() => {
       restoreFrame.current = requestAnimationFrame(() => {
         const row = virtualizer.getVirtualItems().find((item) => item.index === index);
-        if (row && parent.current) parent.current.scrollTop = Math.max(0, row.start + anchor.offset);
+        if (row && parent.current) {
+          parent.current.scrollTop = Math.max(0, row.start + anchor.offset);
+          previousScrollTop.current = parent.current.scrollTop;
+        }
         restoreFrame.current = null;
       });
     });
+    virtualizer.scrollToIndex(index, { align: "start" });
   }, [items, savedState, scrollToLatest, stateLoaded, virtualizer]);
   useEffect(() => {
     const element = parent.current;
@@ -140,10 +145,14 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   const onScroll = () => {
     const element = parent.current;
     if (!element) return;
+    const movedTowardBottom = element.scrollTop > previousScrollTop.current;
+    const movedAwayFromBottom = element.scrollTop < previousScrollTop.current;
+    previousScrollTop.current = element.scrollTop;
     const bottom = threadAtBottom(element);
     setTopEdge(element.scrollTop > 4);
     setAtBottom(bottom);
-    if (restoring.current) return;
+    if (restoring.current || restoreFrame.current != null) return;
+    pinnedToBottom.current = nextThreadScrollFollow(pinnedToBottom.current, movedAwayFromBottom ? "release" : "scroll", bottom, movedTowardBottom);
     const visible = virtualizer.getVirtualItems().find((row) => row.end > element.scrollTop + 1) || virtualizer.getVirtualItems()[0];
     if (visible) {
       const scrollAnchor = createScrollAnchor(items, visible.index, element.scrollTop, visible.start, pinnedToBottom.current);
@@ -152,19 +161,11 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
       anchorTimer.current = window.setTimeout(persistPendingAnchor, 240);
     }
   };
-  const onScrollEnd = () => {
-    const element = parent.current;
-    if (!element || restoring.current) return;
-    pinnedToBottom.current = nextThreadScrollFollow(pinnedToBottom.current, "settle", threadAtBottom(element));
-  };
   const latest = () => { pinnedToBottom.current = true; setAtBottom(true); scrollToLatest(); };
-  const releaseFollowing = () => {
-    pinnedToBottom.current = nextThreadScrollFollow(pinnedToBottom.current, "release", false);
-  };
   const latestControl = threadLatestControl(atBottom, projectTaskExecution(detail.snapshot).busy);
 
   return <div className={styles.frame} style={{ "--thread-bottom-inset": `${paddingEnd}px` } as CSSProperties}>
-    <div ref={parent} data-thread-scroll className={styles.scroller} tabIndex={0} aria-label={t("thread")} onScroll={onScroll} onScrollEnd={onScrollEnd} onWheel={(event) => { if (event.deltaY) releaseFollowing(); }} onTouchMove={releaseFollowing} onPointerDown={(event) => { if (event.target === event.currentTarget) releaseFollowing(); }} onPointerMove={(event) => { if (event.buttons === 1) releaseFollowing(); }} onKeyDown={(event) => { if (threadScrollKeys.has(event.key)) releaseFollowing(); }}>
+    <div ref={parent} data-thread-scroll className={styles.scroller} tabIndex={0} aria-label={t("thread")} onScroll={onScroll}>
       <div className={styles.virtual} style={{ height: `${virtualizer.getTotalSize()}px` }}>
         {virtualizer.getVirtualItems().map((row) => {
           const item = items[row.index];
@@ -194,8 +195,6 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     </Control>}
   </div>;
 }
-
-const threadScrollKeys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
 
 function composerThreadInset(stackHeight: number): number {
   return Math.ceil(Math.max(0, stackHeight));

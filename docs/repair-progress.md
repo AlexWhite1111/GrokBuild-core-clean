@@ -30,6 +30,8 @@
 - [x] P12：统一代码解析与本地预览服务，删除 Renderer 第二运行时并隔离 Node/CommonJS。
 - [x] P13：稳定代码预览高度与源码滚轮分区，删除 iframe 尺寸反馈环。
 - [x] P14：统一 Git/工作区视觉；修正诊断能力证据；收口图片尺寸、手机灯箱与空 New Task 复用。
+- [x] P15：修复流式输出滚动夺权；删除分散输入监听，按真实滚动方向脱离和恢复跟随。
+- [x] P16：降低长回复投影与富文本重建开销；官方事件完整累积，界面刷新按可选帧窗口合并。
 
 ## 已确认不变量
 
@@ -40,11 +42,12 @@
 - 子会话不进入主列表，但必须能按 session id 打开。
 - Goal 终态是独立的官方时间线事件，不按最新消息、时间或文本推断归属。
 - tool update 只按官方 tool call identity 归并，不为每个更新生成本地伪回合。
+- 性能优化不得丢弃、改序或概括官方 Session 事件；只允许合并 UI 收到完整投影的刷新时机。
 
 ## 当前状态
 
 - 工作目录：`/Users/alexwhite/Desktop/GrokBuild-core-clean-20260725`
-- 原始 ZIP 未修改。
+- 按确认的“只留当前版本”范围，历史源码、探针、压缩包和打包副本已清除；只保留正式 App 与当前 Git 源码。
 - P11 已完成；只处理了已复现的投影、恢复和控制可达性问题。
 - 已删除重复的 `TaskActivityTracker`，工作计数和 Context 共用 `projectTaskWorkState`。
 - disk restore 直接使用共享 Context projector；child session 和 partial tool update 回归通过。
@@ -87,6 +90,11 @@
 - 图片双击将三个实际像素尺寸排序后循环；小于 `max(12px, 5%)` 的近似档位自动跳过。
 - New Task 仅依据官方 Session 的 `num_messages`/用户历史复用当前 Project 的空 Session，不用标题或时间推断。
 - 阅读宽度不再伪造全局 resize；选择控件的隐藏输入锚定自身，不再把 Terminal 内容层滚出视口。
+- 对话滚动只认真实 `scrollTop` 方向：向上立即脱离流式跟随，向下到真实底部或点击“回到最新”才恢复；已删除滚轮、触摸、指针、键盘和 `scrollEnd` 五路重复判断。
+- Actor 仍逐条处理官方通知；WebSocket 完整投影采用首帧立即、连续流限频、尾帧必达的单计时器，默认 20 Hz。
+- 渲染设置提供 10 / 15 / 20 / 30 / 60 Hz 五档，只保存 `streamingRefreshHz`，不参与 Session 状态判断。
+- 真实 JSON 快照按官方结构事件内容缓存时间线；流式文本的 `lastEvent` 变化只更新现有消息，不再重建整个历史。
+- Task 快照不再连带克隆全部消息与事件；Context Window 只在既有恢复/终态刷新点读取，不在每次 UI 投影同步读磁盘。
 
 ## 最终验证
 
@@ -96,6 +104,8 @@
 - `npm run build`：Web、Server、Electron Shell 通过。
 - `npm run architecture`：通过；无未使用代码，重复率低于阈值。
 - `npm audit --omit=dev`：生产依赖 0 个漏洞。
+- `threadScrollFollow.test.ts`：3 / 3 通过；覆盖近底部向上不回挂、主动回到底部恢复。
+- `taskThreadStructure.runtime.test.ts`：真实 JSON 克隆、1000 次文本追加和游标变化只构建 1 次时间线。
 
 ## 桌面 UI 验证
 
@@ -116,6 +126,9 @@
 - Electron 双向切换阅读宽度 Full 后外层滚动保持 `0`，设置页位置不跳动且无底部底色遮挡。
 - 手机模拟视口 `390×844`：灯箱和视口均为全屏，图片 cover 为 `633×844`；Fit 仍返回 cover。
 - 手机真实双击顺序实测 `633×844 → 864×1152 → 273×364 → 633×844`，按实际尺寸正确回环。
+- 最新正式 App 已替换并重启；`app.asar` SHA-256 为 `c656c5abedc7ae51b046a30d07c8f01fec5ecf2761ee9932c3f252483388a0bd`。
+- 新版本重启后的 15 秒普通使用样本：Renderer 平均 6.9%、峰值 23.5%，Server 平均 2.5%、峰值 17.4%；修改前 45 秒长流样本为 Renderer 平均 29.2%、峰值 179.6%。负载不同，不把该样本写成同负载结论。
+- 当前源码目录已清除 `node_modules`、`dist*` 和 `release` 等可再生内容，从约 1.3 GB 收敛到约 8.8 MB；系统下载缓存与官方 Session 数据未动。
 
 ## 维护入口
 

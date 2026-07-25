@@ -234,13 +234,13 @@ function buildTurnTimeline(detail: TaskDetailProjection): TimelineItem[] {
 /**
  * Keep the expensive protocol grouping stable while the current message grows
  * to an existing block. The reconciler already preserves every unaffected
- * message and event by reference; this projector carries that stability through
- * to the rendered timeline.
+ * message by reference. Official structural events are compared by content so
+ * JSON snapshots do not force the timeline to regroup on every text delta.
  */
 export function createTurnTimelineProjector(onBuild: () => void = () => undefined): (detail: TaskDetailProjection) => TimelineItem[] {
   let structureKey: string | null = null;
   let executionKey: string | null = null;
-  let events: TaskDetailProjection["events"] | null = null;
+  let eventKey: string | null = null;
   let timeline: TimelineItem[] | null = null;
   return (detail) => {
     const nextKey = messageStructureKey(detail.messages);
@@ -248,11 +248,12 @@ export function createTurnTimelineProjector(onBuild: () => void = () => undefine
       projectTaskExecution(detail.snapshot),
       detail.snapshot.currentPromptExecutionId,
     ]);
-    if (!timeline || structureKey !== nextKey || executionKey !== nextExecutionKey || events !== detail.events) {
+    const nextEventKey = JSON.stringify(detail.events);
+    if (!timeline || structureKey !== nextKey || executionKey !== nextExecutionKey || eventKey !== nextEventKey) {
       timeline = buildTurnTimeline(detail);
       structureKey = nextKey;
       executionKey = nextExecutionKey;
-      events = detail.events;
+      eventKey = nextEventKey;
       onBuild();
       return timeline;
     }
@@ -270,7 +271,6 @@ function messageStructureKey(messages: TaskMessageBlock[]): string {
     message.createdAt,
     message.sourceOrdinal,
     message.firstEvent,
-    message.lastEvent,
     message.protocol,
   ]));
 }

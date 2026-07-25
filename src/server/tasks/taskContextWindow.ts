@@ -6,7 +6,7 @@ const MAX_SIGNALS_BYTES = 64 * 1024;
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 /** Reads Grok's persisted per-session context gauge rather than cumulative turn usage. */
-export function readTaskContextWindow(
+function readTaskContextWindow(
   grokHome: string,
   projectPath: string,
   sessionId: string | null,

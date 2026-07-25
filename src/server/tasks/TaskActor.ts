@@ -25,7 +25,7 @@ import { taskAcpClientOptions } from "./taskAcpClientOptions.js";
 import { TaskPermissionRuntime } from "./TaskPermissionRuntime.js";
 import { hasPendingNativeQueue } from "./taskQueueState.js";
 import { historyMutationBlocker } from "./taskHistoryReadiness.js";
-import { readTaskContextWindow, refreshTaskContextWindow } from "./taskContextWindow.js";
+import { refreshTaskContextWindow } from "./taskContextWindow.js";
 import { createTaskRuntimeContext } from "./taskActorRuntimeContext.js";
 import { completeTaskTurn, rejectTaskTurn, type ActiveTaskTurn, type TaskTurnSettlementContext } from "./taskTurnSettlement.js";
 import { TaskPromptReceiptRuntime } from "./taskPromptReceipt.js";
@@ -101,12 +101,8 @@ export class TaskActor extends EventEmitter {
     this.#machine.subscribe(() => this.#syncMachineState());
     this.#machine.start();
   }
-  get snapshot(): TaskSnapshot { return this.#projection.detail().snapshot; }
-  get detail(): TaskDetailProjection {
-    const detail = this.#projection.detail();
-    detail.snapshot.contextWindow = readTaskContextWindow(this.options.grokHome, this.options.projectPath, detail.snapshot.sessionId) || detail.snapshot.contextWindow;
-    return detail;
-  }
+  get snapshot(): TaskSnapshot { return structuredClone(this.#projection.snapshot); }
+  get detail(): TaskDetailProjection { return this.#projection.detail(); }
   childDetail(sessionId: string) { return this.#projection.childDetail(sessionId); }
   rename(title: string): TaskSnapshot {
     this.#projection.snapshot.title = title;
@@ -115,6 +111,7 @@ export class TaskActor extends EventEmitter {
     return this.snapshot;
   }
   get lastTouched(): number { return this.#lastTouched; }
+  get hasUserMessages(): boolean { return this.#projection.messages.some((message) => message.role === "user"); }
   get hasUnresolvedDelivery(): boolean {
     return this.#projection.messages.some((message) =>
       message.role === "user" && (message.delivery === "pending" || message.delivery === "unknown"));
