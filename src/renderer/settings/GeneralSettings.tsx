@@ -51,7 +51,6 @@ export function GeneralSettings() {
     () => () => {
       applyUiVisualPreferences(persistedVisualPreferences.current);
       previewCornerRadius(null);
-      window.dispatchEvent(new Event("resize"));
     },
     [],
   );
@@ -68,17 +67,14 @@ export function GeneralSettings() {
   const changeReadingWidth = (value: number) => {
     setReadingWidth(value);
     document.documentElement.style.setProperty("--conversation-max-width", `${value}px`);
-    window.dispatchEvent(new Event("resize"));
   };
   const commitReadingWidth = (value = readingWidth) => {
     if (value === lastSubmittedReadingWidth.current && preferences.readingWidth !== 0) return;
     lastSubmittedReadingWidth.current = value;
     update({ readingWidth: value, readingWidthCustom: value });
-    window.dispatchEvent(new Event("resize"));
   };
   const setFullReadingWidth = (full: boolean) => {
     update({ readingWidth: full ? 0 : readingWidth, readingWidthCustom: readingWidth });
-    window.dispatchEvent(new Event("resize"));
   };
   const changeCornerRadius = (value: number) => {
     setCornerRadius(value);

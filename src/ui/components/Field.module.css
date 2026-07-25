@@ -17,7 +17,7 @@
 .textarea { min-height: auto; padding-block: calc(var(--density-unit) * 1.5); resize: none; line-height: var(--font-body-line-height); }
 
 .input[data-kind="selection"] { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.choice, .switch { display: inline-flex; min-width: 0; align-items: center; gap: calc(var(--density-unit) * 2); color: var(--component-form-foreground, var(--color-text-secondary)); font-family: var(--font-ui); }
+.choice, .switch { position: relative; display: inline-flex; min-width: 0; align-items: center; gap: calc(var(--density-unit) * 2); color: var(--component-form-foreground, var(--color-text-secondary)); font-family: var(--font-ui); }
 .choiceMark { display: grid; width: calc(var(--density-unit) * 4); height: calc(var(--density-unit) * 4); flex: none; place-items: center; color: transparent; background: var(--background-form, var(--component-form-background, var(--color-surface-muted))); box-shadow: var(--shadow-input-stroke); }
 .choiceMark svg { width: calc(var(--density-unit) * 2.5); height: calc(var(--density-unit) * 2.5); }
 .choice input:checked + .choiceMark { color: var(--color-form-active-foreground, var(--color-inverse-surface)); background: var(--background-form-active, var(--component-form-accent, var(--color-accent))); box-shadow: var(--shadow-control); }
