@@ -1,3 +1,5 @@
+import type { TaskListItem } from "../../shared/contracts.js";
+
 export function restorableRoute(pathname: string): string | null {
   if (pathname === "/new") return pathname;
   if (/^\/tasks\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pathname)) return pathname;
@@ -9,6 +11,11 @@ export function restoredInitialRoute(pathname: string, savedRoute: string, taskI
   const route = restorableRoute(candidate);
   const savedTaskId = taskIdFromRoute(candidate);
   return route && (!savedTaskId || taskIds.includes(savedTaskId)) ? route : "/new";
+}
+
+export function newTaskRoute(tasks: TaskListItem[], projectId: string | undefined): string {
+  const task = projectId && tasks.find((item) => item.projectId === projectId && item.sessionId && !item.hasUserTurn);
+  return task ? `/tasks/${task.taskId}` : "/new";
 }
 
 function taskIdFromRoute(pathname: string): string | null {

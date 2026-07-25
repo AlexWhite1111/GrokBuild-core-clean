@@ -9,6 +9,7 @@ import styles from "./NewTaskPage.module.css";
 import { accountViewState, effectiveAccount } from "../onboarding/accountState.js";
 import { Notice } from "../../ui/components/index.js";
 import { TaskPageLoading } from "./TaskPageLoading.js";
+import { newTaskRoute } from "../app/routeRestore.js";
 
 export function NewTaskPage() {
   const { t } = useTranslation();
@@ -28,6 +29,7 @@ export function NewTaskPage() {
   const accountState = accountViewState(accountStatus.data, account.data, account.isPending, account.isError);
   const signedIn = accountState === "authenticated";
   const draftKey = project ? `new:${project.projectId}${api.bootstrap.windowId ? `:${api.bootstrap.windowId}` : ""}` : undefined;
+  const taskRoute = newTaskRoute(workspace.tasks, project?.projectId);
   const activationKey = signedIn && project && capabilities.status !== "unavailable"
     ? `${project.projectId}:${api.bootstrap.windowId || "shared"}`
     : null;
@@ -39,7 +41,13 @@ export function NewTaskPage() {
 
   useEffect(() => {
     activeKey.current = activationKey;
-    if (!activationKey || !project || !draftKey || startedKey.current === activationKey) return;
+    if (!activationKey || !project || !draftKey) return;
+    if (taskRoute !== "/new") {
+      startedKey.current = activationKey;
+      navigate(taskRoute, { replace: true });
+      return;
+    }
+    if (startedKey.current === activationKey) return;
     startedKey.current = activationKey;
     const requestStorageKey = `grok-build.new-task-request:${activationKey}`;
     const requestId = storedRequestId(requestStorageKey);
@@ -93,6 +101,7 @@ export function NewTaskPage() {
     navigate,
     permissionModes,
     project,
+    taskRoute,
     workspace.systemPromptPresets,
   ]);
 

@@ -7,6 +7,7 @@ import { useLanShare } from "../api/useLanShare.js";
 import { openLanSharePopover } from "../app/uiEvents.js";
 import { Control, Input, PopoverContent, PopoverRoot, PopoverTrigger, Surface } from "../../ui/components/index.js";
 import { SemanticMutationDialog } from "../components/SemanticMutationDialog.js";
+import { newTaskRoute } from "../app/routeRestore.js";
 import { CapacityBar } from "./CapacityBar.js";
 import { SidebarLink } from "./SidebarLink.js";
 import { TaskRow } from "./TaskRow.js";
@@ -24,7 +25,6 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const [workspaceDropError, setWorkspaceDropError] = useState<string | null>(null);
   const visibleProjects = workspace.projects.filter((project) => `${project.name} ${project.displayPath}`.toLowerCase().includes(projectQuery.toLowerCase()));
   const projectTasks = useMemo(() => workspace.tasks.filter((task) => task.projectId === activeProject?.projectId), [activeProject?.projectId, workspace.tasks]);
-  const pendingNewTask = projectTasks.find((task) => task.sessionId && !task.hasUserTurn);
   const attention = workspace.tasks.filter((task) => task.needsAttention).length;
   const lanShare = useLanShare();
   useEffect(() => { void window.grokDesktop?.setAttentionCount(attention); }, [attention]);
@@ -56,7 +56,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
     >
       <nav className={styles.primary}>
         <Control recipe="row" className={styles.navButton} asChild>
-          <Link to={pendingNewTask ? `/tasks/${pendingNewTask.taskId}` : "/new"}><Plus size={15} /><span>{t("newTask")}</span></Link>
+          <Link to={newTaskRoute(workspace.tasks, activeProject?.projectId)}><Plus size={15} /><span>{t("newTask")}</span></Link>
         </Control>
         <Control recipe="row" className={styles.navButton} onClick={onSearch}>
           <Search size={15} /><span>{t("search")}</span><kbd>⌘K</kbd>

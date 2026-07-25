@@ -91,7 +91,7 @@
 
 - `npm run typecheck`：通过。
 - `npm run test:segmentation`：96 / 96 通过。
-- `npm run test:task-runtime`：114 / 114 通过。
+- `npm run test:task-runtime`：115 / 115 通过。
 - `npm run build`：Web、Server、Electron Shell 通过。
 - `npm run architecture`：通过；无未使用代码，重复率低于阈值。
 - `npm audit --omit=dev`：生产依赖 0 个漏洞。
@@ -111,6 +111,7 @@
 - 旧样例的 HTML 资源错误来自其显式引用但未提供的 `styles.css` / `main.ts`；不为不完整输入扩张预览协议或增加第二套合并逻辑。
 - 多预览历史任务连续截图主内容零位移；静置后 Electron、Renderer 与 GPU 进程均为 0.0% CPU。
 - Electron 连续点击两次“新任务”保持同一官方 task id，未再创建 Untitled Session。
+- Electron 从保存的 `/new` 路由冷启动后直接进入既有官方空 Session，未创建第三个 Session。
 - 手机模拟视口 `390×844`：灯箱和视口均为全屏，图片 cover 为 `633×844`；Fit 仍返回 cover。
 - 手机真实双击顺序实测 `633×844 → 864×1152 → 273×364 → 633×844`，按实际尺寸正确回环。
 
