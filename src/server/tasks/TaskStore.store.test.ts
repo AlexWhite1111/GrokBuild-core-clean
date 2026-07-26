@@ -427,6 +427,7 @@ test("official inline media keeps its cache reference and attachment after resta
   const sessionId = "019f0000-0000-7000-8000-000000000020";
   const sessionPath = path.join(grokHome, "sessions", encodeURIComponent(projectPath), sessionId);
   const startedAt = Date.parse("2026-07-25T00:00:00.000Z");
+  let now = startedAt;
   const bytes = Buffer.from("official-inline-media");
   const content = {
     type: "image",
@@ -450,11 +451,21 @@ test("official inline media keeps its cache reference and attachment after resta
 
   const liveMedia = new MediaArtifactStore({
     cacheDirectory: cachePath,
+    entryTtlMs: 1,
+    cacheOrphanGraceMs: 0,
     maintenanceIntervalMs: false,
+    now: () => now,
   });
   const attachment = liveMedia.registerAcpContent(sessionId, projectPath, content)[0];
   assert.ok(attachment);
+  const orphanAttachment = liveMedia.registerAcpContent(
+    "019f0000-0000-7000-8000-000000000099",
+    projectPath,
+    content,
+  )[0];
+  assert.ok(orphanAttachment);
   liveMedia.close();
+  now += 10_000;
 
   const state = new JsonStateStore(path.join(root, "state.json"));
   const projects = new ProjectStore(state);
@@ -462,13 +473,25 @@ test("official inline media keeps its cache reference and attachment after resta
   const store = new TaskStore(grokHome, "native", projects, state);
   const detail = store.readDetail(sessionId);
   assert.equal(detail?.messages[0]?.media?.[0]?.mediaId, attachment.mediaId);
-  assert.equal(store.mediaReferencesByTask().get(sessionId)?.has(attachment.mediaId), true);
+  const storedMediaIds = new Set(
+    detail?.messages.flatMap((message) => message.media?.map((media) => media.mediaId) || []) || [],
+  );
+  assert.equal(storedMediaIds.has(attachment.mediaId), true);
 
   const recoveredMedia = new MediaArtifactStore({
     cacheDirectory: cachePath,
+    entryTtlMs: 1,
+    cacheOrphanGraceMs: 0,
     maintenanceIntervalMs: false,
+    now: () => now,
   });
-  const reconciled = recoveredMedia.reconcilePersisted(store.mediaReferencesByTask());
+  const bootstrapped = recoveredMedia.reconcilePersisted(new Map(), store.officialSessionIds());
+  assert.equal(bootstrapped.retainedArtifacts, 1);
+  assert.equal(bootstrapped.removedArtifacts, 1);
+  const reconciled = recoveredMedia.resolvePersistedTask(
+    sessionId,
+    storedMediaIds,
+  );
   assert.equal(reconciled.retainedArtifacts, 1);
   const payload = recoveredMedia.resolveLease(
     recoveredMedia.lease(sessionId, attachment.mediaId).ticket,

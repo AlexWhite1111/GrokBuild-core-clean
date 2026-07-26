@@ -70,3 +70,47 @@ test("completed prose prefixes are parsed once while the active tail grows", () 
   assert.ok(state.parsedCharacters - parsedBefore < source.length * 1_000);
   assert.equal(state.tree.children.length > 0, true);
 });
+
+test("a long plain paragraph stays byte-for-byte canonical without repeated full parsing", () => {
+  const lines = Array.from({ length: 300 }, (_, index) =>
+    `第${String(index + 1).padStart(3, "0")}行，持续输出用于验证流式渲染性能。`);
+  let source = "";
+  let state = initialStreamingRichText(source, POLICY);
+  for (const line of lines) {
+    source += `${source ? "\n" : ""}${line}`;
+    state = updateStreamingRichText(state, source, POLICY);
+    assert.equal(state.mode, "plain");
+    assert.deepEqual(state.tree, parseRichTextDocument(source, POLICY));
+  }
+
+  assert.equal(state.parsedCharacters, 0);
+  const final = finalizeStreamingRichText(state, source, POLICY);
+  assert.deepEqual(final.tree, parseRichTextDocument(source, POLICY));
+});
+
+test("every partial plain-text frame keeps canonical whitespace, line, and Unicode positions", () => {
+  const source = "第一行 plain text.\nSecond line 😀.";
+  let state = initialStreamingRichText("", POLICY);
+  for (let cursor = 1; cursor <= source.length; cursor += 1) {
+    const partial = source.slice(0, cursor);
+    state = updateStreamingRichText(state, partial, POLICY);
+    assert.equal(state.mode, "plain", `cursor ${cursor}`);
+    assert.deepEqual(state.tree, parseRichTextDocument(partial, POLICY), `cursor ${cursor}`);
+  }
+});
+
+test("plain streaming returns to the canonical parser as soon as syntax becomes meaningful", () => {
+  for (const [prefix, source] of [
+    ["普通正文", "普通正文 **强调**"],
+    ["www", "www.example.com"],
+    ["document", "document.body"],
+    ["await", "await fetch"],
+    ["new", "new Date"],
+  ]) {
+    let state = initialStreamingRichText(prefix, POLICY);
+    assert.equal(state.mode, "plain");
+    state = updateStreamingRichText(state, source, POLICY);
+    assert.equal(state.mode, "full", source);
+    assert.deepEqual(state.tree, parseRichTextDocument(source, POLICY), source);
+  }
+});

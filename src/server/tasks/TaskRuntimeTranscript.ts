@@ -29,6 +29,12 @@ interface OpenMessageSegment {
   blockId: string;
 }
 
+export interface TaskTranscriptAppendResult {
+  turnId: string;
+  blockId: string;
+  created: boolean;
+}
+
 /**
  * Mutable transcript projection of the official session stream.
  */
@@ -168,7 +174,7 @@ export class TaskRuntimeTranscript {
     event: TaskEventEnvelope,
     structuredMedia: TaskMediaAttachment[] = [],
     commandTurnId = turnId,
-  ): void {
+  ): TaskTranscriptAppendResult | null {
     if (this.#sessionReplay) this.#skipExistingReplayUser = false;
     const content = asRecord(update.content);
     const text = string(content.text) || "";
@@ -187,7 +193,7 @@ export class TaskRuntimeTranscript {
     if (!continuing) this.closeSegment(turnId);
     this.#openMessageSegments.set(turnId, { role, sourceBlockId, blockId });
     if (this.commands.observeMessage(commandTurnId, role, blockId, text) || (!text && !structuredMedia.length)) {
-      return;
+      return null;
     }
     const key = messageKey(turnId, blockId);
     const existing = this.#messageIndex.get(key);
@@ -202,7 +208,7 @@ export class TaskRuntimeTranscript {
       existing.protocol = mergeTaskMessageProtocol(existing.protocol, advertisedBlockId
         ? protocol
         : { ...protocol, messageId: existing.protocol?.messageId || protocol.messageId });
-      return;
+      return { turnId, blockId, created: false };
     }
     const discovered = role === "assistant" && this.media ? this.#discoverMedia(text) : [];
     const message: TaskMessageBlock = {
@@ -221,6 +227,7 @@ export class TaskRuntimeTranscript {
     this.messages.push(message);
     this.#messageIndex.set(key, message);
     this.#mediaScans.set(key, createMediaHintScanState(text));
+    return { turnId, blockId, created: true };
   }
 
   appendRemoteUser(
@@ -230,13 +237,17 @@ export class TaskRuntimeTranscript {
     event: TaskEventEnvelope,
     userEcho?: PromptEchoIdentity,
     correlationTurnId = turnId,
-  ): void {
-    if (this.#sessionReplay && this.#skipExistingReplayUser) return;
+  ): TaskTranscriptAppendResult | null {
+    if (this.#sessionReplay && this.#skipExistingReplayUser) return null;
     const content = asRecord(update.content);
     const sourceText = userEcho?.displayText || string(content.text);
-    const text = userEcho ? sourceText : sourceText ? visibleRemoteUserText(sourceText) || undefined : undefined;
-    if (!text) return;
     const meta = readMeta(update);
+    const text = userEcho
+      ? sourceText
+      : sourceText
+        ? visibleRemoteUserText(sourceText, meta.hideFromScrollback === true) || undefined
+        : undefined;
+    if (!text) return null;
     const requestId = userEcho?.requestId || string(meta.requestId) || string(meta.clientRequestId);
     const advertisedBlockId = string(update.messageId) || string(meta.blockId);
     const protocol = taskMessageProtocol("user", event, userEcho?.turnId || turnId, advertisedBlockId);
@@ -247,10 +258,11 @@ export class TaskRuntimeTranscript {
       if (local) {
         local.protocol = mergeTaskMessageProtocol(local.protocol, protocol);
         local.lastEvent = eventCursor(event);
+        return { turnId: local.turnId, blockId: local.blockId, created: false };
       }
     }
     if (this.#dedupedUserEchoTurns.has(correlationTurnId) || (requestId && this.#requestIds.has(requestId))) {
-      return;
+      return null;
     }
     const blockId = protocol.messageId;
     const media = this.media ? mergeMedia(
@@ -259,6 +271,7 @@ export class TaskRuntimeTranscript {
     ) : undefined;
     const key = messageKey(turnId, blockId);
     const existing = this.#messageIndex.get(key);
+    const created = !existing;
     if (existing) {
       existing.text += text;
       existing.lastEvent = eventCursor(event);
@@ -287,6 +300,7 @@ export class TaskRuntimeTranscript {
       this.#mediaScans.set(key, createMediaHintScanState(text));
     }
     if (requestId) this.#requestIds.add(requestId);
+    return { turnId, blockId, created };
   }
 
   messageForRequest(requestId: string): TaskMessageBlock | undefined {

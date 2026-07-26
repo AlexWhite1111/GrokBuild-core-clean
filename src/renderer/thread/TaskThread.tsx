@@ -27,6 +27,7 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   const parent = useRef<HTMLDivElement>(null);
   const anchorTimer = useRef<number | null>(null);
   const restoreFrame = useRef<number | null>(null);
+  const followFrame = useRef<number | null>(null);
   const pendingAnchor = useRef<{ taskId: string; value: TaskScrollAnchor } | null>(null);
   const restoring = useRef(true);
   const pinnedToBottom = useRef(true);
@@ -61,7 +62,12 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   }, [items.length, virtualizer]);
   useEffect(() => {
     if (!stateLoaded || restoring.current || !items.length) return;
-    if (pinnedToBottom.current) scrollToLatest();
+    if (!pinnedToBottom.current || followFrame.current != null) return;
+    followFrame.current = requestAnimationFrame(() => {
+      followFrame.current = null;
+      const element = parent.current;
+      if (pinnedToBottom.current && element && !threadAtBottom(element)) scrollToLatest();
+    });
   }, [detail.snapshot.revision, items.length, paddingEnd, scrollToLatest, stateLoaded]);
   useEffect(() => {
     let current = true;
@@ -141,6 +147,7 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   }, [persistPendingAnchor]);
   useEffect(() => () => {
     if (restoreFrame.current != null) cancelAnimationFrame(restoreFrame.current);
+    if (followFrame.current != null) cancelAnimationFrame(followFrame.current);
   }, []);
   const onScroll = () => {
     const element = parent.current;

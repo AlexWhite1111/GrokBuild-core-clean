@@ -112,6 +112,17 @@ export class TaskStore {
     return rows.sort((left, right) => right.pinned - left.pinned || right.updated_at.localeCompare(left.updated_at));
   }
 
+  /** Session directory identities come directly from the active Grok Home and
+   * are cheap to enumerate without replaying any transcript. */
+  officialSessionIds(): ReadonlySet<string> {
+    const sessionsRoot = path.join(this.grokHome, "sessions");
+    const ids = new Set<string>();
+    for (const workspace of safeDirectories(sessionsRoot)) {
+      for (const session of safeDirectories(path.join(sessionsRoot, workspace))) ids.add(session);
+    }
+    return ids;
+  }
+
   row(taskId: string): TaskRow | undefined {
     return this.rows().find((row) => row.task_id === taskId || row.session_id === taskId);
   }
@@ -214,25 +225,6 @@ export class TaskStore {
   nextForkOrdinal(parentTaskId: string): number {
     const key = `task.forkOrdinal.${parentTaskId}`;
     return this.state.update<number>(key, (value) => Math.max(0, value || 0) + 1) || 1;
-  }
-
-  mediaReferencesByTask(): Map<string, ReadonlySet<string>> {
-    return new Map(this.rows().map((row) => {
-      const detail = this.readDetail(row.task_id);
-      const mediaIds = new Set<string>();
-      for (const message of detail?.messages || []) {
-        for (const media of message.media || []) mediaIds.add(media.mediaId);
-      }
-      for (const event of detail?.events || []) {
-        const payload = object(event.payload);
-        if (!Array.isArray(payload?.media)) continue;
-        for (const value of payload.media) {
-          const mediaId = text(object(value)?.mediaId);
-          if (mediaId) mediaIds.add(mediaId);
-        }
-      }
-      return [row.task_id, mediaIds] as const;
-    }));
   }
 
   #pinned(taskId: string): boolean {

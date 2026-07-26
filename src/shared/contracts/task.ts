@@ -476,6 +476,33 @@ export interface TaskDetailProjection {
   context: TaskOperationalContextSnapshot;
 }
 
+/**
+ * Ordered renderer-facing frames from the one authoritative task projection.
+ * Snapshot frames establish structure. Delta frames replace only changed
+ * messages/events while carrying the current small task/context projections.
+ * The official Session remains the sole source for both forms.
+ */
+export type TaskProjectionFrame =
+  | {
+      kind: "snapshot";
+      detail: TaskDetailProjection;
+    }
+  | {
+      kind: "delta";
+      snapshot: TaskSnapshot;
+      context: TaskOperationalContextSnapshot;
+      messageCount: number;
+      messages: Array<{
+        index: number;
+        message: TaskMessageBlock;
+      }>;
+      eventCount: number;
+      events: Array<{
+        index: number;
+        event: TaskEventEnvelope;
+      }>;
+    };
+
 export const NewTaskDraftKeySchema = z.string().regex(/^new:project_[a-f0-9]{24}(?::[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/i);
 
 export const TaskCreateSchema = z.object({
@@ -484,7 +511,7 @@ export const TaskCreateSchema = z.object({
   modelId: z.string().trim().regex(/^[A-Za-z0-9._:/-]{1,256}$/).nullable().optional(),
   effort: ReasoningEffortSchema.nullable().optional(),
   workMode: WorkModeSchema.default("normal"),
-  permission: PermissionModeSchema.default("alwaysApprove"),
+  permission: PermissionModeSchema,
   sandbox: SandboxProfileSchema.default("off"),
   systemPrompt: TaskSystemPromptSchema.nullable().default(null),
   draftKey: NewTaskDraftKeySchema.optional(),
@@ -580,7 +607,6 @@ export const ProjectMutationSchema = z.object({
 export const ProjectDefaultsSchema = z.object({
   modelId: z.string().trim().regex(/^[A-Za-z0-9._:/-]{1,256}$/).nullable(),
   effort: ReasoningEffortSchema.nullable(),
-  workMode: WorkModeSchema,
   permission: PermissionModeSchema,
   sandbox: SandboxProfileSchema,
   systemPromptPresetId: z.string().uuid().nullable().default(null),

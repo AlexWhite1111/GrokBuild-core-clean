@@ -1,5 +1,6 @@
-import type { Root } from "hast";
+import type { ElementContent, Root } from "hast";
 import {
+  isImplicitExecutableRichText,
   parseRichTextDocument,
   type RichTextPolicy,
 } from "../../shared/richTextPipeline.js";
@@ -10,7 +11,7 @@ export interface StreamingRichTextState {
   committedTree: Root | null;
   activeSource: string;
   tree: Root;
-  mode: "incremental" | "full";
+  mode: "plain" | "incremental" | "full";
   /** Test/diagnostic counter; it does not participate in rendering. */
   parsedCharacters: number;
   policyKey: string;
@@ -59,6 +60,20 @@ export function updateStreamingRichText(
     };
   }
   if (source === previous.source) return previous;
+
+  if (isPlainParagraph(source, policy)) {
+    return {
+      source,
+      committedSource: "",
+      committedTree: null,
+      activeSource: source,
+      tree: plainParagraphTree(source),
+      mode: "plain",
+      parsedCharacters: previous.parsedCharacters,
+      policyKey: nextPolicyKey,
+      lastAttemptedBoundary: -1,
+    };
+  }
 
   const activeSource = previous.activeSource + source.slice(previous.source.length);
   const absoluteActiveOffset = previous.committedSource.length;
@@ -174,6 +189,85 @@ function safeProsePrefix(source: string): boolean {
   if (/^\s*\|.*\|\s*$/m.test(source)) return false;
   if (/^\s*(?:`{3,}|~{3,})/m.test(source)) return false;
   return true;
+}
+
+/**
+ * Plain prose still uses the canonical HAST contract, but does not need the
+ * complete Markdown/HTML/math toolchain while its one paragraph is growing.
+ * The accepted grammar is deliberately narrow: any character that could alter
+ * Markdown, HTML, math, media, autolink, or executable-code interpretation
+ * returns immediately to the canonical parser.
+ */
+function isPlainParagraph(source: string, policy: RichTextPolicy): boolean {
+  if (policy.mediaPlacements?.length) return false;
+  if (!source) return true;
+  if (/[\r\t]/.test(source) || source.includes("\n\n") || / +\n/.test(source)) return false;
+  if (/[\\`*_{}\[\]()<>#$~|&@=;:/+-]/.test(source)) return false;
+  const logicalSource = source.endsWith("\n") ? source.slice(0, -1) : source;
+  if (!logicalSource.trim()) return true;
+  if (/www\./i.test(logicalSource) || isImplicitExecutableRichText(logicalSource)) return false;
+  return logicalSource.split("\n").every((line) =>
+    Boolean(line)
+    && !line.startsWith(" ")
+    && !/^\d+[.]\s/.test(line));
+}
+
+/** Builds the exact canonical HAST shape for the narrow prose grammar above. */
+function plainParagraphTree(source: string): Root {
+  let contentEnd = source.endsWith("\n") ? source.length - 1 : source.length;
+  while (contentEnd > 0 && source.charCodeAt(contentEnd - 1) === 32) contentEnd -= 1;
+  const content = source.slice(0, contentEnd);
+  if (!content) return { type: "root", children: [], data: { quirksMode: false } };
+
+  const lines = content.split("\n");
+  const children: ElementContent[] = [];
+  let offset = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (index === 0) {
+      children.push({
+        type: "text",
+        value: line,
+        position: {
+          start: { line: 1, column: 1, offset: 0 },
+          end: { line: 1, column: line.length + 1, offset: line.length },
+        },
+      });
+      offset = line.length;
+      continue;
+    }
+    const previousLength = lines[index - 1].length;
+    children.push({ type: "element", tagName: "br", properties: {}, children: [] });
+    children.push({
+      type: "text",
+      value: `\n${line}`,
+      position: {
+        start: { line: index, column: previousLength + 1, offset },
+        end: { line: index + 1, column: line.length + 1, offset: offset + line.length + 1 },
+      },
+    });
+    offset += line.length + 1;
+  }
+  const paragraphEnd = source.endsWith("\n") ? contentEnd : source.length;
+  const paragraphEndColumn = lines.at(-1)!.length + 1 + (paragraphEnd - contentEnd);
+  return {
+    type: "root",
+    children: [{
+      type: "element",
+      tagName: "p",
+      properties: {},
+      children,
+      position: {
+        start: { line: 1, column: 1, offset: 0 },
+        end: { line: lines.length, column: paragraphEndColumn, offset: paragraphEnd },
+      },
+    }],
+    data: { quirksMode: false },
+    position: {
+      start: { line: 1, column: 1, offset: 0 },
+      end: { line: 1, column: 1, offset: 0 },
+    },
+  };
 }
 
 function safeCommittedTree(tree: Root): boolean {

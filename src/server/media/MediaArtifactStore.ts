@@ -91,6 +91,7 @@ export class MediaArtifactStore {
   readonly #now: () => number;
   readonly #maintenance: NodeJS.Timeout | null;
   #persistedReferences = new Map<string, ReadonlySet<string>>();
+  #unresolvedPersistedTasks = new Set<string>();
 
   constructor(options: MediaArtifactStoreOptions = {}) {
     this.#entryTtlMs = options.entryTtlMs ?? 24 * 60 * 60_000;
@@ -104,10 +105,25 @@ export class MediaArtifactStore {
   }
 
   /** Reconciles private cache files against the durable media IDs referenced by task events. */
-  reconcilePersisted(references: ReadonlyMap<string, ReadonlySet<string>>): CacheReconcileResult {
+  reconcilePersisted(
+    references: ReadonlyMap<string, ReadonlySet<string>>,
+    unresolvedTaskIds: ReadonlySet<string> = new Set(),
+  ): CacheReconcileResult {
     this.#persistedReferences = new Map([...references].map(([taskId, mediaIds]) => [taskId, new Set(mediaIds)]));
+    this.#unresolvedPersistedTasks = new Set(unresolvedTaskIds);
+    return this.#reconcileCache();
+  }
+
+  resolvePersistedTask(taskId: string, mediaIds: ReadonlySet<string>): CacheReconcileResult {
+    this.#persistedReferences.set(taskId, new Set(mediaIds));
+    this.#unresolvedPersistedTasks.delete(taskId);
+    return this.#reconcileCache();
+  }
+
+  #reconcileCache(): CacheReconcileResult {
     return this.#cache.reconcile(
       this.#persistedReferences,
+      this.#unresolvedPersistedTasks,
       new Set(this.#entries.keys()),
       this.#now(),
       this.#entryTtlMs,
@@ -121,12 +137,14 @@ export class MediaArtifactStore {
     for (const [ticket, lease] of this.#leases) if (lease.taskId === taskId) this.#leases.delete(ticket);
     this.#cache.removeTask(taskId);
     this.#persistedReferences.delete(taskId);
+    this.#unresolvedPersistedTasks.delete(taskId);
   }
 
   prune(): void {
     this.#prune();
     this.#cache.reconcile(
       this.#persistedReferences,
+      this.#unresolvedPersistedTasks,
       new Set(this.#entries.keys()),
       this.#now(),
       this.#entryTtlMs,
@@ -300,6 +318,8 @@ export class MediaArtifactStore {
     this.#sourceIndex.clear();
     this.#leases.clear();
     this.#remotePending.clear();
+    this.#persistedReferences.clear();
+    this.#unresolvedPersistedTasks.clear();
     this.#memoryBytes = 0;
   }
 

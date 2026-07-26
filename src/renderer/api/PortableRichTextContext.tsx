@@ -6,6 +6,7 @@ import {
   type RichTextRenderPolicy,
   type RichTextRenderResponse,
 } from "../../shared/contracts.js";
+import { WeightedLruCache } from "../../shared/WeightedLruCache.js";
 import type { ApiClient } from "./ApiClient.js";
 
 interface PortableRenderer {
@@ -22,6 +23,8 @@ interface RenderInput {
 }
 
 const EMPTY_PLACEMENTS: RichTextMediaPlacement[] = [];
+const MAX_RESOLVED_ENTRIES = 96;
+const MAX_RESOLVED_WEIGHT = 16 * 1024 * 1024;
 
 const PortableRichTextContext = createContext<PortableRenderer | null>(null);
 
@@ -56,7 +59,10 @@ export function usePortableRichText(
 }
 
 function createRenderer(api: ApiClient): PortableRenderer {
-  const resolved = new Map<string, RichTextRenderResponse>();
+  const resolved = new WeightedLruCache<string, RichTextRenderResponse>(
+    MAX_RESOLVED_ENTRIES,
+    MAX_RESOLVED_WEIGHT,
+  );
   const pending = new Map<string, Promise<RichTextRenderResponse>>();
   const keyOf = renderKey;
   return {
@@ -69,14 +75,20 @@ function createRenderer(api: ApiClient): PortableRenderer {
       if (existing) return existing;
       const request = api.post<RichTextRenderResponse>("/render/rich-text", input).then((response) => {
         pending.delete(key);
-        resolved.set(key, response);
-        if (resolved.size > 512) resolved.delete(resolved.keys().next().value!);
+        resolved.set(key, response, renderWeight(key, input));
         return response;
       }, (error) => { pending.delete(key); throw error; });
       pending.set(key, request);
       return request;
     },
   };
+}
+
+function renderWeight(key: string, input: RenderInput): number {
+  return 2_048
+    + key.length * 2
+    + input.text.length * 8
+    + input.placements.length * 128;
 }
 
 function renderKey(input: RenderInput): string {

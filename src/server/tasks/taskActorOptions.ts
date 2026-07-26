@@ -1,4 +1,4 @@
-import type { ProjectDefaults, TaskCreate, TaskDetailProjection } from "../../shared/contracts.js";
+import type { TaskCreate, TaskDetailProjection } from "../../shared/contracts.js";
 import type { TaskRow } from "./TaskStore.js";
 import type { RuntimePermissionCapabilities, TaskActorOptions } from "./taskTypes.js";
 
@@ -43,16 +43,5 @@ export function restoredActorOptions(row: TaskRow, existing: TaskDetailProjectio
     modelId: snapshot.modelId,
     effort: snapshot.effort,
     existing,
-  };
-}
-
-export function defaultsFrom(input: TaskCreate): ProjectDefaults {
-  return {
-    modelId: input.modelId ?? null,
-    effort: input.effort ?? null,
-    workMode: input.workMode,
-    permission: input.permission,
-    sandbox: input.sandbox,
-    systemPromptPresetId: input.systemPrompt?.presetId ?? null,
   };
 }

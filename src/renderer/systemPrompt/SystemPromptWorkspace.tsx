@@ -17,11 +17,13 @@ interface PromptDraft {
 
 const EMPTY_PROMPT: PromptDraft = { title: "", rules: "", systemPrompt: "", pinned: true };
 
-export function SystemPromptWorkspace({ current, taskId, renderPolicy, mediaScale, onApply, onClose }: {
+export function SystemPromptWorkspace({ current, taskId, renderPolicy, mediaScale, applyDisabled = false, applyHint, onApply, onClose }: {
   current: TaskSystemPrompt | null;
   taskId?: string;
   renderPolicy?: RichTextRenderPolicy;
   mediaScale?: number;
+  applyDisabled?: boolean;
+  applyHint?: string;
   onApply: (prompt: TaskSystemPrompt | null) => void;
   onClose: () => void;
 }) {
@@ -54,6 +56,7 @@ export function SystemPromptWorkspace({ current, taskId, renderPolicy, mediaScal
 
   const save = async (apply: boolean) => {
     if (!valid) return;
+    if (apply && applyDisabled) return;
     setError(null);
     try {
       const next = await intents.save.mutateAsync({
@@ -104,9 +107,10 @@ export function SystemPromptWorkspace({ current, taskId, renderPolicy, mediaScal
 
       <section className={styles.editor}>
         {error && <Notice tone="danger" role="alert">{error}</Notice>}
+        {applyDisabled && applyHint && <Notice density="compact">{applyHint}</Notice>}
         {systemSelected ? <div className={styles.systemState}>
           <div className={styles.heading}><Text as="h1" size="title" weight="semibold">System</Text><Text as="p" tone="secondary" size="body">Use Grok’s built-in system prompt for this session.</Text></div>
-          {current && <Control recipe="solid" onClick={() => onApply(null)}><Check size={13} />Use System</Control>}
+          {current && <Control recipe="solid" disabled={applyDisabled} onClick={() => onApply(null)}><Check size={13} />Use System</Control>}
         </div> : <>
           <header className={styles.editorHeader}>
             <div className={styles.heading}><Text as="h1" size="title" weight="semibold">{selection === "new" ? "New preset" : draft.title || "System Prompt"}</Text><Text as="p" tone="secondary" size="body">The override replaces Grok’s built-in prompt; Rules are appended afterward.</Text></div>
@@ -123,8 +127,8 @@ export function SystemPromptWorkspace({ current, taskId, renderPolicy, mediaScal
           </div>}
 
           <footer className={styles.actions}>
-            <Control recipe="solid" disabled={!valid || intents.save.isPending} onClick={() => void save(selection === "current")}><Save size={13} />{selection === "current" ? "Save & Apply" : "Save"}</Control>
-            {selection !== "current" && selection !== "new" && <Control recipe="quiet" disabled={!valid || intents.save.isPending} onClick={() => void save(true)}><Check size={13} />Use</Control>}
+            <Control recipe="solid" disabled={!valid || intents.save.isPending} onClick={() => void save(selection === "current" && !applyDisabled)}><Save size={13} />{selection === "current" && !applyDisabled ? "Save & Apply" : "Save"}</Control>
+            {selection !== "current" && selection !== "new" && <Control recipe="quiet" disabled={!valid || intents.save.isPending || applyDisabled} onClick={() => void save(true)}><Check size={13} />Use</Control>}
             {selectedPreset && <Control recipe="danger" disabled={intents.delete.isPending} onClick={() => void remove()}><Trash2 size={13} />Delete</Control>}
           </footer>
         </>}

@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createActor } from "xstate";
-import { QueueMutationSchema, type ComposerReplayDocument, type GateDecision, type PathReferenceSummary, type PlanReviewDraftIdentity, type PlanReviewDraftSnapshot, type TaskDetailProjection, type TaskGoalAction, type TaskSnapshot, type TaskSubmissionMode, type WorkMode } from "../../shared/contracts.js";
+import { QueueMutationSchema, type ComposerReplayDocument, type GateDecision, type PathReferenceSummary, type PlanReviewDraftIdentity, type PlanReviewDraftSnapshot, type TaskDetailProjection, type TaskGoalAction, type TaskProjectionFrame, type TaskSnapshot, type TaskSubmissionMode, type WorkMode } from "../../shared/contracts.js";
 import type { z } from "zod";
 import { OfficialAcpClient, type ForkSessionResponse, type RewindExecuteResponse } from "../acp/OfficialAcpClient.js";
 import { wireTaskClientEvents } from "./TaskClientEvents.js";
 import { PromptEchoQueue } from "./PromptEchoQueue.js";
-import { TaskRuntimeProjection } from "./TaskRuntimeProjection.js";
+import { TaskRuntimeProjection, type TaskProjectionChange } from "./TaskRuntimeProjection.js";
 import { decideTaskGate } from "./taskGates.js";
 import { applyTaskMachineState, taskMachine } from "./taskMachine.js";
 import { createTaskSnapshot } from "./taskSnapshotFactory.js";
@@ -24,7 +24,7 @@ import { stopTaskWork } from "./taskWorkControl.js";
 import { taskAcpClientOptions } from "./taskAcpClientOptions.js";
 import { TaskPermissionRuntime } from "./TaskPermissionRuntime.js";
 import { hasPendingNativeQueue } from "./taskQueueState.js";
-import { historyMutationBlocker } from "./taskHistoryReadiness.js";
+import { historyMutationBlocker } from "../../shared/taskHistoryReadiness.js";
 import { refreshTaskContextWindow } from "./taskContextWindow.js";
 import { createTaskRuntimeContext } from "./taskActorRuntimeContext.js";
 import { completeTaskTurn, rejectTaskTurn, type ActiveTaskTurn, type TaskTurnSettlementContext } from "./taskTurnSettlement.js";
@@ -103,6 +103,7 @@ export class TaskActor extends EventEmitter {
   }
   get snapshot(): TaskSnapshot { return structuredClone(this.#projection.snapshot); }
   get detail(): TaskDetailProjection { return this.#projection.detail(); }
+  projectionFrame(change?: TaskProjectionChange): TaskProjectionFrame { return this.#projection.frame(change); }
   childDetail(sessionId: string) { return this.#projection.childDetail(sessionId); }
   rename(title: string): TaskSnapshot {
     this.#projection.snapshot.title = title;
@@ -460,6 +461,6 @@ export class TaskActor extends EventEmitter {
   #syncActiveTurn(): void {
     this.#projection.snapshot.currentPromptExecutionId = this.#activeTurns.keys().next().value || null;
   }
-  #emitChange(): void { this.#notifyIdle(); this.emit("change"); }
+  #emitChange(change?: TaskProjectionChange): void { this.#notifyIdle(); this.emit("change", change); }
   #assertNotStopped(): void { if (this.#stopped) throw new Error("Task actor has been retired."); }
 }

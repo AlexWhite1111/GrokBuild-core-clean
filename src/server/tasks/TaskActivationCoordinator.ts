@@ -22,7 +22,7 @@ export class TaskActivationCoordinator {
     taskRow(taskId: string): TaskRow;
     actorRuntime(projectId: string): Omit<TaskActorOptions, "taskId" | "projectId" | "workMode" | "permission" | "sandbox">;
     attach(actor: TaskActor): void;
-    publishCreatedTask(actor: TaskActor, input: TaskCreate): void;
+    publishCreatedTask(actor: TaskActor): void;
   }) {}
 
   async create(input: TaskCreate): Promise<TaskSnapshot> {
@@ -46,7 +46,7 @@ export class TaskActivationCoordinator {
       }
     }
     this.#adoptOfficialIdentity(provisionalTaskId, actor);
-    this.options.publishCreatedTask(actor, input);
+    this.options.publishCreatedTask(actor);
     return actor.snapshot;
   }
 

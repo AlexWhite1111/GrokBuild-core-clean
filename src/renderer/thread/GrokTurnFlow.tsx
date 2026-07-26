@@ -26,7 +26,8 @@ export const GrokTurnFlow = memo(function GrokTurnFlow({ taskId, segments, rende
   const latestSegment = segments.at(-1);
   if (latestSegment && latestSegment.kind !== "assistant" && processModels.get(latestSegment.id)?.status === "running") activeProcessId = latestSegment.id;
   const collapsedReplyId = [...segments].reverse().find((segment) => segment.kind === "assistant" && segment.final)?.id
-    || [...segments].reverse().find((segment) => segment.kind === "assistant")?.id;
+    || [...segments].reverse().find((segment) => segment.kind === "assistant")?.id
+    || segments.at(-1)?.id;
 
   return <div className={styles.flow} data-turn-flow>
     {segments.map((segment) => {

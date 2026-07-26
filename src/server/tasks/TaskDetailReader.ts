@@ -16,11 +16,12 @@ interface TaskDetailReaderOptions {
 /** Reads official task projections and reattaches local media authority. */
 export class TaskDetailReader {
   constructor(private readonly options: TaskDetailReaderOptions) {
-    options.media.reconcilePersisted(options.store.mediaReferencesByTask());
+    options.media.reconcilePersisted(new Map(), options.store.officialSessionIds());
   }
 
   parent(row: TaskRow): TaskDetailProjection {
     const detail = this.#restore(row);
+    this.options.media.resolvePersistedTask(row.task_id, mediaReferences(detail));
     const projectPath = this.options.projects.getCanonicalPath(row.project_id);
     refreshTaskContextWindow(detail.snapshot, this.options.grokHome, projectPath);
     this.options.media.hydrateMessages(
@@ -35,6 +36,10 @@ export class TaskDetailReader {
   child(row: TaskRow, childSessionId: string) {
     const parent = this.#restore(row);
     const detail = this.options.store.readChildDetail(row.task_id, childSessionId);
+    this.options.media.resolvePersistedTask(
+      row.task_id,
+      mediaReferences(parent, detail),
+    );
     const item = [...parent.context.activeWork, ...parent.context.history.flatMap((entry) => entry.kind === "work" ? [entry.work] : [])]
       .find((entry) => entry.childSessionId === childSessionId || entry.id === childSessionId);
     if (detail) this.options.media.hydrateMessages(
@@ -57,4 +62,34 @@ export class TaskDetailReader {
     if (!detail) throw new AppProblem(404, "NOT_FOUND", "Task not found.");
     return detail;
   }
+}
+
+function mediaReferences(
+  ...details: Array<TaskDetailProjection | null>
+): ReadonlySet<string> {
+  const mediaIds = new Set<string>();
+  for (const detail of details) {
+    for (const message of detail?.messages || []) {
+      for (const media of message.media || []) mediaIds.add(media.mediaId);
+    }
+    for (const event of detail?.events || []) {
+      const payload = record(event.payload);
+      if (!Array.isArray(payload?.media)) continue;
+      for (const value of payload.media) {
+        const mediaId = text(record(value)?.mediaId);
+        if (mediaId) mediaIds.add(mediaId);
+      }
+    }
+  }
+  return mediaIds;
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }

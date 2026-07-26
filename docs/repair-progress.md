@@ -32,6 +32,11 @@
 - [x] P14：统一 Git/工作区视觉；修正诊断能力证据；收口图片尺寸、手机灯箱与空 New Task 复用。
 - [x] P15：修复流式输出滚动夺权；删除分散输入监听，按真实滚动方向脱离和恢复跟随。
 - [x] P16：降低长回复投影与富文本重建开销；官方事件完整累积，界面刷新按可选帧窗口合并。
+- [x] P17：把长流收敛为单一有序投影协议；限制富文本缓存与冷启动扫描，并完成正式 App 的 10 Hz、Session 顺序和完整渲染验收。
+- [x] P18：修复 Mermaid 节点中的 LaTeX；保留严格生成链和直接 SVG 的原安全边界，并在正式 App 中验收。
+- [x] P19：收口空白 Session 预配置、官方 interjection/隐藏提醒、空回合展示，并修复 Mermaid HTML 标签二次解析。
+- [x] P20：把消息与结构变化收敛为统一增量投影，消除子 Agent 大 Session 的完整事件重传。
+- [x] P21：集中新任务默认值，删除任务创建反写默认配置和无效 Work Mode 默认字段。
 
 ## 已确认不变量
 
@@ -42,7 +47,7 @@
 - 子会话不进入主列表，但必须能按 session id 打开。
 - Goal 终态是独立的官方时间线事件，不按最新消息、时间或文本推断归属。
 - tool update 只按官方 tool call identity 归并，不为每个更新生成本地伪回合。
-- 性能优化不得丢弃、改序或概括官方 Session 事件；只允许合并 UI 收到完整投影的刷新时机。
+- 性能优化不得丢弃、改序或概括官方 Session 事件；允许合并 UI 刷新并传输带版本和索引的确定性增量，失配时只能从同一官方 Task 重新同步。
 
 ## 当前状态
 
@@ -95,17 +100,39 @@
 - 渲染设置提供 10 / 15 / 20 / 30 / 60 Hz 五档，只保存 `streamingRefreshHz`，不参与 Session 状态判断。
 - 真实 JSON 快照按官方结构事件内容缓存时间线；流式文本的 `lastEvent` 变化只更新现有消息，不再重建整个历史。
 - Task 快照不再连带克隆全部消息与事件；Context Window 只在既有恢复/终态刷新点读取，不在每次 UI 投影同步读磁盘。
+- WebSocket 只保留 `task.projection`：初次连接与显式重同步发送完整帧；其后消息、事件和子 Agent 状态统一发送带 epoch/revision/index/count 的增量帧。
+- Renderer 只在版本、顺序、identity 与目标数量全部连续时原位合并增量；任一项失配便从同一官方 Task 端点重新同步，不增加第二事实源。
+- 同一刷新窗口内的消息与结构变化合并为一个最新增量；官方 Session 通知仍逐条、原序进入 Actor，完整消息和事件继续由唯一投影保存。
+- 普通增长文本使用与 canonical 结果一致的窄语法路径；Markdown、HTML、公式、媒体、代码和最终完成态始终进入同一 canonical 富文本管线。
+- Renderer 与 Server 富文本缓存统一为按权重淘汰的 96 项 / 16 MiB 上限；超大结果照常渲染但不驻留。
+- 冷启动只枚举官方 Session id，不再为媒体清理回放全部历史；官方 Session 的未解析媒体保守保留，任务打开后从该 Session 的真实消息与事件完成引用解析。
+- Mermaid 仍由原生严格模式生成；其自身生成的 HTML/MathML 标签通过同一 SVG 净化器保留，不增加旁路渲染器。
+- 只有严格 Mermaid 生成物可使用 `foreignObject` 的 HTML 命名空间切换；直接 SVG 与 Graphviz 继续禁止该能力，脚本、外部引用和危险 CSS 仍会移除。
+- 首条用户消息前更换 System Prompt/Sandbox 时，新官方 Session 原位接替并归档旧空 Session；标题、Pin、草稿和临时文本引用随任务迁移，不创建可见 Fork。
+- 首条用户消息后仍沿用正常 Fork；前台回合、Goal、Queue、Gate、未确认投递或后台工作存在时，前后端共用同一阻塞规则。
+- 设置中的“新任务默认值”集中保存当前 Project 的模型、推理强度、Permission、Sandbox 与 System Prompt 预设；只在创建下一条官方 Session 时读取。
+- 当前任务 Permission 仍只跟随自身官方 Session；任务创建不再把临时解析结果反写项目默认值，能力暂不可用时也不会把已保存的 YOLO 覆盖成 Ask。
+- 新任务输入必须显式携带解析后的 Permission；已删除没有真实入口且从未被读取的 Project `workMode` 默认字段。
+- 官方 `hideFromScrollback` 输入不进入正文；interjection 只显示官方 `<user_query>` 内容；没有 Grok 正文的回合折叠到最后一个真实过程段，不生成空气泡。
+- Mermaid 生成成功后的 HTML 标签按 HTML DOM 净化后再序列化为 SVG，避免把合法 `<br>`/MathML 当作坏 XML；图类型仍全部交给 Mermaid 原生语法识别。
 
 ## 最终验证
 
 - `npm run typecheck`：通过。
 - `npm run test:segmentation`：96 / 96 通过。
-- `npm run test:task-runtime`：115 / 115 通过。
+- `npm run test:task-runtime`：144 / 144 通过。
 - `npm run build`：Web、Server、Electron Shell 通过。
-- `npm run architecture`：通过；无未使用代码，重复率低于阈值。
+- `npm run architecture`：0 个错误；仅保留 2 个既有测试孤立警告，Knip 无未使用代码，重复率 0.09%。
 - `npm audit --omit=dev`：生产依赖 0 个漏洞。
+- `git diff --check`：通过。
+- Mermaid 数学回归：1 / 1 通过；覆盖严格模式、HTML/MathML 标签和直接 SVG 不放宽。
 - `threadScrollFollow.test.ts`：3 / 3 通过；覆盖近底部向上不回挂、主动回到底部恢复。
 - `taskThreadStructure.runtime.test.ts`：真实 JSON 克隆、1000 次文本追加和游标变化只构建 1 次时间线。
+- 投影帧回归覆盖引用保留、旧帧/跨 epoch/identity 与数量分歧、首个完整帧、消息/事件连续合并和同一子 Agent 多次状态更新。
+- 真实 10 子 Agent 历史基准：单次结构更新帧从 21,992,566 bytes 降至 194,927 bytes（112.8 倍）；序列化从 79.41 ms 降至 0.96 ms。
+- 新任务默认值回归覆盖完整五项解析、权限能力暂缺不污染持久偏好、显式 Permission 输入和旧 `workMode` 字段清理。
+- 富文本增长基准为 6,599 字符、150 次更新：增长阶段中位总耗时 10.67 ms，最终 canonical 解析 22.41 ms，增长阶段进入完整解析器的字符数为 0，最终结构精确一致。
+- 媒体缓存回归覆盖未解析官方 Session 保留、孤儿清理和任务打开后的引用解析；正式 Grok Home 状态下后端 1,577 ms 进入 ready。
 
 ## 桌面 UI 验证
 
@@ -126,8 +153,15 @@
 - Electron 双向切换阅读宽度 Full 后外层滚动保持 `0`，设置页位置不跳动且无底部底色遮挡。
 - 手机模拟视口 `390×844`：灯箱和视口均为全屏，图片 cover 为 `633×844`；Fit 仍返回 cover。
 - 手机真实双击顺序实测 `633×844 → 864×1152 → 273×364 → 633×844`，按实际尺寸正确回环。
-- 最新正式 App 已替换并重启；`app.asar` SHA-256 为 `c656c5abedc7ae51b046a30d07c8f01fec5ecf2761ee9932c3f252483388a0bd`。
+- 最新正式 App 已替换并重启；`app.asar` SHA-256 为 `4991be77551c79205cd3517555cd39819be16f83b2223674a06f9ee9bd561575`。
+- 正式 Electron 设置页已只读验收：“新任务默认值”集中显示模型、推理强度、Permission、Sandbox 与 System Prompt，并明确只作用于未来任务，不修改当前官方 Session 或创建 Fork。
 - 新版本重启后的 15 秒普通使用样本：Renderer 平均 6.9%、峰值 23.5%，Server 平均 2.5%、峰值 17.4%；修改前 45 秒长流样本为 Renderer 平均 29.2%、峰值 179.6%。负载不同，不把该样本写成同负载结论。
+- 正式 App 在 10 Hz 下完成 300 行纯文本同步采样：30.5 秒活跃窗口内应用平均 38.8% 的一个逻辑核心，P95 50.1%，峰值 59.5%；结束后回落到 0–0.3%。其中 Renderer 平均 16.5%、Server 13.6%、GPU 6.7%。
+- 三个独立官方测试 Session 均逐行核对为 001–300：每个 300 行、0 缺失、0 重复；事件顺序均为 `user_message_chunk → agent_thought_chunk → agent_message_chunk → turn_completed`。
+- 正式 App 真实窗口已验收标题、粗体/斜体、表格、行内代码、JavaScript、KaTeX、Mermaid 和完整 HTML/CSS/JS；交互计数器从 0 点击到 1。
+- 在用户截图对应的官方 Session 中重新打开原消息：单节点显示 `E=mc²`，三节点显示 `E → mc² → E=mc²`；无字面 `$$`、无空节点，普通 Mermaid、独立 KaTeX 与 HTML 预览同时正常。
+- 在用户最新官方 Session 中重新打开 12 段 Mermaid：前两段已恢复为真实图形，整轮 11 段原样渲染；唯一保留源码的是原文未给中文标题/类目加引号的 `xychart-beta`，属于 Mermaid 源语法错误。界面中不再出现官方 interjection 包装文本。
+- 完整预览验收后的静置状态下，核心 Electron 进程物理占用约 431 MB；三个已加载测试任务的 Grok 进程合计约 135 MB。进程 RSS 直接相加会重复计算共享页，不作为真实物理占用结论。
 - 当前源码目录已清除 `node_modules`、`dist*` 和 `release` 等可再生内容，从约 1.3 GB 收敛到约 8.8 MB；系统下载缓存与官方 Session 数据未动。
 
 ## 维护入口

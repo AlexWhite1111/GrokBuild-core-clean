@@ -34,7 +34,7 @@
 .available svg { color: var(--color-success); }
 .unavailable { opacity: var(--opacity-disabled); }
 .note { color: var(--color-text-muted); font-size: var(--type-label); line-height: calc(1.5 * var(--line-spacing-scale)); }
-.sandboxSettings { display: grid; gap: var(--space-8); }
+.newTaskDefaults { display: grid; gap: var(--space-10); }
 
 .search, .memorySearch { display: flex; align-items: center; gap: var(--space-4); min-height: 35px; color: var(--color-text-muted); }
 .search input, .memorySearch input { flex: 1; }

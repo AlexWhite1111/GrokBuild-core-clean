@@ -1,7 +1,10 @@
 import type { OfficialAcpClient } from "../acp/OfficialAcpClient.js";
 import type { MediaArtifactStore } from "../media/MediaArtifactStore.js";
 import type { PromptEchoQueue } from "./PromptEchoQueue.js";
-import type { TaskRuntimeProjection as TaskProjection } from "./TaskRuntimeProjection.js";
+import type {
+  TaskProjectionChange,
+  TaskRuntimeProjection as TaskProjection,
+} from "./TaskRuntimeProjection.js";
 import type { TaskRuntimeContext } from "./TaskRuntimeContext.js";
 import type { ActiveTaskTurn } from "./taskTurnSettlement.js";
 
@@ -19,7 +22,7 @@ export function createTaskRuntimeContext(input: {
   queueChanged?(): void;
   settleTurn(turnId: string, outcome: "completed" | "failed", value: unknown): void;
   touch(): void;
-  change(): void;
+  change(change?: TaskProjectionChange): void;
   disconnectMachine(): void;
 }): TaskRuntimeContext {
   const activeTurnId = () => input.activeTurns.keys().next().value ?? null;

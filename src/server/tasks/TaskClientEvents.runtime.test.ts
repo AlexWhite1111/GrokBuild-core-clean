@@ -11,7 +11,7 @@ import { JsonStateStore } from "../storage/JsonStateStore.js";
 import { PromptEchoQueue } from "./PromptEchoQueue.js";
 import { wireTaskClientEvents } from "./TaskClientEvents.js";
 import type { TaskRuntimeContext } from "./TaskRuntimeContext.js";
-import { TaskRuntimeProjection } from "./TaskRuntimeProjection.js";
+import { TaskRuntimeProjection, type TaskProjectionChange } from "./TaskRuntimeProjection.js";
 import { createTaskRuntimeContext } from "./taskActorRuntimeContext.js";
 
 test("child questions and Plan reviews enter the existing Gate queue", () => {
@@ -113,6 +113,43 @@ test("the official live session notification projects a subagent", (t) => {
     status: "running",
     title: "goal achievement skeptic",
   }]);
+});
+
+test("official XAI subagent updates stay on the incremental projection path", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-live-delta-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const snapshot = createTaskSnapshotFixture("project-fixture");
+  snapshot.sessionId = "parent-session";
+  const projection = new TaskRuntimeProjection(
+    snapshot,
+    new JsonStateStore(path.join(root, "state.json")),
+    {},
+  );
+  const client = new EventEmitter();
+  const changes: TaskProjectionChange[] = [];
+  wireClient(client, projection, null, (change) => changes.push(change));
+
+  client.emit("notification", {
+    method: "x.ai/session_notification",
+    params: {
+      sessionId: "parent-session",
+      notification: {
+        type: "subagent_progress",
+        subagent_id: "child-session",
+        child_session_id: "child-session",
+        description: "researcher",
+        output: "halfway",
+      },
+    },
+  });
+
+  assert.deepEqual(changes, ["delta"]);
+  const frame = projection.frame(changes[0]);
+  assert.equal(frame.kind, "delta");
+  if (frame.kind !== "delta") return;
+  assert.equal(frame.events.length, 1);
+  assert.equal(frame.events[0]?.event.method, "x.ai/session_notification");
+  assert.equal(JSON.stringify(frame.events[0]?.event.payload).includes("halfway"), true);
 });
 
 test("a resumed or renamed live subagent stays one conversation", (t) => {
@@ -348,7 +385,12 @@ function liveProjection(t: { after(callback: () => void): void }, latestTurnId: 
   return { client, projection };
 }
 
-function wireClient(client: EventEmitter, projection: TaskRuntimeProjection, latestTurnId: string | null = null): void {
+function wireClient(
+  client: EventEmitter,
+  projection: TaskRuntimeProjection,
+  latestTurnId: string | null = null,
+  change: (change?: TaskProjectionChange) => void = () => undefined,
+): void {
   wireTaskClientEvents({
     client: client as unknown as OfficialAcpClient,
     projection,
@@ -363,7 +405,7 @@ function wireClient(client: EventEmitter, projection: TaskRuntimeProjection, lat
     settleTurn: () => undefined,
     refreshContextWindow: () => false,
     touch: () => undefined,
-    change: () => undefined,
+    change,
     disconnect: () => undefined,
   });
 }

@@ -23,7 +23,6 @@ interface StoredProject {
 const DEFAULTS: ProjectDefaults = {
   modelId: null,
   effort: null,
-  workMode: "normal",
   permission: "alwaysApprove",
   sandbox: "off",
   systemPromptPresetId: null,

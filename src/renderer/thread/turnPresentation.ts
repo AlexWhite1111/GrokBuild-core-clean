@@ -238,20 +238,25 @@ function buildTurnTimeline(detail: TaskDetailProjection): TimelineItem[] {
  * JSON snapshots do not force the timeline to regroup on every text delta.
  */
 export function createTurnTimelineProjector(onBuild: () => void = () => undefined): (detail: TaskDetailProjection) => TimelineItem[] {
-  let structureKey: string | null = null;
+  let previousMessages: TaskMessageBlock[] | null = null;
   let executionKey: string | null = null;
   let eventKey: string | null = null;
+  let previousEvents: TaskEventEnvelope[] | null = null;
   let timeline: TimelineItem[] | null = null;
   return (detail) => {
-    const nextKey = messageStructureKey(detail.messages);
+    const sameStructure = previousMessages !== null
+      && messagesHaveSameStructure(previousMessages, detail.messages);
     const nextExecutionKey = JSON.stringify([
       projectTaskExecution(detail.snapshot),
       detail.snapshot.currentPromptExecutionId,
     ]);
-    const nextEventKey = JSON.stringify(detail.events);
-    if (!timeline || structureKey !== nextKey || executionKey !== nextExecutionKey || eventKey !== nextEventKey) {
+    const nextEventKey = previousEvents === detail.events && eventKey !== null
+      ? eventKey
+      : JSON.stringify(detail.events);
+    previousMessages = detail.messages;
+    previousEvents = detail.events;
+    if (!timeline || !sameStructure || executionKey !== nextExecutionKey || eventKey !== nextEventKey) {
       timeline = buildTurnTimeline(detail);
-      structureKey = nextKey;
       executionKey = nextExecutionKey;
       eventKey = nextEventKey;
       onBuild();
@@ -262,17 +267,50 @@ export function createTurnTimelineProjector(onBuild: () => void = () => undefine
   };
 }
 
-function messageStructureKey(messages: TaskMessageBlock[]): string {
-  return JSON.stringify(messages.map((message) => [
-    message.blockId,
-    message.role,
-    message.turnId,
-    message.streaming,
-    message.createdAt,
-    message.sourceOrdinal,
-    message.firstEvent,
-    message.protocol,
-  ]));
+function messagesHaveSameStructure(
+  previous: TaskMessageBlock[],
+  incoming: TaskMessageBlock[],
+): boolean {
+  if (previous.length !== incoming.length) return false;
+  return incoming.every((message, index) => {
+    const prior = previous[index];
+    if (prior === message) return true;
+    return prior.blockId === message.blockId
+      && prior.role === message.role
+      && prior.turnId === message.turnId
+      && prior.streaming === message.streaming
+      && prior.createdAt === message.createdAt
+      && prior.sourceOrdinal === message.sourceOrdinal
+      && sameCursor(prior.firstEvent, message.firstEvent)
+      && sameProtocol(prior.protocol, message.protocol);
+  });
+}
+
+function sameCursor(
+  left: TaskEventCursor | undefined,
+  right: TaskEventCursor | undefined,
+): boolean {
+  return left === right || Boolean(
+    left && right
+    && left.connectionEpoch === right.connectionEpoch
+    && left.sequence === right.sequence,
+  );
+}
+
+function sameProtocol(
+  left: TaskMessageBlock["protocol"],
+  right: TaskMessageBlock["protocol"],
+): boolean {
+  return left === right || Boolean(
+    left && right
+    && left.promptExecutionId === right.promptExecutionId
+    && left.promptId === right.promptId
+    && left.turnStartMs === right.turnStartMs
+    && left.streamStartMs === right.streamStartMs
+    && left.messageId === right.messageId
+    && left.promptIndex === right.promptIndex
+    && left.interjection === right.interjection,
+  );
 }
 
 function refreshTimelineMessages(timeline: TimelineItem[], messages: TaskMessageBlock[]): TimelineItem[] {

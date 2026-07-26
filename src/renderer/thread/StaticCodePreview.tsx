@@ -1,10 +1,10 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { MermaidConfig } from "mermaid";
 import type { StaticPreviewKind } from "./codeBlockRegistry.js";
 import { THEME_APPLIED_EVENT } from "../../ui/theme/index.js";
 import { DiagramViewport } from "./DiagramViewport.js";
 import type { VisualCanvasController } from "./VisualCanvas.js";
+import { mermaidConfiguration } from "./mermaidPreviewPolicy.js";
 import { sanitizeSvgMarkup } from "./svgSanitizer.js";
 import { SpicePreview } from "./SpicePreview.js";
 import styles from "./CodeBlock.module.css";
@@ -59,23 +59,11 @@ interface DiagramPreviewProps { source: string; controller?: VisualCanvasControl
 
 async function renderMermaidMarkup(source: string, id: string): Promise<string> {
   const { default: mermaid } = await import("mermaid");
-  mermaid.initialize(mermaidConfiguration());
+  mermaid.initialize(mermaidConfiguration(mermaidTheme()));
   const rendered = await mermaid.render(id, source);
-  const clean = sanitizeSvgMarkup(rendered.svg, true);
+  const clean = sanitizeSvgMarkup(rendered.svg, true, true);
   if (!clean) throw new Error("Unsafe Mermaid output");
   return clean;
-}
-
-function mermaidConfiguration(): MermaidConfig {
-  return {
-    startOnLoad: false,
-    securityLevel: "strict",
-    suppressErrorRendering: true,
-    theme: "base",
-    htmlLabels: false,
-    flowchart: { useMaxWidth: true },
-    themeVariables: mermaidTheme(),
-  };
 }
 
 function PreviewState({ value, controller, detail, comfortablePercent, minimumSize }: { value: string | false | null; controller?: VisualCanvasController; detail?: boolean; comfortablePercent?: number; minimumSize?: number }) {

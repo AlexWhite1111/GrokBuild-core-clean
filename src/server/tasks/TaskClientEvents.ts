@@ -8,10 +8,12 @@ import {
 import { asRecord, readMeta, sanitizeXai, string } from "./taskEventSanitizers.js";
 import { renumberGates, toGate } from "./taskGates.js";
 import type { TaskRuntimeContext } from "./TaskRuntimeContext.js";
+import type { TaskProjectionChange } from "./TaskRuntimeProjection.js";
 import { PROMPT_RECEIPT_TIMEOUT_MS } from "./taskDelivery.js";
 
 export function wireTaskClientEvents(options: TaskRuntimeContext): void {
   options.client.on("notification", (event: unknown) => {
+    let projectionChange: TaskProjectionChange = "delta";
     const value = asRecord(event);
     const method = string(value.method) || "unknown";
     if ((method === "session/update" || method === "x.ai/session/update") && acpSessionUpdate(value.params)) {
@@ -19,9 +21,9 @@ export function wireTaskClientEvents(options: TaskRuntimeContext): void {
       const sessionId = string(params.sessionId);
       const ownSession = !sessionId || sessionId === options.projection.snapshot.sessionId;
       if (!ownSession) {
-        options.projection.applyNotification({ kind: "child-acp", params: value.params });
+        const outcome = options.projection.applyNotification({ kind: "child-acp", params: value.params });
         options.touch();
-        options.change();
+        options.change(outcome.projectionChange);
         return;
       }
       const update = asRecord(asRecord(value.params).update);
@@ -41,6 +43,7 @@ export function wireTaskClientEvents(options: TaskRuntimeContext): void {
         : { requestIds: [], turnId: null };
       const turnId = terminal ? completion.turnId : options.activeTurnId();
       const outcome = options.projection.applyNotification({ kind: "acp", params: value.params, turnId, userEcho: echo });
+      projectionChange = outcome.projectionChange;
       if (outcome.refreshContextWindow) options.refreshContextWindow();
       const accepted = [...new Set([...outcome.acceptedRequestIds, ...completion.requestIds])];
       if (accepted.length) options.acceptPending(accepted);
@@ -54,7 +57,11 @@ export function wireTaskClientEvents(options: TaskRuntimeContext): void {
     } else if (method.startsWith("x.ai/")) {
       const sessionId = string(asRecord(value.params).sessionId);
       if (sessionId && sessionId !== options.projection.snapshot.sessionId) {
-        options.projection.applyNotification({ kind: "child-xai", method, params: value.params });
+        projectionChange = options.projection.applyNotification({
+          kind: "child-xai",
+          method,
+          params: value.params,
+        }).projectionChange;
       }
       else {
         const terminal = xaiTerminal(method, value.params);
@@ -62,7 +69,9 @@ export function wireTaskClientEvents(options: TaskRuntimeContext): void {
           ? options.completionReceipt(value.params)
           : { requestIds: [], turnId: null };
         const turnId = terminal ? completion.turnId : options.latestTurnId();
-        const accepted = options.projection.applyNotification({ kind: "xai", method, params: value.params, turnId }).acceptedRequestIds;
+        const outcome = options.projection.applyNotification({ kind: "xai", method, params: value.params, turnId });
+        projectionChange = outcome.projectionChange;
+        const accepted = outcome.acceptedRequestIds;
         const promptReceipts = method === "x.ai/queue/changed" ? options.promptReceiptsFromQueue(value.params) : [];
         const completions = completion.requestIds;
         if (accepted.length || promptReceipts.length || completions.length) {
@@ -75,7 +84,7 @@ export function wireTaskClientEvents(options: TaskRuntimeContext): void {
       }
     }
     options.touch();
-    options.change();
+    options.change(projectionChange);
   });
   options.client.on("reverseRequest", (event: ReverseRequestEvent) => {
     const sessionId = string(asRecord(event.params).sessionId);

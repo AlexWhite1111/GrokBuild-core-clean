@@ -51,6 +51,8 @@ export interface ComposerProps {
   interjectAvailable?: boolean;
   disabled?: boolean;
   permissionLocked?: boolean;
+  sessionSettingsBlocked: boolean;
+  sessionCommitted: boolean;
   planActive?: boolean;
   onExitPlanMode?: () => Promise<void> | void;
   activeGoal?: TaskGoalState;

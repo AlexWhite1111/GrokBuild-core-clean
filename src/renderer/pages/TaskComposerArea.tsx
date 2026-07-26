@@ -53,6 +53,8 @@ interface TaskComposerAreaProps {
   queueAvailable: boolean;
   interjectAvailable: boolean;
   permissionLocked: boolean;
+  sessionSettingsBlocked: boolean;
+  sessionCommitted: boolean;
   planActive: boolean;
   connection: TaskSnapshot["connection"];
   resuming: boolean;
@@ -124,6 +126,8 @@ export function TaskComposerArea({
   queueAvailable,
   interjectAvailable,
   permissionLocked,
+  sessionSettingsBlocked,
+  sessionCommitted,
   planActive,
   connection,
   resuming,
@@ -208,6 +212,8 @@ export function TaskComposerArea({
               disabled={Boolean(currentGate)}
               waiting={waiting}
               permissionLocked={permissionLocked}
+              sessionSettingsBlocked={sessionSettingsBlocked}
+              sessionCommitted={sessionCommitted}
               planActive={planActive}
               onExitPlanMode={onExitPlanMode}
               taskConfigOptions={configOptions}

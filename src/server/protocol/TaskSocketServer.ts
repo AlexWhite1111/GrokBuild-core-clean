@@ -3,6 +3,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { isExactOrigin, isTokenGatedPreviewOrigin, tokenMatches } from "../security/apiSecurity.js";
 import type { LocalRunService } from "../runtime/LocalRunService.js";
 import type { TaskSupervisor } from "../tasks/TaskSupervisor.js";
+import type { TaskDetailProjection, TaskProjectionFrame } from "../../shared/contracts.js";
 
 export interface TaskSocketOptions {
   expectedOrigin: string;
@@ -76,11 +77,11 @@ export function attachTaskSocketServer(
   sockets.on("connection", (socket) => {
     send(socket, { type: "workspace.snapshot", workspace: options.supervisor.workspace() });
     for (const detail of options.supervisor.activeDetails()) {
-      send(socket, { type: "task.snapshot", detail });
+      send(socket, { type: "task.projection", frame: snapshotFrame(detail) });
     }
   });
-  options.supervisor.on("task.created", (detail) => broadcast({ type: "task.snapshot", detail }));
-  options.supervisor.on("task.changed", (detail) => broadcast({ type: "task.snapshot", detail }));
+  options.supervisor.on("task.created", (detail) => broadcast({ type: "task.projection", frame: snapshotFrame(detail) }));
+  options.supervisor.on("task.changed", (frame: TaskProjectionFrame) => broadcast({ type: "task.projection", frame }));
   options.supervisor.on("task.notification", (value) => broadcast({ type: "task.notification", ...value }));
   options.supervisor.on("task.retired", (value) => broadcast({ type: "task.retired", ...value }));
   options.supervisor.on("workspace.changed", (workspace) => broadcast({ type: "workspace.snapshot", workspace }));
@@ -124,6 +125,10 @@ export function attachTaskSocketServer(
       interactiveSockets.close();
     },
   };
+}
+
+function snapshotFrame(detail: TaskDetailProjection): TaskProjectionFrame {
+  return { kind: "snapshot", detail };
 }
 
 function interactiveSocketPath(pathname: string): { runId: string; figureId: number } | null {

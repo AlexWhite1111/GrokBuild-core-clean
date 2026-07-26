@@ -2,6 +2,10 @@ import type { TaskListItem, TaskSnapshot } from "./contracts.js";
 
 type TaskExecutionState = TaskListItem["agentState"];
 export type CurrentTurnOutcome = "running" | "failed" | "unknown";
+export type TaskListRuntimeProjection = Pick<
+  TaskListItem,
+  "sessionId" | "title" | "status" | "active" | "canStop" | "needsAttention" | "agentState" | "naturalStatus" | "updatedAt"
+>;
 
 export interface TaskExecutionProjection {
   state: TaskExecutionState;
@@ -56,5 +60,27 @@ export function projectTaskExecution(snapshot: Pick<
       queue: foregroundBusy,
       interject: foregroundBusy,
     },
+  };
+}
+
+/** Dynamic task-list fields projected from the same authoritative Task snapshot. */
+export function projectTaskListRuntime(snapshot: TaskSnapshot): TaskListRuntimeProjection {
+  const execution = projectTaskExecution(snapshot);
+  const agentState = execution.state;
+  const naturalStatus = agentState === "gate" ? "等待处理"
+    : agentState === "running" ? "执行中"
+      : agentState === "detached" ? "后台状态未确认"
+        : agentState === "failed" ? "失败"
+          : agentState === "idle" ? "已就绪" : null;
+  return {
+    sessionId: snapshot.sessionId,
+    title: snapshot.title,
+    status: `${snapshot.connection}:${snapshot.turn}`,
+    active: execution.busy,
+    canStop: execution.allowedActions.stop,
+    needsAttention: execution.needsAttention,
+    agentState,
+    naturalStatus,
+    updatedAt: snapshot.updatedAt,
   };
 }

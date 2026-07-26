@@ -8,6 +8,7 @@ import type {
   TaskEventSource,
   TaskMessageBlock,
   TaskOperationalContextSnapshot,
+  TaskProjectionFrame,
   TaskSnapshot,
 } from "../../shared/contracts.js";
 import {
@@ -70,7 +71,10 @@ export type TaskRuntimeNotification =
 export interface TaskRuntimeNotificationResult {
   acceptedRequestIds: string[];
   refreshContextWindow: boolean;
+  projectionChange: TaskProjectionChange;
 }
+
+export type TaskProjectionChange = "delta";
 
 interface TaskRuntimeProjectionOptions {
   media?: ProjectionMediaContext;
@@ -90,7 +94,10 @@ export class TaskRuntimeProjection {
   readonly #commands = new TaskCommandProjection();
   readonly #transcript: TaskRuntimeTranscript;
   readonly #timeline = new Map<string, TaskStoredTimelineItem>();
+  readonly #timelineIndices = new Map<string, number>();
   readonly #timelineOrdinals = new Map<string, number>();
+  readonly #changedMessages = new Map<string, { turnId: string; blockId: string }>();
+  readonly #changedTimelineIds = new Set<string>();
   readonly #officialEventIds = new Set<string>();
   readonly #media?: ProjectionMediaContext;
   readonly #readChild?: TaskRuntimeProjectionOptions["readChild"];
@@ -135,6 +142,7 @@ export class TaskRuntimeProjection {
       this.#officialEventIds.add(event.eventId);
       this.#upsertTimeline(event, false);
     }
+    this.#clearFrameChanges();
   }
 
   /** Raw chunk events are never retained by the v2 runtime. */
@@ -153,6 +161,37 @@ export class TaskRuntimeProjection {
       events: structuredClone([...this.#timeline.values()].sort(byOrdinal).map((entry) => entry.event)),
       context: structuredClone(this.#context),
     };
+  }
+
+  frame(change?: TaskProjectionChange): TaskProjectionFrame {
+    if (change === "delta") {
+      const messages = [...this.#changedMessages.values()].flatMap((identity) => {
+        const index = this.messages.findIndex((message) =>
+          message.turnId === identity.turnId && message.blockId === identity.blockId);
+        return index < 0 ? [] : [{ index, message: structuredClone(this.messages[index]) }];
+      }).sort((left, right) => left.index - right.index);
+      const events = [...this.#changedTimelineIds].flatMap((itemId) => {
+        const index = this.#timelineIndices.get(itemId);
+        const item = this.#timeline.get(itemId);
+        return index === undefined || !item
+          ? []
+          : [{ index, event: structuredClone(item.event) }];
+      }).sort((left, right) => left.index - right.index);
+      const frame: TaskProjectionFrame = {
+        kind: "delta",
+        snapshot: structuredClone(this.snapshot),
+        context: structuredClone(this.#context),
+        messageCount: this.messages.length,
+        messages,
+        eventCount: this.#timeline.size,
+        events,
+      };
+      this.#clearFrameChanges();
+      return frame;
+    }
+    const frame: TaskProjectionFrame = { kind: "snapshot", detail: this.detail() };
+    this.#clearFrameChanges();
+    return frame;
   }
 
   childDetail(sessionId: string): ChildSessionDetail {
@@ -203,6 +242,7 @@ export class TaskRuntimeProjection {
     this.#semantic.addLocalUserMessage(text, turnId, requestId, paths, composerDocument, interjection);
     this.#discardNewSemanticTextEvents(before);
     this.#transcript.addLocalUser(text, turnId, requestId, paths, event, composerDocument, interjection);
+    this.#markMessage({ turnId, blockId: `user:${requestId}` });
   }
 
   setUserMessageDelivery(
@@ -215,6 +255,7 @@ export class TaskRuntimeProjection {
     this.#semantic.setUserMessageDelivery(requestId, delivery, message.turnId);
     const events = this.#captureSemanticEvents(before);
     message.delivery = delivery;
+    this.#markMessage(message);
     this.#publish(events);
   }
 
@@ -390,7 +431,7 @@ export class TaskRuntimeProjection {
     const live = Boolean(turnId);
 
     if (updateType === "agent_message_chunk" || updateType === "agent_thought_chunk") {
-      this.#transcript.appendAgent(
+      const append = this.#transcript.appendAgent(
         updateType === "agent_message_chunk" ? "assistant" : "thought",
         update,
         effectiveTurn,
@@ -399,13 +440,14 @@ export class TaskRuntimeProjection {
         updateType === "agent_message_chunk" ? structuredMedia : [],
         userEcho?.turnId || turnId || effectiveTurn,
       );
+      this.#markMessage(append);
       this.#semantic.touch();
       return result();
     }
 
     if (updateType === "user_message_chunk") {
       this.#transcript.closeSegment(effectiveTurn);
-      this.#transcript.appendRemoteUser(
+      const append = this.#transcript.appendRemoteUser(
         update,
         effectiveTurn,
         live,
@@ -413,6 +455,7 @@ export class TaskRuntimeProjection {
         userEcho,
         userEcho?.turnId || turnId || effectiveTurn,
       );
+      this.#markMessage(append);
       const fingerprint = string(safePayload.promptFingerprint);
       const requestId = fingerprint ? this.#dispatchedFingerprints.get(fingerprint) : undefined;
       if (requestId && ["pending", "unknown"].includes(this.userMessageDelivery(requestId) || "")) {
@@ -435,7 +478,7 @@ export class TaskRuntimeProjection {
       ? [this.snapshot.commands.execution.requestId]
       : [];
     if (structuredMedia.length) {
-      this.#transcript.appendAgent(
+      const append = this.#transcript.appendAgent(
         "assistant",
         {
           ...update,
@@ -448,6 +491,7 @@ export class TaskRuntimeProjection {
         structuredMedia,
         userEcho?.turnId || turnId || effectiveTurn,
       );
+      this.#markMessage(append);
     }
     this.#publish(events);
     return result({
@@ -516,6 +560,7 @@ export class TaskRuntimeProjection {
     const target = this.#timeline;
     const existing = target.get(itemId);
     const ordinal = existing?.ordinal ?? this.#nextTimelineOrdinal(scope);
+    if (!existing) this.#timelineIndices.set(itemId, target.size);
     const cursor = remapCursor ? this.#nextCursor() : {
       connectionEpoch: event.connectionEpoch,
       sequence: event.sequence,
@@ -535,7 +580,21 @@ export class TaskRuntimeProjection {
       event: projected,
     };
     target.set(itemId, item);
+    this.#changedTimelineIds.add(itemId);
     return item;
+  }
+
+  #markMessage(identity: { turnId: string; blockId: string } | null | undefined): void {
+    if (!identity) return;
+    this.#changedMessages.set(`${identity.turnId}\u0000${identity.blockId}`, {
+      turnId: identity.turnId,
+      blockId: identity.blockId,
+    });
+  }
+
+  #clearFrameChanges(): void {
+    this.#changedMessages.clear();
+    this.#changedTimelineIds.clear();
   }
 
   #publish(events: readonly TaskStoredTimelineItem[]): void {
@@ -578,6 +637,7 @@ function result(overrides: Partial<TaskRuntimeNotificationResult> = {}): TaskRun
   return {
     acceptedRequestIds: [],
     refreshContextWindow: false,
+    projectionChange: "delta",
     ...overrides,
   };
 }

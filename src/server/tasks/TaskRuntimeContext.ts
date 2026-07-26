@@ -1,7 +1,10 @@
 import type { OfficialAcpClient } from "../acp/OfficialAcpClient.js";
 import type { MediaArtifactStore } from "../media/MediaArtifactStore.js";
 import type { PromptEchoIdentity } from "./PromptEchoQueue.js";
-import type { TaskRuntimeProjection as TaskProjection } from "./TaskRuntimeProjection.js";
+import type {
+  TaskProjectionChange,
+  TaskRuntimeProjection as TaskProjection,
+} from "./TaskRuntimeProjection.js";
 
 /** Stable collaboration surface shared by task runtimes and ACP event wiring. */
 export interface TaskRuntimeContext {
@@ -22,6 +25,6 @@ export interface TaskRuntimeContext {
   settleTurn(turnId: string | null, outcome: "completed" | "failed", value: unknown): void;
   refreshContextWindow(): boolean;
   touch(): void;
-  change(): void;
+  change(change?: TaskProjectionChange): void;
   disconnect(error: Error): void;
 }

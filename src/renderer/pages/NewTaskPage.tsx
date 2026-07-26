@@ -3,13 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 import { useAccount, useAccountStatus, useCapabilities, useTaskIntents, useWorkspace } from "../api/hooks.js";
 import { useBootstrap } from "../api/BootstrapContext.js";
-import type { SystemPromptPreset, TaskSystemPrompt } from "../../shared/contracts.js";
 import { OnboardingPanel } from "../onboarding/OnboardingPanel.js";
 import styles from "./NewTaskPage.module.css";
 import { accountViewState, effectiveAccount } from "../onboarding/accountState.js";
 import { Notice } from "../../ui/components/index.js";
 import { TaskPageLoading } from "./TaskPageLoading.js";
 import { newTaskRoute } from "../app/routeRestore.js";
+import { resolveNewTaskDefaults } from "../../shared/newTaskDefaults.js";
 
 export function NewTaskPage() {
   const { t } = useTranslation();
@@ -52,23 +52,21 @@ export function NewTaskPage() {
     const requestStorageKey = `grok-build.new-task-request:${activationKey}`;
     const requestId = storedRequestId(requestStorageKey);
     const saved = project.defaults;
-    const permission = permissionModes.some((mode) => mode.mode === saved.permission && mode.available)
-      ? saved.permission
-      : "ask";
-    const preset = workspace.systemPromptPresets.find((item) => item.presetId === saved.systemPromptPresetId);
     const defaultModel = account.data?.models.defaultModel
       || account.data?.models.available.find((model) => model.isDefault)?.id
       || null;
+    const defaults = resolveNewTaskDefaults(
+      saved,
+      permissionModes,
+      defaultModel,
+      workspace.systemPromptPresets,
+    );
     setError(null);
     void createTask({
       requestId,
       projectId: project.projectId,
-      modelId: saved.modelId || defaultModel,
-      effort: saved.effort,
       workMode: "normal",
-      permission,
-      sandbox: saved.sandbox,
-      systemPrompt: promptFromPreset(preset),
+      ...defaults,
       draftKey,
     }).then(async (task) => {
       sessionStorage.removeItem(requestStorageKey);
@@ -116,15 +114,6 @@ export function NewTaskPage() {
   </main>;
   if (capabilities.status === "unavailable") return <TaskPageLoading error={t("startupFailed")} />;
   return <TaskPageLoading error={error || undefined} />;
-}
-
-function promptFromPreset(preset: SystemPromptPreset | undefined): TaskSystemPrompt | null {
-  return preset ? {
-    presetId: preset.presetId,
-    title: preset.title,
-    rules: preset.rules,
-    systemPrompt: preset.systemPrompt,
-  } : null;
 }
 
 function storedRequestId(key: string): string {

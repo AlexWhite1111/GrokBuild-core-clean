@@ -75,6 +75,7 @@ export class TaskHistoryCoordinator {
       : source.snapshot.systemPrompt ?? null;
     const configured = targetSandbox !== source.snapshot.sandbox.requested
       || !sameTaskSystemPrompt(targetSystemPrompt, source.snapshot.systemPrompt);
+    const replacingEmptySession = configured && !source.hasUserMessages;
 
     let child: TaskActor;
     if (configured) {
@@ -91,18 +92,34 @@ export class TaskHistoryCoordinator {
       child = await this.options.activation.createSessionBranch(
         randomUUID(),
         branchInput,
-        buildForkContinuation(source.detail.messages),
+        replacingEmptySession ? "" : buildForkContinuation(source.detail.messages),
       );
     } else {
       const receipt = await source.forkNativeSession();
       child = await this.options.activation.activate(receipt.newSessionId);
     }
 
-    const ordinal = this.options.store.nextForkOrdinal(taskId);
     const childId = child.snapshot.sessionId || child.snapshot.taskId;
-    const title = forkTitle(sourceRow.title, ordinal);
+    const title = replacingEmptySession
+      ? sourceRow.title
+      : forkTitle(sourceRow.title, this.options.store.nextForkOrdinal(taskId));
     child.rename(title);
     try { this.options.store.rename(childId, title); } catch { /* official title can arrive on the next scan */ }
+    if (replacingEmptySession) {
+      const sourceId = source.snapshot.sessionId || source.snapshot.taskId;
+      this.options.store.setArchived(sourceId, true);
+      if (sourceRow.pinned === 1) {
+        this.options.store.setPinned(sourceId, false);
+        this.options.store.setPinned(childId, true);
+      }
+      source.stop();
+      this.options.actors.delete(source.snapshot.taskId);
+      this.options.activation.forgetTask(source.snapshot.taskId);
+      this.options.publish("task.retired", {
+        taskId: source.snapshot.taskId,
+        reason: "reconfigured",
+      });
+    }
     this.options.publish("task.created", child.detail);
     this.options.publish("workspace.changed", this.options.workspace());
     return child.snapshot;

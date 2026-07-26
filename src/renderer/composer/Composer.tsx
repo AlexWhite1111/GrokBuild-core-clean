@@ -13,7 +13,8 @@ import { useComposerDraft } from "./useComposerDraft.js";
 import { Control, Divider, Notice, Spinner, Surface, Text } from "../../ui/components/index.js";
 import { ComposerGoalBar } from "./ComposerGoalBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
-import { ChoiceTrigger, effortChoices, modelChoices, permissionLabel, sandboxLabel, setSetting, systemPromptLabel, type ChoicePanel, type UpPanel } from "./ComposerOptions.js";
+import { ChoiceTrigger, effortChoices, modelChoices, setSetting, systemPromptLabel, type ChoicePanel, type UpPanel } from "./ComposerOptions.js";
+import { permissionLabel, sandboxLabel } from "../sessionSettingLabels.js";
 import { useComposerPreview } from "./useComposerPreview.js";
 import { useComposerAttachments } from "./useComposerAttachments.js";
 import type { ComposerProps } from "./composerTypes.js";
@@ -263,10 +264,11 @@ export function Composer(props: ComposerProps) {
   const panels: Record<Exclude<UpPanel, "add">, ChoicePanel> = {
     model: { value: props.settings.modelId || "", choices: modelChoices(props), onChange: (value) => setSetting(props, "modelId", value || null) },
     permission: { value: props.pendingPermission || props.settings.permission, choices: props.permissionModes.filter((item) => item.available).map((item) => ({ value: item.mode, label: permissionLabel(item.mode) })), onChange: (value) => setSetting(props, "permission", value as TaskPermissionMode), locked: props.permissionLocked },
-    sandbox: { value: props.settings.sandbox, choices: ["off", "workspace", "readOnly", "strict"].map((value) => ({ value, label: sandboxLabel(value as SandboxProfile) })), onChange: (value) => setSetting(props, "sandbox", value as SandboxProfile) },
+    sandbox: { value: props.settings.sandbox, choices: ["off", "workspace", "readOnly", "strict"].map((value) => ({ value, label: sandboxLabel(value as SandboxProfile) })), onChange: (value) => setSetting(props, "sandbox", value as SandboxProfile), disabled: props.sessionSettingsBlocked },
     systemPrompt: {
       value: props.settings.systemPrompt?.presetId || "default",
       choices: [{ value: "default", label: "System" }, ...props.systemPromptPresets.filter((preset) => preset.pinned).map((preset) => ({ value: preset.presetId, label: preset.title }))],
+      disabled: props.sessionSettingsBlocked,
       onChange: (value) => {
         const preset = props.systemPromptPresets.find((item) => item.presetId === value);
         setSetting(props, "systemPrompt", preset ? {
@@ -279,6 +281,9 @@ export function Composer(props: ComposerProps) {
     },
   };
   const activeChoices = upPanel && upPanel !== "add" ? panels[upPanel] : null;
+  const sessionSettingHint = props.sessionSettingsBlocked
+    ? t("sessionSettingsBusy")
+    : t(props.sessionCommitted ? "sessionSettingsForkHint" : "sessionSettingsSetupHint");
   const conversationDropRegion = dragActive ? document.querySelector<HTMLElement>("[data-conversation-drop-region]") : null;
   return <div ref={shell} className={styles.shell} onKeyDownCapture={(event) => {
     if (event.key !== "Escape") return;
@@ -301,10 +306,11 @@ export function Composer(props: ComposerProps) {
         {panels.model.choices.map((choice) => <Control recipe="menu" key={choice.value} selected={choice.value === panels.model.value} onClick={() => { panels.model.onChange(choice.value); setUpPanel(null); }}>{choice.label}</Control>)}
         {effortPanel.choices.length > 0 && <><Divider className={styles.panelDivider} /><Text as="span" tone="secondary" size="caption" className={styles.panelLabel}>Reasoning</Text>{effortPanel.choices.map((choice) => <Control recipe="menu" key={choice.value} selected={choice.value === effortPanel.value} onClick={() => { effortPanel.onChange(choice.value); setUpPanel(null); }}>{choice.label}</Control>)}</>}
       </> : upPanel === "systemPrompt" ? <>
-        {panels.systemPrompt.choices.map((choice) => <Control recipe="menu" key={choice.value} selected={choice.value === panels.systemPrompt.value} onClick={() => { panels.systemPrompt.onChange(choice.value); setUpPanel(null); }}>{choice.label}</Control>)}
+        {panels.systemPrompt.choices.map((choice) => <Control recipe="menu" key={choice.value} selected={choice.value === panels.systemPrompt.value} disabled={panels.systemPrompt.disabled} onClick={() => { panels.systemPrompt.onChange(choice.value); setUpPanel(null); }}>{choice.label}</Control>)}
+        <Text as="small" tone="secondary" size="caption" className={styles.panelHint}>{sessionSettingHint}</Text>
         <Divider className={styles.panelDivider} />
         <Control recipe="menu" onClick={() => { setUpPanel(null); props.onManageSystemPrompts?.(); }}><Settings2 size={13} />Settings</Control>
-      </> : activeChoices?.choices.map((choice) => <Control recipe="menu" key={choice.value} selected={choice.value === activeChoices.value} disabled={activeChoices.locked} onClick={() => { activeChoices.onChange(choice.value); setUpPanel(null); }}>{choice.label}</Control>)}
+      </> : <>{activeChoices?.choices.map((choice) => <Control recipe="menu" key={choice.value} selected={choice.value === activeChoices.value} disabled={activeChoices.locked || activeChoices.disabled} onClick={() => { activeChoices.onChange(choice.value); setUpPanel(null); }}>{choice.label}</Control>)}{upPanel === "sandbox" && <Text as="small" tone="secondary" size="caption" className={styles.panelHint}>{sessionSettingHint}</Text>}</>}
     </Surface>}
     {pathError && <Notice tone="warning" density="compact" role="alert" className={styles.notice}>{pathError}<Control recipe="icon" density="detail" tone="warning" onClick={() => setPathError(null)} aria-label={t("close")}><X size={11} /></Control></Notice>}
     <div className={styles.composer} data-shape="surface" data-drag-active={dragActive || undefined} data-rich-preview={richPreview || undefined} data-composer-mode={specialMode || undefined} data-goal-active={activeGoal ? activeGoal.status : undefined} data-submitting={Boolean(waiting || submittingIntent) || undefined} aria-busy={Boolean(waiting || submittingIntent) || undefined}>
@@ -328,8 +334,8 @@ export function Composer(props: ComposerProps) {
           <div className={styles.controlScroller}>
             {(props.settings.modelId || props.settings.effort) && <ChoiceTrigger panel="model" grouped label={<>{props.settings.modelId || "Model"}{props.settings.effort && <><Text as="span" tone="secondary" size="label" className={styles.inlineDivider}>·</Text>{props.settings.effort}</>}</>} open={upPanel === "model"} disabled={interactionLocked} onToggle={setUpPanel} />}
             <div className={styles.secondaryOptions}>
-              <ChoiceTrigger panel="sandbox" label={sandboxLabel(props.settings.sandbox)} open={upPanel === "sandbox"} disabled={interactionLocked || props.busy} onToggle={setUpPanel} />
-              <ChoiceTrigger panel="systemPrompt" label={systemPromptLabel(props.settings.systemPrompt)} open={upPanel === "systemPrompt"} disabled={interactionLocked || props.busy} onToggle={setUpPanel} />
+              <ChoiceTrigger panel="sandbox" label={sandboxLabel(props.settings.sandbox)} open={upPanel === "sandbox"} disabled={interactionLocked} onToggle={setUpPanel} />
+              <ChoiceTrigger panel="systemPrompt" label={systemPromptLabel(props.settings.systemPrompt)} open={upPanel === "systemPrompt"} disabled={interactionLocked} onToggle={setUpPanel} />
               <ChoiceTrigger panel="permission" label={props.pendingPermission ? `${permissionLabel(props.pendingPermission)} · ${t("pendingApply")}` : permissionLabel(props.settings.permission)} open={upPanel === "permission"} locked={panels.permission.locked} disabled={interactionLocked} onToggle={setUpPanel} />
             </div>
           </div>

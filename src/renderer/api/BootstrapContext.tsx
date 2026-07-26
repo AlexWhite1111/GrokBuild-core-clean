@@ -5,6 +5,7 @@ import type {
   CapabilitySnapshot,
   AccountStatusSnapshot,
   TaskDetailProjection,
+  TaskProjectionFrame,
   ThemeLibrarySnapshot,
   ThemeManifestV1,
   WorkspaceProjection,
@@ -13,7 +14,7 @@ import type {
 import type { TaskNotificationIntent } from "../../shared/taskNotifications.js";
 import { ApiClient, desktopBootstrap } from "./ApiClient.js";
 import { PortableRichTextProvider } from "./PortableRichTextContext.js";
-import { shouldApplyTaskProjection } from "./taskProjectionVersion.js";
+import { applyTaskDetailToWorkspace, applyTaskProjectionFrame } from "./taskProjectionFrame.js";
 import { GrokMark } from "../components/GrokMark.js";
 
 export interface AppBootstrapPayload {
@@ -86,7 +87,7 @@ function ConnectedBootstrap({ api, payload, children }: PropsWithChildren<Bootst
       queryClient.setQueryData(["workspace"], workspace);
       void window.grokDesktop?.setAttentionCount(workspace.tasks.filter((task) => task.needsAttention).length);
     }
-    if (value.type === "task.snapshot") applyDetail(value.detail as TaskDetailProjection);
+    if (value.type === "task.projection") applyFrame(value.frame as TaskProjectionFrame);
     if (value.type === "task.notification" && typeof value.taskId === "string") {
       const notification = asRecord(value.notification);
       if (
@@ -110,10 +111,29 @@ function ConnectedBootstrap({ api, payload, children }: PropsWithChildren<Bootst
         });
       }
     }
-    function applyDetail(detail: TaskDetailProjection) {
-      queryClient.setQueryData<TaskDetailProjection>(["task", detail.snapshot.taskId], (current) =>
-        shouldApplyTaskProjection(current?.snapshot, detail.snapshot) ? detail : current);
-      scheduleWorkspaceRefresh();
+    function applyFrame(frame: TaskProjectionFrame) {
+      const taskId = frame.kind === "snapshot"
+        ? frame.detail.snapshot.taskId
+        : frame.snapshot.taskId;
+      let synchronized = true;
+      let structural = false;
+      let acceptedDetail: TaskDetailProjection | undefined;
+      queryClient.setQueryData<TaskDetailProjection>(["task", taskId], (current) => {
+        const applied = applyTaskProjectionFrame(current, frame);
+        synchronized = applied.synchronized;
+        structural = applied.structural;
+        if (applied.accepted) acceptedDetail = applied.detail;
+        return applied.detail;
+      });
+      if (acceptedDetail) {
+        queryClient.setQueryData<WorkspaceProjection>(["workspace"], (current) =>
+          applyTaskDetailToWorkspace(current, acceptedDetail!));
+      }
+      if (!synchronized) {
+        void queryClient.invalidateQueries({ queryKey: ["task", taskId], exact: true });
+      } else if (structural && frame.kind === "snapshot") {
+        scheduleWorkspaceRefresh();
+      }
     }
     if (value.type === "task.retired") {
       void queryClient.invalidateQueries({ queryKey: ["workspace"] });

@@ -127,6 +127,7 @@ export class MediaArtifactCache {
 
   reconcile(
     references: ReadonlyMap<string, ReadonlySet<string>>,
+    unresolvedTaskIds: ReadonlySet<string>,
     protectedMediaIds: ReadonlySet<string>,
     now: number,
     legacyTtlMs: number,
@@ -149,11 +150,12 @@ export class MediaArtifactCache {
       const ageBase = metadata?.version === 2 ? Math.max(metadata.createdAt, metadata.accessedAt) : artifactMtime;
       const complete = Boolean(metadata) && this.#hasPair(mediaId) && Boolean(metadata && validMetadata(metadata));
       const referenced = Boolean(metadata && references.get(metadata.taskId)?.has(mediaId));
+      const unresolved = Boolean(metadata && unresolvedTaskIds.has(metadata.taskId));
       const protectedInMemory = protectedMediaIds.has(mediaId);
-      const expired = complete && !referenced && !protectedInMemory
+      const expired = complete && !referenced && !unresolved && !protectedInMemory
         && metadataExpiry(metadata!, artifactMtime, legacyTtlMs) <= now;
       const oldEnough = ageBase + orphanGraceMs <= now;
-      if (expired || ((!complete || (!referenced && !protectedInMemory)) && oldEnough)) {
+      if (expired || ((!complete || (!referenced && !unresolved && !protectedInMemory)) && oldEnough)) {
         this.remove(mediaId);
         result.removedArtifacts += 1;
       } else {

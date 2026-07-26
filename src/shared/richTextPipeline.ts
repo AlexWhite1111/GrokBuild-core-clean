@@ -58,6 +58,11 @@ export function parseRichTextDocument(text: string, policy: RichTextPolicy): Roo
   return processor.runSync(processor.parse(source)) as Root;
 }
 
+/** Uses the canonical executable grammar without constructing a rich-text tree. */
+export function isImplicitExecutableRichText(source: string): boolean {
+  return implicitExecutableLanguage(source.trim()) !== null;
+}
+
 type HtmlTreeNode = {
   type: string;
   tagName?: string;

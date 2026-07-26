@@ -48,6 +48,7 @@ import {
   retryInputFromMessage,
   replayDocumentFromMessage,
   taskPageError,
+  taskSessionSettingsBlocker,
   workStopMethod,
   type MainTaskView,
   type PermissionRequest,
@@ -118,6 +119,7 @@ export function TaskPage() {
   ]);
   useEffect(() => {
     setMainView({ kind: "thread" });
+    setError(null);
     setComposerReplacement(null);
     setComposerHasDraft(false);
     setPendingPermission(null);
@@ -253,6 +255,16 @@ export function TaskPage() {
     setError(null);
     try {
       const child = await intents.fork.mutateAsync({ requestId: crypto.randomUUID(), ...overrides });
+      if (window.grokDesktop) {
+        try {
+          await window.grokDesktop.transferTextClips({
+            fromOwnerKey: `task:${taskId}`,
+            toOwnerKey: `task:${child.taskId}`,
+          });
+        } catch (cause) {
+          console.error("Could not transfer Composer text clips to the fork.", cause);
+        }
+      }
       navigate(`/tasks/${child.taskId}`);
     } catch (cause) {
       showError(cause);
@@ -397,6 +409,9 @@ export function TaskPage() {
     mainView.kind === "child" ? currentWorkItem(detail, mainView.item) : null;
 
   const visibleError = taskPageError(error, snapshot.error);
+  const sessionSettingsBlocked = snapshot.connection !== "ready"
+    || taskSessionSettingsBlocker(detail) !== null;
+  const sessionCommitted = detail.messages.some((message) => message.role === "user");
 
   return (
     <Surface as="main" appearance="canvas" shape="none" className={styles.page} data-rail-open={taskUi.contextOpen || undefined}>
@@ -451,6 +466,8 @@ export function TaskPage() {
                 taskId={snapshot.taskId}
                 renderPolicy={preferences.richTextRenderPolicy}
                 mediaScale={preferences.mediaPreviewScale}
+                applyDisabled={sessionSettingsBlocked}
+                applyHint={t("sessionSettingsBusy")}
                 onApply={(systemPrompt) => {
                   changeSettings({ ...settings, systemPrompt });
                   setMainView({ kind: "thread" });
@@ -513,6 +530,8 @@ export function TaskPage() {
                 queueAvailable={execution.allowedActions.queue && queueAvailable}
                 interjectAvailable={execution.allowedActions.interject && interjectAvailable}
                 permissionLocked={!permissionControlAvailable}
+                sessionSettingsBlocked={sessionSettingsBlocked}
+                sessionCommitted={sessionCommitted}
                 planActive={snapshot.workMode === "plan"}
                 connection={snapshot.connection}
                 resuming={intents.resume.isPending}

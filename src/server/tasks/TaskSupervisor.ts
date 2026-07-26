@@ -11,7 +11,6 @@ import { listItemFromSnapshot } from "./taskHistory.js";
 import { workspaceProjection } from "./workspaceProjection.js";
 import { deleteTaskSession, exportTaskTranscript } from "./taskLifecycleActions.js";
 import type { RuntimePermissionCapabilities } from "./taskTypes.js";
-import { defaultsFrom } from "./taskActorOptions.js";
 import { permissionCapabilityList, readSupervisorSettings } from "./supervisorSettings.js";
 import { ensurePoolCapacity, isRetirableTaskActor } from "./supervisorPoolPolicy.js";
 import { MediaArtifactStore } from "../media/MediaArtifactStore.js";
@@ -23,6 +22,7 @@ import { TaskHistoryCoordinator } from "./TaskHistoryCoordinator.js";
 import { TaskStore } from "./TaskStore.js";
 import { OwnedProcessRegistry } from "../runtime/OwnedProcessRegistry.js";
 import { SystemPromptPresetStore } from "../projects/SystemPromptPresetStore.js";
+import type { TaskProjectionChange } from "./TaskRuntimeProjection.js";
 
 export class TaskSupervisor extends EventEmitter {
   readonly #actors = new Map<string, TaskActor>();
@@ -76,7 +76,7 @@ export class TaskSupervisor extends EventEmitter {
       ensureTaskCreationAllowed: options.ensureTaskCreationAllowed || (async () => undefined),
       ensureCapacity: () => this.#ensureCapacity(), taskRow: (taskId) => this.#taskRow(taskId),
       actorRuntime: (projectId) => this.#actorRuntime(projectId), attach: (actor) => this.#attach(actor),
-      publishCreatedTask: (actor, input) => this.#publishCreatedTask(actor, input),
+      publishCreatedTask: (actor) => this.#publishCreatedTask(actor),
     });
     this.#history = new TaskHistoryCoordinator({
       store: this.#store, actors: this.#actors, activation: this.#activation,
@@ -395,14 +395,22 @@ export class TaskSupervisor extends EventEmitter {
     ) return;
     this.#observedActors.add(actor);
     let pendingChange: NodeJS.Timeout | null = null;
+    let pendingProjection: TaskProjectionChange | "snapshot" | null = null;
     let lastPublishedAt = 0;
     const publish = () => {
       pendingChange = null;
       if (this.#actors.get(snapshot.taskId) !== actor) return;
       lastPublishedAt = performance.now();
-      this.emit("task.changed", actor.detail);
+      const frame = actor.projectionFrame(
+        pendingProjection === null || pendingProjection === "snapshot"
+          ? undefined
+          : pendingProjection,
+      );
+      pendingProjection = null;
+      this.emit("task.changed", frame);
     };
-    actor.on("change", () => {
+    actor.on("change", (change?: TaskProjectionChange) => {
+      pendingProjection = mergeTaskProjectionChange(pendingProjection, change);
       if (pendingChange) return;
       const wait = taskChangeFrameMs(this.#state) - (performance.now() - lastPublishedAt);
       if (wait <= 0) {
@@ -445,8 +453,7 @@ export class TaskSupervisor extends EventEmitter {
   #withTaskRuntimeIntent<T>(taskId: string, operation: () => Promise<T>): Promise<T> {
     return this.#sourceControlBarrier.withRuntimeIntent(this.#taskRow(taskId).project_id, operation);
   }
-  #publishCreatedTask(actor: TaskActor, input: TaskCreate): void {
-    this.#projects.updateDefaults(input.projectId, defaultsFrom(input));
+  #publishCreatedTask(actor: TaskActor): void {
     this.emit("task.created", actor.detail);
   }
   #taskRow(taskId: string): TaskRow {
@@ -500,6 +507,14 @@ export class TaskSupervisor extends EventEmitter {
       this.emit("task.retired", { taskId, reason: "limit-lowered" });
     }
   }
+}
+
+export function mergeTaskProjectionChange(
+  pending: TaskProjectionChange | "snapshot" | null,
+  incoming?: TaskProjectionChange,
+): TaskProjectionChange | "snapshot" {
+  if (!incoming || pending === "snapshot") return "snapshot";
+  return pending === null ? incoming : "delta";
 }
 
 function taskChangeFrameMs(state: JsonStateStore): number {

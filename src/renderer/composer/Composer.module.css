@@ -45,6 +45,7 @@
 .upPanel[data-panel="model"] { min-width: 210px; }
 .upPanel [data-ui-control] { width: 100%; justify-content: flex-start; text-align: left; }
 .panelLabel { padding: var(--space-4) var(--space-7) var(--space-3); }
+.panelHint { display: block; max-width: 260px; padding: var(--space-5) var(--space-7); line-height: var(--font-ui-line-height); }
 .panelDivider { width: auto; margin: var(--space-4) var(--space-5); }
 .toolbar { display: flex; min-height: var(--app-composer-toolbar-height); padding: var(--space-2) var(--space-7) var(--space-6) var(--space-8); align-items: center; gap: var(--space-3); }
 .leading, .controls, .actions, .controlScroller { display: flex; min-height: var(--ui-action-control-size); align-items: center; }

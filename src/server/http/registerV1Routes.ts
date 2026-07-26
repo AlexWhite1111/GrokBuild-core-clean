@@ -232,8 +232,12 @@ export function registerV1Routes(app: Express, dependencies: V1RouteDependencies
       );
     }));
   app.post("/api/v1/tasks/:taskId/fork", (req, res, next) =>
-    mutate(req, res, next, TaskForkSchema, idempotency, (input) =>
-      supervisor.fork(TaskIdSchema.parse(req.params.taskId), input)));
+    mutate(req, res, next, TaskForkSchema, idempotency, async (input) => {
+      const taskId = TaskIdSchema.parse(req.params.taskId);
+      const snapshot = await supervisor.fork(taskId, input);
+      uiState.transferDraft(`task:${taskId}`, `task:${snapshot.taskId}`);
+      return snapshot;
+    }));
   app.post("/api/v1/tasks/:taskId/queue/submit", (req, res, next) =>
     mutate(req, res, next, TaskQueueSubmitSchema, idempotency, async (input) => {
       const taskId = TaskIdSchema.parse(req.params.taskId);

@@ -10,6 +10,7 @@
 
 - 同一事件序列：disk restore 与 live replay 结果相同。
 - `epoch + revision` 唯一标识一次投影版本。
+- UI 增量只传输该版本中变化的消息与时间线行；版本、顺序、identity 或数量失配时，必须从同一官方 Task 端点重新同步。
 - `foreground.running` 不等于 `background.running > 0`。
 - UI 动作来自 `allowedActions`，不得从 `busy` 反推。
 - tool update 合并当前状态，但原始事件历史不丢失。
@@ -22,6 +23,10 @@
 - Plan 草稿 identity 为 task + gate + 完整原文 hash。
 - inline media identity 必须能由官方更新确定性重建。
 - active/paused Goal 在 Actor 卸载后仍锁定 Source Control。
+- `hideFromScrollback: true` 的官方 user chunk 是内部输入，不生成用户消息；官方 interjection wrapper 只展示其中的 `user_query` 正文。
+- 空白 Session 在首条用户消息前更换 System Prompt 或 Sandbox 时，由一个新官方 Session 原位接替；旧空 Session 归档，不生成可见 Fork。
+- Session 已有用户消息后再更换固定设置，必须保留源 Session 并创建普通官方 Fork；Goal、Queue、Gate、未确认投递或后台工作未结束时禁止改写历史。
+- Project 新任务默认值是非对话配置，只能在创建新官方 Session 时读取；任务创建和当前 Session 的权限切换都不得反写默认值。
 
 ## 禁止状态
 

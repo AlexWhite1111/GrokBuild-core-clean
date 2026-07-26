@@ -6,6 +6,10 @@ import type {
   TaskSnapshot,
   WorkItemSnapshot,
 } from "../../shared/contracts.js";
+import {
+  historyMutationBlocker,
+  type HistoryMutationBlocker,
+} from "../../shared/taskHistoryReadiness.js";
 import { composerInput, composerPaths, composerText, restoreReplayDocument } from "../composer/composerDocument.js";
 
 export type PermissionRequest = (
@@ -22,9 +26,30 @@ export function taskPageError(
   local: string | null,
   snapshotError: TaskSnapshot["error"],
 ): string | null {
-  if (local) return local;
+  const localMessage = local?.trim();
+  if (localMessage) return localMessage;
   if (!snapshotError) return null;
-  return snapshotError.message;
+  return snapshotError.message.trim() || null;
+}
+
+export function taskSessionSettingsBlocker(
+  detail: TaskDetailProjection,
+): HistoryMutationBlocker | null {
+  const { snapshot, messages } = detail;
+  return historyMutationBlocker({
+    activeTurnCount: snapshot.turn === "idle" ? 0 : 1,
+    hasUnresolvedDelivery: messages.some((message) =>
+      message.role === "user"
+      && (message.delivery === "pending" || message.delivery === "unknown")),
+    gates: snapshot.gates.length,
+    queueRunning: snapshot.queue.runningEntryId !== null,
+    queuedPrompts: Math.max(
+      snapshot.activities.waiting,
+      snapshot.queue.entries.length,
+    ),
+    goalStatus: snapshot.goal.status,
+    runningActivities: snapshot.activities.running,
+  });
 }
 
 export async function retryInputFromMessage(message: TaskMessageBlock, requestId: string, projectId?: string) {

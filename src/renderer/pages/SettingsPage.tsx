@@ -5,7 +5,7 @@ import { ArchivedTasksSettings } from "../settings/ArchivedTasksSettings.js";
 import { ConfigSettings } from "../settings/ConfigSettings.js";
 import { GeneralSettings } from "../settings/GeneralSettings.js";
 import { MemorySettings } from "../settings/MemorySettings.js";
-import { PermissionSettings } from "../settings/PermissionSettings.js";
+import { TaskDefaultsSettings } from "../settings/TaskDefaultsSettings.js";
 import { ThemeStudio } from "../themes/ThemeStudio.js";
 import { AutomationsPage } from "./AutomationsPage.js";
 import { DiagnosticsPage } from "./DiagnosticsPage.js";
@@ -21,7 +21,7 @@ export function SettingsPage() {
   if (section === "language") return <Navigate to="/settings/general" replace />;
   const content = {
     general: <GeneralSettings />, appearance: <ThemeStudio />, account: <AccountSettings />,
-    permissions: <PermissionSettings />, configuration: <ConfigSettings />, memory: <MemorySettings />,
+    permissions: <TaskDefaultsSettings />, configuration: <ConfigSettings />, memory: <MemorySettings />,
     archived: <ArchivedTasksSettings />,
   }[section] || <ConfigSettings />;
   return <main className={styles.page}><header><h1>{title(section, t)}</h1><p>{t(subtitleKey(section))}</p></header>{content}</main>;
