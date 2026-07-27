@@ -138,6 +138,7 @@ function mermaidTheme() {
   const color = (name: string, fallback: string) => root.getPropertyValue(name).trim() || fallback;
   const surface = color("--color-surface-muted", "#ece8df");
   const raised = color("--color-surface-raised", "#f6f2e9");
+  const canvas = color("--background-code-visual", surface);
   const text = color("--color-text", "#27241f");
   const line = color("--color-text-muted", "#777169");
   const border = color("--color-border-strong", "#9b9489");
@@ -147,7 +148,7 @@ function mermaidTheme() {
     lineColor: line, secondaryColor: raised, secondaryTextColor: text, tertiaryColor: color("--color-surface", "#efeae0"), tertiaryTextColor: text,
     fontFamily: color("--font-ui", "system-ui"), textColor: text, nodeTextColor: text, titleColor: text, mainBkg: surface, nodeBorder: border,
     clusterBkg: raised, clusterBorder: border, actorBkg: raised, actorBorder: border, actorTextColor: text,
-    signalColor: line, signalTextColor: text, labelBoxBkgColor: raised, labelTextColor: text, edgeLabelBackground: raised,
+    signalColor: line, signalTextColor: text, labelBoxBkgColor: raised, labelTextColor: text, edgeLabelBackground: canvas,
     rowOdd: surface, rowEven: raised, attributeBackgroundColorOdd: surface, attributeBackgroundColorEven: raised,
     transitionColor: line, transitionLabelColor: text, stateLabelColor: text, stateBkg: surface,
     stateBorder: border, labelBackgroundColor: raised, compositeBackground: raised, altBackground: surface,
