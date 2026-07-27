@@ -8,6 +8,7 @@ import { repairMermaidLabelContrast } from "./mermaidLabelContrast.js";
 import { mermaidConfiguration } from "./mermaidPreviewPolicy.js";
 import { sanitizeSvgMarkup } from "./svgSanitizer.js";
 import { SpicePreview } from "./SpicePreview.js";
+import { CodeScrollRegion, SplitScrollRegion } from "./CodeScrollRegion.js";
 import styles from "./CodeBlock.module.css";
 
 interface PreviewProps { kind: StaticPreviewKind; source: string; controller?: VisualCanvasController; detail?: boolean; comfortablePercent?: number; minimumSize?: number }
@@ -87,7 +88,7 @@ function DataPreview({ kind, source, detail }: { kind: Exclude<StaticPreviewKind
   if (result === undefined) return <div className={styles.previewLoading} />;
   if (kind === "csv" || kind === "tsv") return <DataTable rows={result as string[][]} detail={detail} />;
   if (kind === "notebook") return <NotebookPreview notebook={result as Notebook} detail={detail} />;
-  return <pre className={`${styles.dataPreview} ${detail ? styles.detailData : ""}`}><code>{JSON.stringify(result, null, 2)}</code></pre>;
+  return <CodeScrollRegion className={`${styles.dataPreview} ${detail ? styles.detailData : ""}`}><code>{JSON.stringify(result, null, 2)}</code></CodeScrollRegion>;
 }
 
 async function parseData(kind: string, source: string): Promise<unknown> {
@@ -117,18 +118,18 @@ function parseDelimited(source: string, delimiter: string): string[][] {
 
 function DataTable({ rows, detail }: { rows: string[][]; detail: boolean }) {
   if (!rows.length) return <div className={styles.renderError}>Empty data</div>;
-  return <div className={`${styles.dataTableWrap} ${detail ? styles.detailData : ""}`}><table className={styles.dataTable}><thead><tr>{rows[0].map((cell, index) => <th key={index}>{cell}</th>)}</tr></thead><tbody>{rows.slice(1).map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, index) => <td key={index}>{cell}</td>)}</tr>)}</tbody></table></div>;
+  return <SplitScrollRegion className={`${styles.dataTableWrap} ${detail ? styles.detailData : ""}`}><table className={styles.dataTable}><thead><tr>{rows[0].map((cell, index) => <th key={index}>{cell}</th>)}</tr></thead><tbody>{rows.slice(1).map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, index) => <td key={index}>{cell}</td>)}</tr>)}</tbody></table></SplitScrollRegion>;
 }
 
 interface Notebook { cells?: Array<{ cell_type?: string; source?: string | string[]; outputs?: Array<{ text?: string | string[]; data?: Record<string, string | string[]> }> }> }
 function NotebookPreview({ notebook, detail }: { notebook: Notebook; detail: boolean }) {
-  return <div className={`${styles.notebook} ${detail ? styles.detailData : ""}`}>{(notebook.cells || []).slice(0, 100).map((cell, index) => {
+  return <SplitScrollRegion className={`${styles.notebook} ${detail ? styles.detailData : ""}`}>{(notebook.cells || []).slice(0, 100).map((cell, index) => {
     const source = Array.isArray(cell.source) ? cell.source.join("") : cell.source || "";
     return <section key={index}><small>{cell.cell_type || "cell"} {index + 1}</small><pre><code>{source}</code></pre>{(cell.outputs || []).map((output, outputIndex) => {
       const value = Array.isArray(output.text) ? output.text.join("") : output.text || textOutput(output.data);
       return value ? <pre className={styles.notebookOutput} key={outputIndex}>{value}</pre> : null;
     })}</section>;
-  })}</div>;
+  })}</SplitScrollRegion>;
 }
 function textOutput(data?: Record<string, string | string[]>): string { const value = data?.["text/plain"]; return Array.isArray(value) ? value.join("") : value || ""; }
 

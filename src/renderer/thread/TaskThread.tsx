@@ -14,7 +14,13 @@ import { MessageBlock } from "./MessageBlock.js";
 import { createTurnTimelineProjector, type TimelineItem } from "./turnPresentation.js";
 import styles from "./TaskThread.module.css";
 import { ConversationForkIcon } from "./ConversationForkIcon.js";
-import { nextThreadScrollFollow, threadAtBottom, threadLatestControl } from "./threadScrollFollow.js";
+import {
+  createThreadScrollAnchor,
+  resolveThreadScrollAnchorIndex,
+  threadAtBottom,
+  threadLatestControl,
+  threadRowResizeAdjustsScroll,
+} from "./threadScroll.js";
 
 type ContinuationItem = { id: string; kind: "continuation"; origin: TaskContinuationOrigin };
 type ThreadItem = TimelineItem | ContinuationItem;
@@ -27,11 +33,9 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   const parent = useRef<HTMLDivElement>(null);
   const anchorTimer = useRef<number | null>(null);
   const restoreFrame = useRef<number | null>(null);
-  const followFrame = useRef<number | null>(null);
+  const previousPaddingEnd = useRef<number | null>(null);
   const pendingAnchor = useRef<{ taskId: string; value: TaskScrollAnchor } | null>(null);
   const restoring = useRef(true);
-  const pinnedToBottom = useRef(true);
-  const previousScrollTop = useRef(0);
   const [savedState, setSavedState] = useState<TaskUiState | null>(null);
   const [stateLoaded, setStateLoaded] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -56,26 +60,27 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     estimateSize: (index) => items[index]?.kind === "assistant" ? 118 : items[index]?.kind === "lifecycle" || items[index]?.kind === "goal" ? 34 : items[index]?.kind === "continuation" ? 48 : 92,
     overscan: 8,
     paddingEnd,
+    anchorTo: "end",
+    followOnAppend: true,
+    scrollEndThreshold: 1,
   });
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
+    threadRowResizeAdjustsScroll(item, instance.scrollOffset ?? 0);
   const scrollToLatest = useCallback(() => {
-    if (items.length) virtualizer.scrollToIndex(items.length - 1, { align: "end" });
+    if (items.length) virtualizer.scrollToEnd();
   }, [items.length, virtualizer]);
-  useEffect(() => {
-    if (!stateLoaded || restoring.current || !items.length) return;
-    if (!pinnedToBottom.current || followFrame.current != null) return;
-    followFrame.current = requestAnimationFrame(() => {
-      followFrame.current = null;
-      const element = parent.current;
-      if (pinnedToBottom.current && element && !threadAtBottom(element)) scrollToLatest();
-    });
-  }, [detail.snapshot.revision, items.length, paddingEnd, scrollToLatest, stateLoaded]);
+  useLayoutEffect(() => {
+    const previous = previousPaddingEnd.current;
+    previousPaddingEnd.current = paddingEnd;
+    if (previous == null || previous === paddingEnd || !stateLoaded || restoring.current || !atBottom) return;
+    scrollToLatest();
+  }, [atBottom, paddingEnd, scrollToLatest, stateLoaded]);
   useEffect(() => {
     let current = true;
     restoring.current = true;
     setStateLoaded(false);
     setSavedState(null);
-    pinnedToBottom.current = true;
-    previousScrollTop.current = 0;
+    previousPaddingEnd.current = null;
     setAtBottom(true);
     if (!persistScroll) { setStateLoaded(true); return () => { current = false; }; }
     void api.get<TaskUiState>(`/ui/tasks/${detail.snapshot.taskId}`).then((state) => {
@@ -99,21 +104,16 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     if (restoreFrame.current != null) cancelAnimationFrame(restoreFrame.current);
     const anchor = savedState?.scrollAnchor;
     if (!anchor || anchor.followLatest) {
-      pinnedToBottom.current = true;
       setAtBottom(true);
       scrollToLatest();
       return;
     }
-    const index = resolveScrollAnchorIndex(items, anchor);
-    pinnedToBottom.current = false;
+    const index = resolveThreadScrollAnchorIndex(items, anchor);
     setAtBottom(false);
     restoreFrame.current = requestAnimationFrame(() => {
       restoreFrame.current = requestAnimationFrame(() => {
         const row = virtualizer.getVirtualItems().find((item) => item.index === index);
-        if (row && parent.current) {
-          parent.current.scrollTop = Math.max(0, row.start + anchor.offset);
-          previousScrollTop.current = parent.current.scrollTop;
-        }
+        if (row) virtualizer.scrollToOffset(Math.max(0, row.start + anchor.offset));
         restoreFrame.current = null;
       });
     });
@@ -147,28 +147,23 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   }, [persistPendingAnchor]);
   useEffect(() => () => {
     if (restoreFrame.current != null) cancelAnimationFrame(restoreFrame.current);
-    if (followFrame.current != null) cancelAnimationFrame(followFrame.current);
   }, []);
   const onScroll = () => {
     const element = parent.current;
     if (!element) return;
-    const movedTowardBottom = element.scrollTop > previousScrollTop.current;
-    const movedAwayFromBottom = element.scrollTop < previousScrollTop.current;
-    previousScrollTop.current = element.scrollTop;
     const bottom = threadAtBottom(element);
     setTopEdge(element.scrollTop > 4);
     setAtBottom(bottom);
     if (restoring.current || restoreFrame.current != null) return;
-    pinnedToBottom.current = nextThreadScrollFollow(pinnedToBottom.current, movedAwayFromBottom ? "release" : "scroll", bottom, movedTowardBottom);
     const visible = virtualizer.getVirtualItems().find((row) => row.end > element.scrollTop + 1) || virtualizer.getVirtualItems()[0];
     if (visible) {
-      const scrollAnchor = createScrollAnchor(items, visible.index, element.scrollTop, visible.start, pinnedToBottom.current);
+      const scrollAnchor = createThreadScrollAnchor(items, visible.index, element.scrollTop, visible.start, bottom);
       pendingAnchor.current = { taskId: detail.snapshot.taskId, value: scrollAnchor };
       if (anchorTimer.current != null) window.clearTimeout(anchorTimer.current);
       anchorTimer.current = window.setTimeout(persistPendingAnchor, 240);
     }
   };
-  const latest = () => { pinnedToBottom.current = true; setAtBottom(true); scrollToLatest(); };
+  const latest = () => { setAtBottom(true); scrollToLatest(); };
   const latestControl = threadLatestControl(atBottom, projectTaskExecution(detail.snapshot).busy);
 
   return <div className={styles.frame} style={{ "--thread-bottom-inset": `${paddingEnd}px` } as CSSProperties}>
@@ -205,22 +200,6 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
 
 function composerThreadInset(stackHeight: number): number {
   return Math.ceil(Math.max(0, stackHeight));
-}
-
-function resolveScrollAnchorIndex(items: ThreadItem[], anchor: TaskScrollAnchor): number {
-  const exact = anchor.itemId ? items.findIndex((item) => item.id === anchor.itemId) : -1;
-  if (exact >= 0) return exact;
-  return Math.max(0, Math.min(Math.max(0, items.length - 1), anchor.fallbackIndex));
-}
-
-function createScrollAnchor(items: ThreadItem[], index: number, scrollTop: number, rowStart: number, followLatest: boolean): TaskScrollAnchor {
-  const fallbackIndex = Math.max(0, Math.min(Math.max(0, items.length - 1), Math.trunc(index)));
-  return {
-    itemId: items[fallbackIndex]?.id || null,
-    fallbackIndex,
-    offset: Math.max(0, Number((scrollTop - rowStart).toFixed(2))),
-    followLatest,
-  };
 }
 
 function continuationItems(items: TimelineItem[], origin: TaskContinuationOrigin | null | undefined): ThreadItem[] {

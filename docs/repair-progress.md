@@ -1,6 +1,6 @@
 # Session Projection Repair Progress
 
-最后更新：2026-07-26
+最后更新：2026-07-27
 
 ## 恢复工作方式
 
@@ -38,6 +38,7 @@
 - [x] P20：把消息与结构变化收敛为统一增量投影，消除子 Agent 大 Session 的完整事件重传。
 - [x] P21：集中新任务默认值，删除任务创建反写默认配置和无效 Work Mode 默认字段。
 - [x] P22：过滤父任务中的子 Session 逐字噪声，稳定 Agent 排序，并把复杂 Markdown 收敛为可证明等价的增量 canonical 渲染。
+- [x] P23：收口显式 LaTeX 定界符与数学密集流式渲染，删除复制、链接坐标的重复解析分支。
 
 ## 已确认不变量
 
@@ -96,7 +97,9 @@
 - 图片双击将三个实际像素尺寸排序后循环；小于 `max(12px, 5%)` 的近似档位自动跳过。
 - New Task 仅依据官方 Session 的 `num_messages`/用户历史复用当前 Project 的空 Session，不用标题或时间推断。
 - 阅读宽度不再伪造全局 resize；选择控件的隐藏输入锚定自身，不再把 Terminal 内容层滚出视口。
-- 对话滚动只认真实 `scrollTop` 方向：向上立即脱离流式跟随，向下到真实底部或点击“回到最新”才恢复；已删除滚轮、触摸、指针、键盘和 `scrollEnd` 五路重复判断。
+- 对话滚动只使用虚拟列表的一套末端/锚点模型：真实位于底部时跟随新增内容，离开底部后按稳定消息 id + 行内偏移保持阅读位置；已删除 revision 强制到底、上一帧方向、`pinnedToBottom` 和独立跟随帧。
+- 流式文字、Mermaid、LaTeX、图片和 Preview 改变当前阅读行高度时不改 `scrollTop`；只有完全位于视口上方的旧行重测才补偿，Composer 高度变化也只在原本位于底部时跟随。
+- 源码、数据表、Notebook、运行输出、SPICE 与 Preview Console 共用一个 3/4—1/4 滚轮路由；内联 HTML、图片、图表、3D 与 Matplotlib 的普通滚轮回到对话，`Ctrl` 缩放和超过 10px 的明确拖拽才归渲染视图。
 - Actor 仍逐条处理官方通知；WebSocket 完整投影采用首帧立即、连续流限频、尾帧必达的单计时器，默认 20 Hz。
 - 渲染设置提供 10 / 15 / 20 / 30 / 60 Hz 五档，只保存 `streamingRefreshHz`，不参与 Session 状态判断。
 - 真实 JSON 快照按官方结构事件内容缓存时间线；流式文本的 `lastEvent` 变化只更新现有消息，不再重建整个历史。
@@ -123,24 +126,30 @@
 - 活跃 Agent 按启动时间稳定排列，进度变化不再重排；运行行固定为单行，只有完成时发生一次符合语义的历史区迁移。
 - 文本增量帧不再克隆或发送未变化的 Context；Renderer 沿用同一投影版本中最后接受的 Context，并在纯文本变化时复用右栏资源结果。
 - 复杂 Markdown 在已完成块与当前尾部的组合结果经 canonical parser 证明等价后，固定已完成块并只重解析尾部；完成态仍由原有 one-shot canonical parser 全量接管，不显示源码、不增加 fallback 或第二渲染器。
+- `\(...\)` / `\[...\]` 只做等长的显式定界符转换；不再猜测普通括号或方括号，复制与本地链接直接复用同一棵 canonical 语法树的原始坐标。
+- 流式稳定边界识别会忽略数学内容中的 Markdown 符号；数学、Markdown、Mermaid 最终仍只进入原有 canonical 渲染主干。
+- Web Search 查询词从同一官方 Session 的 `backend_tool_call` 按 tool call id 合并到 `updates.jsonl` 的工具状态；live 与重启恢复共用同一净化和时间线入口，空标题不再丢失查询内容。
 
 ## 最终验证
 
 - `npm run typecheck`：通过。
 - `npm run test:segmentation`：96 / 96 通过。
-- `npm run test:task-runtime`：153 / 153 通过。
+- `npm run test:task-runtime`：全部通过。
 - `npm run build`：Web、Server、Electron Shell 通过。
 - `npm run architecture`：0 个错误；仅保留 2 个既有测试孤立警告，Knip 无未使用代码，重复率 0.09%。
 - `npm audit --omit=dev`：生产依赖 0 个漏洞。
 - `git diff --check`：通过。
 - Mermaid 数学与对比度回归：2 / 2 通过；覆盖统一 KaTeX 字形、严格模式、HTML/MathML 标签、深浅自定义底色和直接 SVG 不放宽。
-- `threadScrollFollow.test.ts`：3 / 3 通过；覆盖近底部向上不回挂、主动回到底部恢复。
+- `threadScroll.test.ts` 与 `CodeScrollRegion.test.ts`：7 / 7 行为用例通过；覆盖真实底部、当前阅读行不补偿、稳定 id 恢复、滚轮单位及代码区 3/4—1/4 边界。
+- Preview runtime 回归覆盖内联 HTML 与 Matplotlib iframe 的普通纵向滚轮回到对话、修饰键交互仍保留给渲染视图。
+- Web Search live / restore 回归：查询词按同一官方 tool call id 投影，完成态与重启恢复一致。
 - `taskThreadStructure.runtime.test.ts`：真实 JSON 克隆、1000 次文本追加和游标变化只构建 1 次时间线。
 - 投影帧回归覆盖引用保留、旧帧/跨 epoch/identity 与数量分歧、首个完整帧、消息/事件连续合并和同一子 Agent 多次状态更新。
 - 真实 10 子 Agent 历史基准：单次结构更新帧从 21,992,566 bytes 降至 194,927 bytes（112.8 倍）；序列化从 79.41 ms 降至 0.96 ms。
 - 新任务默认值回归覆盖完整五项解析、权限能力暂缺不污染持久偏好、显式 Permission 输入和旧 `workMode` 字段清理。
 - 富文本增长基准为 6,599 字符、150 次更新：增长阶段中位总耗时 10.67 ms，最终 canonical 解析 22.41 ms，增长阶段进入完整解析器的字符数为 0，最终结构精确一致。
 - 复杂 Markdown 基准为 9,523 字符、150 次更新：累计解析从 717,634 字符（75.36 倍、约 1,731.6 ms）降至 30,040 字符（3.15 倍、约 224.5 ms）；解析量降低 23.9 倍，完成态结构仍精确等于 canonical。
+- 数学密集回复基准为 9,556 字符、150 次更新：累计解析 29,941 字符（3.13 倍），完成态 canonical 解析 71.75 ms；覆盖用户截图中的 Rolle 与 Cauchy 公式及每个切分边界。
 - 2,000 个 child `agent_message_chunk` 回归为父任务 0 个 operational event、0 次 context 重投影、0 次 revision/帧发布；结构化子 Agent 状态仍进入原统一增量帧。
 - 媒体缓存回归覆盖未解析官方 Session 保留、孤儿清理和任务打开后的引用解析；正式 Grok Home 状态下后端 1,577 ms 进入 ready。
 
@@ -163,7 +172,9 @@
 - Electron 双向切换阅读宽度 Full 后外层滚动保持 `0`，设置页位置不跳动且无底部底色遮挡。
 - 手机模拟视口 `390×844`：灯箱和视口均为全屏，图片 cover 为 `633×844`；Fit 仍返回 cover。
 - 手机真实双击顺序实测 `633×844 → 864×1152 → 273×364 → 633×844`，按实际尺寸正确回环。
-- 最新正式 App 已替换并重启；`app.asar` SHA-256 为 `fd698f564ab9426634b4e31a54800485409f4787700011204a03125942850649`。
+- 最新正式 App 已纯净替换并重启；`app.asar` SHA-256 为 `3bfd08d98e1c746179dcb10a98e9745839e1579d7a60cfa7326af87666adcbc4`。
+- 正式 App 已展开验收真实历史中的 9 条 Web Search，均显示同一官方 Session 内按 tool call id 对齐的实际查询词。
+- 正式 App 已切换任务再返回验收：恢复到原稳定消息与行内位置，保持“回到最新”状态，不被历史重投影强制拉到底部；官方 Session 未改写。
 - 正式 Electron 设置页已只读验收：“新任务默认值”集中显示模型、推理强度、Permission、Sandbox 与 System Prompt，并明确只作用于未来任务，不修改当前官方 Session 或创建 Fork。
 - 新版本重启后的 15 秒普通使用样本：Renderer 平均 6.9%、峰值 23.5%，Server 平均 2.5%、峰值 17.4%；修改前 45 秒长流样本为 Renderer 平均 29.2%、峰值 179.6%。负载不同，不把该样本写成同负载结论。
 - 正式 App 在 10 Hz 下完成 300 行纯文本同步采样：30.5 秒活跃窗口内应用平均 38.8% 的一个逻辑核心，P95 50.1%，峰值 59.5%；结束后回落到 0–0.3%。其中 Renderer 平均 16.5%、Server 13.6%、GPU 6.7%。

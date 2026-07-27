@@ -14,6 +14,7 @@ import { VisualCanvas, useVisualCanvasController } from "./VisualCanvas.js";
 import { Control, Surface, Text } from "../../ui/components/index.js";
 import styles from "./CodeBlock.module.css";
 import { SpiceRunResult } from "./SpiceRunResult.js";
+import { CodeScrollRegion } from "./CodeScrollRegion.js";
 
 export function LocalRunResult({ api, snapshot, error }: { api: ApiClient; snapshot: LocalRunSnapshot | null; error: string | null }) {
   const { t } = useTranslation();
@@ -39,10 +40,10 @@ export function LocalRunResult({ api, snapshot, error }: { api: ApiClient; snaps
       </div>}
     </div>
     {!collapsed && <div className={styles.runResultBody}>
-      {error && <pre data-copy-rendered className={styles.runError}>{error}</pre>}
+      {error && <CodeScrollRegion data-copy-rendered className={styles.runError}>{error}</CodeScrollRegion>}
       {snapshot && spice
         ? <SpiceRunResult result={spice} log={snapshot.stdout} errorLog={snapshot.stderr} running={snapshot.status === "running"} />
-        : <>{snapshot?.stdout && <pre data-copy-rendered className={styles.runOutput}>{snapshot.stdout}</pre>}{snapshot?.stderr && <pre data-copy-rendered className={styles.runError}>{snapshot.stderr}</pre>}{snapshot && activeFigure && <InteractiveRunPreview api={api} snapshot={snapshot} figureId={activeFigure} />}</>}
+        : <>{snapshot?.stdout && <CodeScrollRegion data-copy-rendered className={styles.runOutput}>{snapshot.stdout}</CodeScrollRegion>}{snapshot?.stderr && <CodeScrollRegion data-copy-rendered className={styles.runError}>{snapshot.stderr}</CodeScrollRegion>}{snapshot && activeFigure && <InteractiveRunPreview api={api} snapshot={snapshot} figureId={activeFigure} />}</>}
       {snapshot?.artifacts.map((artifact) => <ArtifactPreview key={artifact.artifactId} api={api} runId={snapshot.runId} artifact={artifact} />)}
     </div>}
     {snapshot && (activeFigure || spice) && <PreviewShell open={detailOpen} onOpenChange={setDetailOpen} accessibleTitle={activeFigure ? "Matplotlib" : "NGspice"} toolbarTitle={activeFigure ? "Matplotlib" : "NGspice"}>
@@ -71,7 +72,7 @@ function ArtifactPreview({ api, runId, artifact }: { api: ApiClient; runId: stri
     {textual && <Control recipe="icon" density="compact" selected={raw} onClick={() => setRaw((value) => !value)} aria-label={t(raw ? "artifactPreview" : "artifactSource")}>{raw ? <Eye size={13} /> : <Code2 size={13} />}</Control>}
     {window.grokDesktop && <><Control recipe="icon" density="compact" onClick={() => void artifactAction("open")} aria-label={t("openArtifact")}><ExternalLink size={13} /></Control><Control recipe="icon" density="compact" onClick={() => void artifactAction("reveal")} aria-label={t("revealArtifact")}><FolderOpen size={13} /></Control></>}
   </div></div>;
-  if (raw && textual) return <Artifact caption={caption}><pre data-copy-rendered className={styles.runOutput}>{prettyText(artifact.kind, data)}</pre></Artifact>;
+  if (raw && textual) return <Artifact caption={caption}><CodeScrollRegion data-copy-rendered className={styles.runOutput}>{prettyText(artifact.kind, data)}</CodeScrollRegion></Artifact>;
   if (artifact.kind === "image") return <Artifact caption={caption}><ArtifactImage src={data} alt={artifact.name} /></Artifact>;
   if (artifact.kind === "audio") return <Artifact caption={caption}><audio controls preload="metadata" src={data} /></Artifact>;
   if (artifact.kind === "video") return <Artifact caption={caption}><video controls preload="metadata" data-shape="control" src={data} /></Artifact>;
@@ -82,7 +83,7 @@ function ArtifactPreview({ api, runId, artifact }: { api: ApiClient; runId: stri
   }
   if (artifact.kind === "html") return <Artifact caption={caption}><HtmlPreview api={api} language="html" source={data} /></Artifact>;
   if (artifact.kind === "pdf") return <Artifact caption={caption}><iframe className={styles.pdfArtifact} data-shape="control" src={data} title={artifact.name} /></Artifact>;
-  return <Artifact caption={caption}><pre data-copy-rendered className={styles.runOutput}>{prettyText(artifact.kind, data)}</pre></Artifact>;
+  return <Artifact caption={caption}><CodeScrollRegion data-copy-rendered className={styles.runOutput}>{prettyText(artifact.kind, data)}</CodeScrollRegion></Artifact>;
 
   function artifactAction(action: "open" | "reveal") {
     return window.grokDesktop?.runArtifactAction({ runId, artifactId: artifact.artifactId, action }).catch(() => setError(true));

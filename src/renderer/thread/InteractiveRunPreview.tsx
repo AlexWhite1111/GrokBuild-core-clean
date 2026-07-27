@@ -4,6 +4,7 @@ import type { ApiClient } from "../api/ApiClient.js";
 import { THEME_APPLIED_EVENT } from "../../ui/theme/index.js";
 import { previewThemeSnapshot } from "./HtmlPreview.js";
 import styles from "./CodeBlock.module.css";
+import { scrollThreadByWheel } from "./threadScroll.js";
 
 export function InteractiveRunPreview({ api, snapshot, figureId, detail = false }: {
   api: ApiClient;
@@ -29,9 +30,21 @@ export function InteractiveRunPreview({ api, snapshot, figureId, detail = false 
     }, "*");
     const receive = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow) return;
-      const message = event.data as { channel?: string; runId?: string; type?: string } | null;
+      const message = event.data as {
+        channel?: string;
+        runId?: string;
+        type?: string;
+        deltaY?: number;
+        deltaMode?: number;
+      } | null;
       if (message?.channel !== "grok-build-interactive" || message.runId !== snapshot.runId) return;
       if (message.type === "ready") { publishTheme(); return; }
+      if (
+        message.type === "thread-wheel"
+        && !detail
+        && typeof message.deltaY === "number"
+        && typeof message.deltaMode === "number"
+      ) scrollThreadByWheel(frame.current, { deltaY: message.deltaY, deltaMode: message.deltaMode });
     };
     window.addEventListener("message", receive);
     window.addEventListener(THEME_APPLIED_EVENT, publishTheme);
@@ -39,7 +52,7 @@ export function InteractiveRunPreview({ api, snapshot, figureId, detail = false 
       window.removeEventListener("message", receive);
       window.removeEventListener(THEME_APPLIED_EVENT, publishTheme);
     };
-  }, [api.bootstrap.apiBaseUrl, snapshot.runId]);
+  }, [api.bootstrap.apiBaseUrl, detail, snapshot.runId]);
 
   if (!url) return null;
   return <div className={styles.interactivePreview} data-detail={detail || undefined}>

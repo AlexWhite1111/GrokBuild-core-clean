@@ -302,6 +302,7 @@ const PREVIEW_RUNTIME = String.raw`(()=>{
   const channel='grok-build-preview';
   const query=new URLSearchParams(location.search);
   const id=query.get('instance')||'preview';
+  const detail=query.get('detail')==='1';
   const send=(type,value)=>parent.postMessage({channel,id,type,value},'*');
   const themeListeners=new Set(),visibilityListeners=new Set(),disposeListeners=new Set();
   let theme={appearance:'light',variables:{}},hostVisible=true,visible=true,disposed=false,lastHeight=-1;
@@ -362,6 +363,12 @@ const PREVIEW_RUNTIME = String.raw`(()=>{
     else if(message.type==='visibility')setVisible(message.value);
     else if(message.type==='dispose')dispose();
   });
+  addEventListener('wheel',event=>{
+    if(detail||event.ctrlKey||event.metaKey||event.altKey||event.deltaY===0)return;
+    event.preventDefault();
+    event.stopPropagation();
+    send('thread-wheel',{deltaY:event.deltaY,deltaMode:event.deltaMode});
+  },{capture:true,passive:false});
   document.addEventListener('visibilitychange',refreshVisible);
   addEventListener('error',event=>{
     const target=event.target;

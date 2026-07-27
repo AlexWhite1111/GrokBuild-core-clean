@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import type {
   ReasoningEffort,
   SandboxProfile,
@@ -16,7 +17,7 @@ import { projectTaskOperationalContext } from "../../shared/contracts.js";
 import type { ProjectStore } from "../projects/ProjectStore.js";
 import type { JsonStateStore } from "../storage/JsonStateStore.js";
 import { TaskCommandProjection } from "./TaskCommandProjection.js";
-import { readMeta, safeSessionUpdate } from "./taskEventSanitizers.js";
+import { readMeta, safeSessionUpdate, withOfficialWebSearchQuery } from "./taskEventSanitizers.js";
 import { applyGoalSessionUpdate } from "./taskGoalProjection.js";
 import { storedInlineMediaForSessionUpdate } from "./taskMediaProjection.js";
 import { TaskRuntimeTranscript } from "./TaskRuntimeTranscript.js";
@@ -54,6 +55,12 @@ type TaskVisibility = "active" | "archived" | "all";
 
 /** Official ~/.grok session files are the sole durable task and transcript authority. */
 export class TaskStore {
+  readonly #webSearchQueries = new Map<string, {
+    size: number;
+    modifiedAt: number;
+    values: Map<string, string>;
+  }>();
+
   constructor(
     private readonly grokHome: string,
     private readonly grokHomeId: string,
@@ -132,10 +139,19 @@ export class TaskStore {
     return row ? this.#detail(row) : null;
   }
 
+  officialWebSearchQuery(taskId: string, toolCallId: string): string | undefined {
+    const row = this.row(taskId);
+    return row ? this.#officialWebSearchQueries(row).get(toolCallId) : undefined;
+  }
+
   #detail(row: TaskRow): TaskDetailProjection {
     const summary = readObject(row.summary_path, 1_048_576) || {};
     const snapshot = snapshotFrom(row, summary);
-    const officialHistory = projectOfficialHistory(row, snapshot);
+    const officialHistory = projectOfficialHistory(
+      row,
+      snapshot,
+      this.#officialWebSearchQueries(row),
+    );
     const detail = officialHistory || {
       snapshot,
       messages: transcript(row),
@@ -144,6 +160,25 @@ export class TaskStore {
     };
     detail.snapshot.continuedFrom = this.#continuationOrigin(row, summary, detail.messages);
     return detail;
+  }
+
+  #officialWebSearchQueries(row: TaskRow): Map<string, string> {
+    const file = path.join(path.dirname(row.summary_path), "chat_history.jsonl");
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(file);
+    } catch {
+      return new Map();
+    }
+    const cached = this.#webSearchQueries.get(file);
+    if (cached?.size === stat.size && cached.modifiedAt === stat.mtimeMs) return cached.values;
+    const values = backendWebSearchQueries(file);
+    this.#webSearchQueries.set(file, {
+      size: stat.size,
+      modifiedAt: stat.mtimeMs,
+      values,
+    });
+    return values;
   }
 
   #continuationOrigin(
@@ -282,6 +317,7 @@ function snapshotFrom(row: TaskRow, summary: Record<string, unknown>): TaskSnaps
 function projectOfficialHistory(
   row: TaskRow,
   snapshot: TaskSnapshot,
+  webSearchQueries: ReadonlyMap<string, string>,
 ): TaskDetailProjection | null {
   const file = path.join(path.dirname(row.summary_path), "updates.jsonl");
   let source = "";
@@ -301,7 +337,13 @@ function projectOfficialHistory(
   for (const record of logicalOfficialUpdates(source)) {
     const rawParams = object(record?.params);
     const params = rawParams ? withOfficialTimestamp(rawParams, record?.timestamp) : null;
-    const update = object(params?.update);
+    const originalUpdate = object(params?.update);
+    const update = originalUpdate
+      ? withOfficialWebSearchQuery(
+          originalUpdate,
+          webSearchQueries.get(text(originalUpdate.toolCallId)),
+        )
+      : null;
     const updateType = text(update?.sessionUpdate);
     if (!params || !update || !updateType) continue;
     if (updateType === "current_mode_update") {
@@ -408,6 +450,38 @@ function projectOfficialHistory(
     events,
     context: projectTaskOperationalContext(events),
   };
+}
+
+function backendWebSearchQueries(file: string): Map<string, string> {
+  const values = new Map<string, string>();
+  const descriptor = fs.openSync(file, "r");
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  const decoder = new StringDecoder("utf8");
+  let remainder = "";
+  const consume = (line: string) => {
+    let record: Record<string, unknown> | null = null;
+    try { record = object(JSON.parse(line)); } catch { /* skip damaged live tail */ }
+    if (text(record?.type) !== "backend_tool_call") return;
+    const kind = object(record?.kind);
+    const action = object(kind?.action);
+    const id = text(kind?.id);
+    const query = text(action?.query);
+    if (text(kind?.tool_type) === "web_search" && id && query) values.set(id, query);
+  };
+  try {
+    while (true) {
+      const length = fs.readSync(descriptor, buffer, 0, buffer.length, null);
+      if (!length) break;
+      const lines = `${remainder}${decoder.write(buffer.subarray(0, length))}`.split(/\r?\n/);
+      remainder = lines.pop() || "";
+      for (const line of lines) consume(line);
+    }
+    const tail = `${remainder}${decoder.end()}`;
+    if (tail) consume(tail);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  return values;
 }
 
 function logicalOfficialUpdates(source: string): Record<string, unknown>[] {

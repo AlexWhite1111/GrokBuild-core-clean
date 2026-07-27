@@ -27,7 +27,7 @@ type GestureState = {
   view: VisualView;
 };
 
-const TOUCH_PAN_THRESHOLD = 10;
+const PAN_THRESHOLD = 10;
 
 export interface VisualCanvasController {
   view: VisualView;
@@ -186,7 +186,7 @@ export function VisualCanvas({ children, controller, naturalWidth, naturalHeight
       clientY: event.clientY,
       x: viewRef.current.x,
       y: viewRef.current.y,
-      committed: true,
+      committed: false,
     };
   };
   const pointerMove = (event: PointerEvent<HTMLDivElement>) => {
@@ -228,7 +228,7 @@ export function VisualCanvas({ children, controller, naturalWidth, naturalHeight
     const deltaX = event.clientX - origin.clientX;
     const deltaY = event.clientY - origin.clientY;
     if (!origin.committed) {
-      if (Math.hypot(deltaX, deltaY) < TOUCH_PAN_THRESHOLD) return;
+      if (Math.hypot(deltaX, deltaY) < PAN_THRESHOLD) return;
       origin.committed = true;
     }
     event.preventDefault();

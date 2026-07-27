@@ -2,7 +2,7 @@
 
 ## 权威边界
 
-1. `summary.json`、`updates.jsonl` 与 live ACP/XAI 是唯一输入。
+1. `summary.json`、`chat_history.jsonl`、`updates.jsonl` 与 live ACP/XAI 都来自同一个官方 Session，是唯一输入。
 2. SessionProjection 是唯一业务投影。
 3. Transcript、Context、Sidebar、Composer、Goal、Plan 都是该投影的只读视图。
 
@@ -14,6 +14,7 @@
 - `foreground.running` 不等于 `background.running > 0`。
 - UI 动作来自 `allowedActions`，不得从 `busy` 反推。
 - tool update 合并当前状态，但原始事件历史不丢失。
+- Web Search 的动作与查询词按官方 tool call id 合并；live 与重启恢复读取同一个官方 Session，不从 UI 或旁路猜测。
 - Goal 转换具有稳定 identity，可跨重启恢复。
 - Plan 只恢复官方 Session 中实际持久化的内容；live reverse request 不另建影子存储。
 - child session 可按官方 session id 读取，不进入主任务列表。

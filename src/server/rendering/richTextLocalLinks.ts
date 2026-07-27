@@ -1,5 +1,4 @@
 import type { Element, Root, RootContent, Text } from "hast";
-import { normalizeMathDelimiters } from "../../shared/richText.js";
 import type { RichTextLocalLink, RichTextRenderPolicy } from "../../shared/contracts.js";
 import { RICH_EXTERNAL_CODE_LINK_TAG, RICH_LOCAL_LINK_TAG } from "../../shared/richTextMedia.js";
 import { resolveLocalPathCandidate } from "../security/localPathCandidate.js";
@@ -21,9 +20,8 @@ export function resolveRichTextLocalLinks(
   policy: RichTextRenderPolicy,
 ): { document: Root; localLinks: RichTextLocalLink[] } {
   const cloned = structuredClone(document);
-  const coordinateSource = normalizeMathDelimiters(source);
   const localLinks: RichTextLocalLink[] = [];
-  rewriteChildren(cloned, coordinateSource, projectPath, paths, policy, localLinks, false);
+  rewriteChildren(cloned, source, projectPath, paths, policy, localLinks, false);
   return { document: cloned, localLinks };
 }
 

@@ -682,14 +682,17 @@ function exactStatus(value?: string): ToolStepPresentation["status"] | undefined
 }
 
 function toolLabel(payload: Record<string, unknown>, event: TaskEventEnvelope): string {
-  return displayText(payload.title)
+  const title = displayText(payload.title);
+  const query = displayText(payload.query);
+  if (query && /^web search\s*:\s*$/i.test(title || "")) return `${title} ${query}`;
+  return title
     || displayText(payload.toolName)?.replaceAll("_", " ")
     || displayText(event.method.replace("session/update:", ""))
     || "Working";
 }
 
 function toolDetail(payload: Record<string, unknown>): string | undefined {
-  const value = text(payload.outputTail) || text(payload.message) || text(payload.reason) || text(payload.result);
+  const value = text(payload.query) || text(payload.outputTail) || text(payload.message) || text(payload.reason) || text(payload.result);
   if (!value) return undefined;
   return payload.outputTruncated === true ? `\u2026\n${value}` : value;
 }

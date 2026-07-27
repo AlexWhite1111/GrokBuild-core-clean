@@ -82,9 +82,10 @@ export function CodeBlock({
       ? <HtmlPreview key={`${renderRevision}:${detail ? "detail" : "inline"}`} api={bootstrap.api} language={capability.language} source={code} taskId={taskId} detail={detail} embedded={implicit && !detail} />
       : view === "preview" && capability.preview
         ? <StaticCodePreview key={renderRevision} kind={capability.preview} source={code} controller={controller} detail={detail} comfortablePercent={preferences?.mediaPreviewScale} minimumSize={preferences?.mediaMinimumSize} />
-        : detail
-          ? <pre className={`${wrap ? styles.wrap : ""} ${styles.detailSource}`}><code className={styles.highlightedSource} dangerouslySetInnerHTML={{ __html: highlightedSource }} /></pre>
-          : <CodeScrollRegion data-shape="control" className={wrap ? styles.wrap : ""}><code className={styles.highlightedSource} dangerouslySetInnerHTML={{ __html: highlightedSource }} /></CodeScrollRegion>;
+        : <CodeScrollRegion
+            data-shape="control"
+            className={`${wrap ? styles.wrap : ""} ${detail ? styles.detailSource : ""}`}
+          ><code className={styles.highlightedSource} dangerouslySetInnerHTML={{ __html: highlightedSource }} /></CodeScrollRegion>;
   };
   const actions = (detail: boolean) => {
     if (detail && visualPreview) return <VisualCanvasControls controller={detailVisual} />;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { useTranslation } from "react-i18next";
 import type { SpicePlot, SpiceRunResult as SpiceResult, SpiceVector } from "../../shared/contracts.js";
 import { Control, Text } from "../../ui/components/index.js";
+import { SplitScrollRegion } from "./CodeScrollRegion.js";
 import styles from "./SpiceRunResult.module.css";
 
 const COLORS = ["#22d3ee", "#f59e0b", "#a78bfa", "#34d399", "#fb7185", "#60a5fa", "#f472b6", "#a3e635"];
@@ -22,7 +23,7 @@ export function SpiceRunResult({ result, log, errorLog, running = false, detail 
 
 function OperatingPoint({ plot }: { plot: SpicePlot }) {
   const { t } = useTranslation();
-  return <section className={styles.operatingPoint}><Text as="strong" size="label">{plot.name}</Text><div data-shape="control"><table><thead><tr><th>{t("spiceVector")}</th><th>{t("spiceValue")}</th><th>{t("spiceUnit")}</th></tr></thead><tbody>{plot.traces.map((trace) => <tr key={trace.name}><td>{trace.name}</td><td>{trace.imaginary ? `${formatEngineering(trace.real[0] || 0)} ${formatEngineering(trace.imaginary[0] || 0)}j` : formatEngineering(trace.real[0] || 0)}</td><td>{trace.unit}</td></tr>)}</tbody></table></div></section>;
+  return <section className={styles.operatingPoint}><Text as="strong" size="label">{plot.name}</Text><SplitScrollRegion data-shape="control"><table><thead><tr><th>{t("spiceVector")}</th><th>{t("spiceValue")}</th><th>{t("spiceUnit")}</th></tr></thead><tbody>{plot.traces.map((trace) => <tr key={trace.name}><td>{trace.name}</td><td>{trace.imaginary ? `${formatEngineering(trace.real[0] || 0)} ${formatEngineering(trace.imaginary[0] || 0)}j` : formatEngineering(trace.real[0] || 0)}</td><td>{trace.unit}</td></tr>)}</tbody></table></SplitScrollRegion></section>;
 }
 
 function Waveform({ plot }: { plot: SpicePlot }) {
@@ -60,7 +61,7 @@ function ChartPanel({ plot, traces, allTraces, mode, unit, domain, onDomain, hov
   plot: SpicePlot; traces: SpiceVector[]; allTraces: SpiceVector[]; mode: TraceMode; unit: string;
   domain: [number, number]; onDomain: (value: [number, number]) => void; hover: number | null; onHover: (value: number | null) => void;
 }) {
-  const drag = useRef<{ x: number; domain: [number, number] } | null>(null);
+  const drag = useRef<{ x: number; domain: [number, number]; committed: boolean } | null>(null);
   const width = 900; const height = 260; const left = 68; const right = 20; const top = 18; const bottom = 38;
   const count = Math.min(plot.scale.real.length, ...traces.map((trace) => trace.real.length));
   const first = Math.max(0, Math.floor(domain[0] * Math.max(0, count - 1)));
@@ -79,7 +80,9 @@ function ChartPanel({ plot, traces, allTraces, mode, unit, domain, onDomain, hov
   const hoverIndex = hover === null ? null : nearestX(xValues, first, last, logarithmicX ? 10 ** (axisXMin + hover * (axisXMax - axisXMin)) : xMin + hover * (xMax - xMin));
   const pointerFraction = (clientX: number, element: SVGSVGElement) => clamp((clientX - element.getBoundingClientRect().left) / element.getBoundingClientRect().width, 0, 1);
   const wheel = (event: WheelEvent<SVGSVGElement>) => {
+    if (!event.ctrlKey) return;
     event.preventDefault();
+    event.stopPropagation();
     const position = pointerFraction(event.clientX, event.currentTarget);
     const span = domain[1] - domain[0];
     const nextSpan = clamp(span * (event.deltaY > 0 ? 1.24 : .8), .0125, 1);
@@ -87,13 +90,17 @@ function ChartPanel({ plot, traces, allTraces, mode, unit, domain, onDomain, hov
     onDomain(clampDomain(anchor - position * nextSpan, anchor + (1 - position) * nextSpan));
   };
   const pointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
-    drag.current = { x: event.clientX, domain };
+    drag.current = { x: event.clientX, domain, committed: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const pointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     const fraction = pointerFraction(event.clientX, event.currentTarget);
     if (drag.current) {
-      const shift = -(event.clientX - drag.current.x) / event.currentTarget.getBoundingClientRect().width * (drag.current.domain[1] - drag.current.domain[0]);
+      const delta = event.clientX - drag.current.x;
+      if (!drag.current.committed && Math.abs(delta) < 10) return;
+      drag.current.committed = true;
+      event.preventDefault();
+      const shift = -delta / event.currentTarget.getBoundingClientRect().width * (drag.current.domain[1] - drag.current.domain[0]);
       onDomain(shiftDomain(drag.current.domain, shift));
     } else onHover(fraction);
   };

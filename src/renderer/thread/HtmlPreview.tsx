@@ -3,6 +3,8 @@ import type { PreviewPrepareResponse } from "../../shared/contracts.js";
 import type { ApiClient } from "../api/ApiClient.js";
 import { THEME_APPLIED_EVENT } from "../../ui/theme/index.js";
 import styles from "./CodeBlock.module.css";
+import { CodeScrollRegion } from "./CodeScrollRegion.js";
+import { scrollThreadByWheel } from "./threadScroll.js";
 
 type PreparedPreview =
   | { kind: "loading" }
@@ -66,6 +68,7 @@ export function HtmlPreview({
       if (!current) return;
       const url = new URL(response.path, new URL(api.bootstrap.apiBaseUrl).origin);
       url.searchParams.set("instance", id);
+      url.searchParams.set("detail", detail ? "1" : "0");
       setPrepared({ kind: "url", value: url.toString() });
     };
     const timer = window.setTimeout(() => void prepare(), PREVIEW_SETTLE_MS);
@@ -74,7 +77,7 @@ export function HtmlPreview({
       window.clearTimeout(timer);
       request.abort();
     };
-  }, [api, embedded, id, language, source, taskId]);
+  }, [api, detail, embedded, id, language, source, taskId]);
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -82,6 +85,9 @@ export function HtmlPreview({
       if (event.data.type === "console") setConsoleLines((lines) => [...lines.slice(-99), event.data.value]);
       else if (event.data.type === "resize" && !detail) setContentHeight(normalizePreviewHeight(event.data.value, embedded));
       else if (event.data.type === "ready") syncFrame(iframe.current, id, visible.current);
+      else if (event.data.type === "thread-wheel" && !detail) {
+        scrollThreadByWheel(iframe.current, event.data.value);
+      }
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
@@ -137,7 +143,7 @@ export function HtmlPreview({
           onLoad={() => syncFrame(iframe.current, id, visible.current)}
           src={prepared.value}
         />}
-    {consoleLines.length > 0 && <pre data-copy-rendered className={styles.previewConsole}>{consoleLines.join("\n")}</pre>}
+    {consoleLines.length > 0 && <CodeScrollRegion data-copy-rendered className={styles.previewConsole}>{consoleLines.join("\n")}</CodeScrollRegion>}
   </div>;
 }
 
@@ -146,7 +152,8 @@ type PreviewSize = { height: number; viewport: number };
 type PreviewMessage =
   | { channel: "grok-build-preview"; id: string; type: "console"; value: string }
   | { channel: "grok-build-preview"; id: string; type: "resize"; value: number | PreviewSize }
-  | { channel: "grok-build-preview"; id: string; type: "ready"; value: unknown };
+  | { channel: "grok-build-preview"; id: string; type: "ready"; value: unknown }
+  | { channel: "grok-build-preview"; id: string; type: "thread-wheel"; value: { deltaY: number; deltaMode: number } };
 
 function isPreviewMessage(value: unknown, id: string): value is PreviewMessage {
   if (!value || typeof value !== "object") return false;
@@ -154,7 +161,9 @@ function isPreviewMessage(value: unknown, id: string): value is PreviewMessage {
   if (message.channel !== "grok-build-preview" || message.id !== id) return false;
   return message.type === "console" && typeof message.value === "string"
     || message.type === "resize" && isPreviewSize(message.value)
-    || message.type === "ready";
+    || message.type === "ready"
+    || message.type === "thread-wheel"
+      && isThreadWheel(message.value);
 }
 
 function isPreviewSize(value: unknown): value is number | PreviewSize {
@@ -163,6 +172,12 @@ function isPreviewSize(value: unknown): value is number | PreviewSize {
   const size = value as Record<string, unknown>;
   return typeof size.height === "number" && Number.isFinite(size.height)
     && typeof size.viewport === "number" && Number.isFinite(size.viewport);
+}
+
+function isThreadWheel(value: unknown): value is { deltaY: number; deltaMode: number } {
+  if (!value || typeof value !== "object") return false;
+  const wheel = value as Record<string, unknown>;
+  return typeof wheel.deltaY === "number" && typeof wheel.deltaMode === "number";
 }
 
 function syncFrame(frame: HTMLIFrameElement | null, id: string, visible: boolean): void {

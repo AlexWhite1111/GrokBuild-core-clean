@@ -216,7 +216,7 @@ function latestCompletedBlockBoundary(source: string): number {
 function stableCompletedPrefix(source: string): boolean {
   if (!source.endsWith("\n\n") && !/\n[\t ]*\n$/.test(source)) return false;
   const visible = markdownOutsideCode(source)
-    .replace(/\\\[[\s\S]*?\\\]/g, "")
+    .replace(/\\\[[\s\S]*?\\\]|\\\([^\n]*?\\\)|\$\$[\s\S]*?\$\$|\$[^$\n]+\$/g, "")
     .replace(/!?\[[^\]\n]*\]\((?:\\.|[^)\n])*\)/g, "")
     .replace(/\[(?: |x|X)\](?=[\t ])/g, "");
   return !/^\s{0,3}\[[^\]\n]+\]:/m.test(visible)

@@ -17,6 +17,8 @@ const COMPLEX_SOURCES = [
   "正文\n\n<div class=\"card\">\n  <strong>HTML</strong>\n</div>\n\n结尾",
   "| A | B |\n| - | - |\n| 1 | 2 |",
   "公式 $V_o = DV_i$。\n\n$$E = mc^2$$",
+  "**则** \\(\\exists\\, c\\in(a,b)\\) 使得  \n$$f'(c)=0$$",
+  "则 \\(F(a)=F(b)\\)，Rolle ⇒ \\(F'(c)=0\\Rightarrow f'(c)=\\lambda g'(c)\\)。",
   "[链接][ref]\n\n[ref]: https://example.com",
   "![示意图](https://example.com/example.png)",
   "const node = document.body;\nnode.dataset.ready = '1';",
@@ -168,8 +170,53 @@ test("complex Markdown parsing amplification stays bounded", () => {
     "```",
     "",
   ].join("\n");
+  const source = repeatedSource(section);
+  const state = streamInFrames(source);
+
+  assert.ok(
+    state.parsedCharacters <= source.length * 5,
+    `${state.parsedCharacters} parsed characters for ${source.length} source characters`,
+  );
+});
+
+test("math-rich Markdown commits stable blocks and keeps parsing amplification bounded", () => {
+  const section = (index: number) => [
+    `## 定理 ${index}`,
+    "",
+    `**设** \\(f_${index}\\) 在 \\([a,b]\\) 连续，且 \\(F_${index}(a)=F_${index}(b)\\)。  `,
+    `**则** \\(\\exists c\\in(a,b)\\) 使 \\(F_${index}'(c)=0\\)。`,
+    "",
+    "$$",
+    `F_${index}'(c)=0\\Rightarrow f_${index}'(c)=\\lambda g_${index}'(c)`,
+    "$$",
+    "",
+  ].join("\n");
+  const source = repeatedSource(section);
+  const state = streamInFrames(source);
+
+  assert.ok(state.committedSource.length > source.length * 0.7);
+  assert.ok(
+    state.parsedCharacters <= source.length * 5,
+    `${state.parsedCharacters} parsed characters for ${source.length} source characters`,
+  );
+  assert.deepEqual(
+    finalizeStreamingRichText(state, source, POLICY).tree,
+    parseRichTextDocument(source, POLICY),
+  );
+});
+
+function visibleChildren(root: ReturnType<typeof parseRichTextDocument>): unknown[] {
+  return root.children.flatMap((node) =>
+    node.type === "text" && !node.value.trim() ? [] : [node]);
+}
+
+function repeatedSource(section: (index: number) => string): string {
   let source = "";
   for (let index = 1; source.length < 9_500; index += 1) source += section(index);
+  return source;
+}
+
+function streamInFrames(source: string) {
   let state = initialStreamingRichText("", POLICY);
   for (let frame = 1; frame <= 150; frame += 1) {
     state = updateStreamingRichText(
@@ -178,14 +225,5 @@ test("complex Markdown parsing amplification stays bounded", () => {
       POLICY,
     );
   }
-
-  assert.ok(
-    state.parsedCharacters <= source.length * 5,
-    `${state.parsedCharacters} parsed characters for ${source.length} source characters`,
-  );
-});
-
-function visibleChildren(root: ReturnType<typeof parseRichTextDocument>): unknown[] {
-  return root.children.flatMap((node) =>
-    node.type === "text" && !node.value.trim() ? [] : [node]);
+  return state;
 }

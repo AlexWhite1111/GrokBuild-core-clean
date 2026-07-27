@@ -16,6 +16,8 @@ test("interactive Matplotlib documents are compatible with opaque-origin iframe 
   assert.match(html, /default-src 'none'/);
   assert.match(html, /event\.source !== parent/);
   assert.match(html, /parent\.postMessage\([^\n]+, '\*'\)/);
+  assert.match(html, /type: 'thread-wheel'/);
+  assert.match(html, /if \(detail \|\| event\.ctrlKey/);
   assert.doesNotMatch(html, /event\.origin !== location\.origin/);
   assert.doesNotMatch(html, /postMessage\([^\n]+location\.origin\)/);
 });

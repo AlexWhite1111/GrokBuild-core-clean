@@ -41,6 +41,8 @@ export function safeSessionUpdate(
     const value = string(update[key]);
     if (value) safe[key] = redact(value.slice(0, 500));
   }
+  const query = string(update.query);
+  if (query) safe.query = redact(query.slice(0, 2_000));
   applyGoalLifecycle(update, safe);
   applyWorkLifecycle(update, safe);
   const toolName = string(tool.name);
@@ -93,6 +95,17 @@ export function safeSessionUpdate(
     });
   }
   return safe;
+}
+
+export function withOfficialWebSearchQuery(
+  update: Record<string, unknown>,
+  query: string | undefined,
+): Record<string, unknown> {
+  if (!query || string(update.query)) return update;
+  const rawInput = asRecord(update.rawInput);
+  const isWebSearch = string(rawInput.variant)?.toLowerCase() === "websearch"
+    || /^web search\s*:/i.test(string(update.title) || "");
+  return isWebSearch ? { ...update, query } : update;
 }
 
 function applyGoalLifecycle(update: Record<string, unknown>, safe: Record<string, unknown>): void {

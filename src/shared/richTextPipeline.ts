@@ -1,4 +1,5 @@
 import type { Root } from "hast";
+import type { Root as MdastRoot } from "mdast";
 import { parser as cssParser } from "@lezer/css";
 import { parser as javascriptParser } from "@lezer/javascript";
 import { parseFragment } from "parse5";
@@ -9,7 +10,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
-import { unified } from "unified";
+import { unified, type Plugin } from "unified";
 import { normalizeMathDelimiters } from "./richText.js";
 import { needsModuleScript, supportsBrowserPreview } from "./previewModules.js";
 import { rehypeMediaFallbacks, rehypeMediaPlaceholders, remarkLocalMedia } from "./richTextMedia.js";
@@ -39,7 +40,8 @@ export function parseRichTextDocument(text: string, policy: RichTextPolicy): Roo
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
-    .use(remarkMath);
+    .use(remarkMath)
+    .use(remarkWholeLineDisplayMath, { source });
   if (policy.level === "media") processor.use(remarkLocalMedia, { source });
   processor.use(remarkBreaks);
   processor
@@ -71,6 +73,51 @@ type HtmlTreeNode = {
   children?: HtmlTreeNode[];
   position?: { start?: { offset?: number }; end?: { offset?: number } };
 };
+
+type MarkdownTreeNode = {
+  type: string;
+  data?: {
+    hName?: string;
+    hProperties?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  position?: { start?: { offset?: number }; end?: { offset?: number } };
+  children?: MarkdownTreeNode[];
+};
+
+/** A complete $$...$$ source line is display math even inside a hard-break paragraph. */
+const remarkWholeLineDisplayMath: Plugin<[{ source: string }], MdastRoot> = (options) =>
+  (tree): void => {
+    const visit = (node: MarkdownTreeNode): void => {
+      const start = node.position?.start?.offset;
+      const end = node.position?.end?.offset;
+      if (
+        node.type === "inlineMath"
+        && typeof start === "number"
+        && typeof end === "number"
+        && wholeSourceLine(options.source, start, end)
+      ) {
+        node.data = {
+          ...node.data,
+          hProperties: {
+            ...node.data?.hProperties,
+            className: ["language-math", "math-display"],
+          },
+        };
+      }
+      node.children?.forEach(visit);
+    };
+    visit(tree as unknown as MarkdownTreeNode);
+  };
+
+function wholeSourceLine(source: string, start: number, end: number): boolean {
+  const fragment = source.slice(start, end);
+  if (!fragment.startsWith("$$") || !fragment.endsWith("$$")) return false;
+  const lineStart = source.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  const nextBreak = source.indexOf("\n", end);
+  const lineEnd = nextBreak < 0 ? source.length : nextBreak;
+  return !source.slice(lineStart, start).trim() && !source.slice(end, lineEnd).trim();
+}
 
 function rehypeLiveHtml(options: { source: string }) {
   return (tree: Root): void => {
@@ -113,9 +160,11 @@ interface ExecutableSegment {
 
 const STRUCTURED_LEAF_TAGS = new Set(["pre", "code", RICH_LIVE_HTML_TAG, RICH_STATIC_HTML_TAG, RICH_EXECUTABLE_CODE_TAG]);
 const IMPLICIT_CODE_BOUNDARY_TAGS = new Set(["blockquote", "li", "ol", "ul"]);
+const SOURCE_HTML_HINT = /<(?:!--|!doctype\s+html\b|\/?[A-Za-z][A-Za-z0-9:-]*\b)[^>]*>/i;
 
 /** Authored HTML is executable source, not prose; math normalization only owns the gaps around it. */
 function normalizeProseMathOutsideHtml(source: string): string {
+  if (!SOURCE_HTML_HINT.test(source)) return normalizeMathDelimiters(source);
   const fences = markdownFenceRanges(source);
   const ranges = sourceHtmlRanges(source, fences).sort((left, right) => left.start - right.start);
   if (!ranges.length) return normalizeMathDelimiters(source);

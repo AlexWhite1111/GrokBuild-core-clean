@@ -85,6 +85,13 @@ test("preview sizing observes intrinsic body content and publishes only real hei
   assert.doesNotMatch(runtime, /observer\.observe\(document\.documentElement\)/);
 });
 
+test("inline preview sends ordinary vertical wheel input back to the thread", () => {
+  const runtime = new PreviewRuntimeService("").runtime();
+  assert.match(runtime, /const detail=query\.get\('detail'\)==='1'/);
+  assert.match(runtime, /if\(detail\|\|event\.ctrlKey\|\|event\.metaKey\|\|event\.altKey\|\|event\.deltaY===0\)return/);
+  assert.match(runtime, /send\('thread-wheel',\{deltaY:event\.deltaY,deltaMode:event\.deltaMode\}\)/);
+});
+
 test("preview chrome does not add height outside authored viewport content", async (context) => {
   const fixture = await previewFixture(context);
   const service = new PreviewRuntimeService(fixture.cache);

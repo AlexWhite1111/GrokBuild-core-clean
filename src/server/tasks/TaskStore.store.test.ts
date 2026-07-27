@@ -336,6 +336,59 @@ test("TaskStore restores official work history through the runtime projection", 
   assert.equal(runtime.snapshot.goal.source, "native");
 });
 
+test("TaskStore joins backend Web Search queries onto official tool updates", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-web-search-query-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const projectPath = path.join(root, "project");
+  const grokHome = path.join(root, ".grok");
+  const sessionId = "019f0000-0000-7000-8000-000000000003";
+  const toolCallId = "ws-official-1";
+  const query = "九年级 沪科技版 物理 PDF 可检索";
+  const sessionPath = path.join(grokHome, "sessions", encodeURIComponent(projectPath), sessionId);
+  const startedAt = Date.parse("2026-07-27T00:00:00.000Z");
+  fs.mkdirSync(projectPath);
+  fs.mkdirSync(sessionPath, { recursive: true });
+  fs.writeFileSync(path.join(sessionPath, "summary.json"), JSON.stringify({
+    info: { id: sessionId, cwd: projectPath },
+    generated_title: "Official Web Search",
+    created_at: new Date(startedAt).toISOString(),
+  }));
+  fs.writeFileSync(path.join(sessionPath, "chat_history.jsonl"), [
+    JSON.stringify({ type: "assistant", content: "x".repeat(1_048_700) }),
+    JSON.stringify({
+      type: "backend_tool_call",
+      kind: {
+        tool_type: "web_search",
+        id: toolCallId,
+        status: "completed",
+        action: { type: "search", query, sources: [] },
+      },
+    }),
+  ].join("\n"));
+  fs.writeFileSync(path.join(sessionPath, "updates.jsonl"), [
+    officialUpdate(sessionId, startedAt, "tool_call", {
+      toolCallId,
+      title: "Web search:",
+      rawInput: { variant: "WebSearch", backend: true },
+    }),
+    officialUpdate(sessionId, startedAt + 1_000, "tool_call_update", {
+      toolCallId,
+      title: "Web search:",
+      status: "completed",
+    }),
+  ].join("\n"));
+
+  const state = new JsonStateStore(path.join(root, "state.json"));
+  const projects = new ProjectStore(state);
+  projects.addProject(projectPath);
+  const store = new TaskStore(grokHome, "native", projects, state);
+  const detail = store.readDetail(sessionId);
+
+  assert.equal(detail?.events.length, 2);
+  assert.deepEqual(detail?.events.map((event) => event.payload.query), [query, query]);
+  assert.equal(store.officialWebSearchQuery(sessionId, toolCallId), query);
+});
+
 test("unloaded projection restores Todo, partial tools, and official child sessions", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-official-parity-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

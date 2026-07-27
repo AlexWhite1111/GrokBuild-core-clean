@@ -148,6 +148,19 @@ export function matplotlibInteractivePage(input: {
     websocket.addEventListener('error', () => { connection.dataset.state = 'error'; });
     const figure = new mpl.figure(figureId, websocket, (fig, format) => fig.buttons.Download.click(), document.getElementById('figure'));
 
+    addEventListener('wheel', (event) => {
+      if (detail || event.ctrlKey || event.metaKey || event.altKey || event.deltaY === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      parent.postMessage({
+        channel: 'grok-build-interactive',
+        runId,
+        type: 'thread-wheel',
+        deltaY: event.deltaY,
+        deltaMode: event.deltaMode,
+      }, '*');
+    }, { capture: true, passive: false });
+
     addEventListener('message', (event) => {
       if (event.source !== parent || event.data?.channel !== 'grok-build-interactive-control') return;
       if (event.data.type === 'theme' && event.data.variables) {

@@ -7,6 +7,7 @@ import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { USDZLoader } from "three/examples/jsm/loaders/USDZLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import styles from "./CodeBlock.module.css";
+import { scrollThreadByWheel } from "./threadScroll.js";
 
 export function ModelArtifactPreview({ src, name }: { src: string; name: string }) {
   const host = useRef<HTMLDivElement>(null);
@@ -22,6 +23,12 @@ export function ModelArtifactPreview({ src, name }: { src: string; name: string 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     element.replaceChildren(renderer.domElement);
+    const routeWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey || !scrollThreadByWheel(renderer.domElement, event)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    renderer.domElement.addEventListener("wheel", routeWheel, { passive: false });
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = .08;
@@ -58,6 +65,7 @@ export function ModelArtifactPreview({ src, name }: { src: string; name: string 
       observer.disconnect();
       renderer.setAnimationLoop(null);
       controls.dispose();
+      renderer.domElement.removeEventListener("wheel", routeWheel);
       if (model) disposeObject(model);
       renderer.dispose();
       renderer.domElement.remove();

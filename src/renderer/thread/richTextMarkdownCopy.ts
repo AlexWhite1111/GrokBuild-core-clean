@@ -1,12 +1,6 @@
 import type { ClipboardEvent } from "react";
 import type { Element, RootContent } from "hast";
-import type { Root as MdastRoot } from "mdast";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import remarkParse from "remark-parse";
-import { unified } from "unified";
 import type { PortableRichTextDocument } from "../../shared/contracts.js";
-import { normalizeMathDelimiters } from "../../shared/richText.js";
 
 const SOURCE_START = "data-md-source-start";
 const SOURCE_END = "data-md-source-end";
@@ -17,29 +11,13 @@ interface SourceRange {
   end: number;
 }
 
-interface BlockPair {
-  rendered: SourceRange;
-  source: SourceRange;
-}
-
 /** Adds original-Markdown ranges to rendered top-level blocks without changing the portable contract. */
 export function annotateMarkdownSourceBlocks(document: PortableRichTextDocument, source: string): PortableRichTextDocument {
-  const renderedSource = normalizeMathDelimiters(source);
-  const pairs = renderedSource === source ? null : markdownBlockPairs(source, renderedSource);
-  if (pairs && !pairs.length) return document;
-  let lastPair = 0;
   let changed = false;
   const children = document.children.map((child) => {
     if (child.type !== "element") return child;
-    const rendered = nodeRange(child);
-    if (!rendered) return child;
-    let sourceRange = rendered;
-    if (pairs) {
-      const index = matchingBlockIndex(pairs, rendered, lastPair);
-      if (index < 0) return child;
-      lastPair = index;
-      sourceRange = pairs[index].source;
-    }
+    const sourceRange = nodeRange(child);
+    if (!sourceRange) return child;
     if (sourceRange.end > source.length) return child;
     changed = true;
     return annotateElement(child, sourceRange);
@@ -80,37 +58,6 @@ export function markdownSourceRange(properties: Record<string, unknown>): Source
   return start !== undefined && end !== undefined && start >= 0 && end >= start ? { start, end } : undefined;
 }
 
-function markdownBlockPairs(source: string, renderedSource: string): BlockPair[] {
-  const sourceBlocks = markdownBlocks(source);
-  const renderedBlocks = markdownBlocks(renderedSource);
-  if (!sourceBlocks.length || !renderedBlocks.length) return [];
-
-  const count = Math.min(sourceBlocks.length, renderedBlocks.length);
-  const pairs: BlockPair[] = [];
-  for (let index = 0; index < count; index += 1) {
-    pairs.push({ rendered: renderedBlocks[index], source: sourceBlocks[index] });
-  }
-  return pairs;
-}
-
-function markdownBlocks(source: string): SourceRange[] {
-  const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
-  const root = parser.parse(source) as MdastRoot;
-  return root.children.flatMap((child) => {
-    const range = nodeRange(child);
-    return range ? [range] : [];
-  });
-}
-
-function matchingBlockIndex(pairs: BlockPair[], node: SourceRange, startIndex: number): number {
-  for (let index = Math.max(0, startIndex); index < pairs.length; index += 1) {
-    const block = pairs[index].rendered;
-    if (node.start < block.end && node.end > block.start) return index;
-    if (block.start > node.end) break;
-  }
-  return -1;
-}
-
 function annotateElement(element: Element, range: SourceRange): Element {
   return {
     ...element,
@@ -122,7 +69,7 @@ function annotateElement(element: Element, range: SourceRange): Element {
   };
 }
 
-function nodeRange(node: RootContent | MdastRoot["children"][number]): SourceRange | undefined {
+function nodeRange(node: RootContent): SourceRange | undefined {
   const start = node.position?.start.offset;
   const end = node.position?.end.offset;
   return typeof start === "number" && typeof end === "number" && start >= 0 && end >= start ? { start, end } : undefined;

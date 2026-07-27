@@ -56,6 +56,34 @@ test("projection frame coalescing keeps all official notification mixes incremen
   assert.equal(mergeTaskProjectionChange("snapshot", "delta"), "snapshot");
 });
 
+test("live Web Search updates carry the query from the same official Session", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-projection-web-search-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const snapshot = createTaskSnapshotFixture("project-fixture");
+  const query = "沪科技版 九年级物理 PDF";
+  const projection = new TaskRuntimeProjection(
+    snapshot,
+    new JsonStateStore(path.join(root, "state.json")),
+    { officialWebSearchQuery: (toolCallId) => toolCallId === "ws-1" ? query : undefined },
+  );
+
+  projection.applyNotification({
+    kind: "acp",
+    turnId: "turn-1",
+    params: {
+      sessionId: snapshot.sessionId,
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "ws-1",
+        title: "Web search:",
+        rawInput: { variant: "WebSearch", backend: true },
+      },
+    },
+  });
+
+  assert.equal(projection.detail().events[0]?.payload.query, query);
+});
+
 test("one refresh window can carry multiple changed message identities without a snapshot", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-projection-mixed-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

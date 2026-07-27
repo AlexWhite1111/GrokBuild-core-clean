@@ -23,7 +23,7 @@ import { TaskSemanticProjection } from "./TaskSemanticProjection.js";
 import { TaskRuntimeTranscript } from "./TaskRuntimeTranscript.js";
 import type { TaskStoredTimelineItem, TaskStoreScope } from "./TaskStore.js";
 import { canTransitionDelivery, promptFingerprint } from "./taskDelivery.js";
-import { asRecord, readMeta, safeSessionUpdate, string } from "./taskEventSanitizers.js";
+import { asRecord, readMeta, safeSessionUpdate, string, withOfficialWebSearchQuery } from "./taskEventSanitizers.js";
 import { mediaForSessionUpdate, type ProjectionMediaContext } from "./taskMediaProjection.js";
 import { isSessionTextUpdate } from "./taskTextUpdates.js";
 
@@ -77,6 +77,7 @@ interface TaskRuntimeProjectionOptions {
   readChild?(sessionId: string): TaskDetailProjection | null;
   pinned?: boolean;
   notify?(taskId: string, notification: TaskNotificationIntent): void;
+  officialWebSearchQuery?(toolCallId: string): string | undefined;
 }
 
 /**
@@ -97,6 +98,7 @@ export class TaskRuntimeProjection {
   readonly #media?: ProjectionMediaContext;
   readonly #readChild?: TaskRuntimeProjectionOptions["readChild"];
   readonly #notify?: TaskRuntimeProjectionOptions["notify"];
+  readonly #officialWebSearchQuery?: TaskRuntimeProjectionOptions["officialWebSearchQuery"];
   readonly #dispatchedFingerprints = new Map<string, string>();
   #context: TaskOperationalContextSnapshot;
   #contextChanged = false;
@@ -113,6 +115,7 @@ export class TaskRuntimeProjection {
     this.#media = options.media;
     this.#readChild = options.readChild;
     this.#notify = options.notify;
+    this.#officialWebSearchQuery = options.officialWebSearchQuery;
     const restored = options.restored;
     this.#restoredOfficialHistory = Boolean(
       restored?.events.length
@@ -408,7 +411,13 @@ export class TaskRuntimeProjection {
 
   #applyAcp(params: unknown, turnId: string | null, userEcho?: PromptEchoIdentity): TaskRuntimeNotificationResult {
     const record = asRecord(params);
-    const update = asRecord(record.update);
+    const originalUpdate = asRecord(record.update);
+    const toolCallId = string(originalUpdate.toolCallId);
+    const update = withOfficialWebSearchQuery(
+      originalUpdate,
+      toolCallId ? this.#officialWebSearchQuery?.(toolCallId) : undefined,
+    );
+    const enrichedParams = update === originalUpdate ? params : { ...record, update };
     const updateType = string(update.sessionUpdate) || "unknown";
     const safePayload = safeSessionUpdate(update, readMeta(record));
     const replay = this.#transcript.isReplayUpdate(updateType, REPLAY_TURN_UPDATES);
@@ -465,7 +474,7 @@ export class TaskRuntimeProjection {
       this.#transcript.closeSegment(effectiveTurn);
     }
     const before = this.#semantic.events.length;
-    this.#semantic.applyAcpNotification(params, turnId, userEcho);
+    this.#semantic.applyAcpNotification(enrichedParams, turnId, userEcho);
     const events = this.#captureSemanticEvents(before);
     const acceptedRequestIds = updateType === "goal_updated"
       && events.some(({ event }) => event.method === "task/goal:structured")

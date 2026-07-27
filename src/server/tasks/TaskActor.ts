@@ -61,6 +61,8 @@ export class TaskActor extends EventEmitter {
     this.#projection = new TaskRuntimeProjection(snapshot, options.state, {
       restored: options.existing,
       readChild: (sessionId) => options.taskStore.readChildDetail(snapshot.taskId, sessionId),
+      officialWebSearchQuery: (toolCallId) =>
+        options.taskStore.officialWebSearchQuery(snapshot.taskId, toolCallId),
       media: options.media ? { store: options.media, projectPath: options.projectPath, grokHome: options.grokHome } : undefined,
       notify: options.publishNotification,
     });

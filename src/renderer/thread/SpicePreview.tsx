@@ -2,12 +2,13 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { parseSpiceNetlist, type SpiceComponent, type SpiceNetlistSummary } from "../../shared/contracts.js";
 import { Text } from "../../ui/components/index.js";
+import { SplitScrollRegion } from "./CodeScrollRegion.js";
 import styles from "./SpicePreview.module.css";
 
 export function SpicePreview({ source, detail = false }: { source: string; detail?: boolean }) {
   const { t } = useTranslation();
   const netlist = useMemo(() => parseSpiceNetlist(source), [source]);
-  return <div className={`${styles.preview} ${detail ? styles.detail : ""}`}>
+  return <SplitScrollRegion className={`${styles.preview} ${detail ? styles.detail : ""}`}>
     <header className={styles.header}>
       <div><Text as="strong" truncate title={netlist.title}>{netlist.title}</Text><Text as="span" tone="muted" size="label">{t("spiceNetlist")}</Text></div>
       <div className={styles.metrics}>
@@ -22,7 +23,7 @@ export function SpicePreview({ source, detail = false }: { source: string; detai
     {netlist.diagnostics.length > 0 && <div className={styles.diagnostics}>{netlist.diagnostics.map((item, index) => <div key={`${item.line}:${index}`} data-severity={item.severity}>
       <span>{item.line ? `L${item.line}` : item.severity}</span><span>{item.message}</span>
     </div>)}</div>}
-  </div>;
+  </SplitScrollRegion>;
 }
 
 function Metric({ value, label }: { value: number; label: string }) {
@@ -69,9 +70,9 @@ function ComponentTable({ components, detail }: { components: SpiceComponent[]; 
   const { t } = useTranslation();
   if (!components.length) return null;
   const visible = components.slice(0, detail ? 240 : 64);
-  return <div className={styles.tableWrap} data-shape="control"><table><thead><tr><th>{t("spiceDevice")}</th><th>{t("spiceType")}</th><th>{t("spiceNodes")}</th><th>{t("spiceValueModel")}</th></tr></thead><tbody>
+  return <SplitScrollRegion className={styles.tableWrap} data-shape="control"><table><thead><tr><th>{t("spiceDevice")}</th><th>{t("spiceType")}</th><th>{t("spiceNodes")}</th><th>{t("spiceValueModel")}</th></tr></thead><tbody>
     {visible.map((component) => <tr key={`${component.line}:${component.id}`}><td>{component.id}</td><td>{component.type}</td><td>{component.nodes.join(" · ") || "—"}</td><td>{component.value || "—"}</td></tr>)}
-  </tbody></table>{components.length > visible.length && <div className={styles.tableMore}>+{components.length - visible.length}</div>}</div>;
+  </tbody></table>{components.length > visible.length && <div className={styles.tableMore}>+{components.length - visible.length}</div>}</SplitScrollRegion>;
 }
 
 interface Point { x: number; y: number }
