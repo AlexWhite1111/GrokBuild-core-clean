@@ -1,4 +1,7 @@
-import type { TaskRuntimeProjection as TaskProjection } from "./TaskRuntimeProjection.js";
+import type {
+  TaskProjectionChange,
+  TaskRuntimeProjection as TaskProjection,
+} from "./TaskRuntimeProjection.js";
 import { waitForPromptAcceptance } from "./TaskClientEvents.js";
 import { PromptDeliveryUnknownError } from "./taskDelivery.js";
 
@@ -7,7 +10,7 @@ interface TaskPromptReceiptOptions {
   acceptedWaiters: Map<string, () => void>;
   connectionInterrupted(): boolean;
   touch(): void;
-  change(): void;
+  change(change?: TaskProjectionChange): void;
 }
 
 /** Owns transport-receipt timing without making Goal lifecycle claims. */
@@ -30,6 +33,6 @@ export class TaskPromptReceiptRuntime {
     this.options.projection.setUserMessageDelivery(requestId, "unknown");
     this.options.projection.touch();
     this.options.touch();
-    this.options.change();
+    this.options.change("delta");
   }
 }

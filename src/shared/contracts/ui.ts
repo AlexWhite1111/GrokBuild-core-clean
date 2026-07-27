@@ -16,6 +16,26 @@ import {
 export const FONT_WEIGHT_DEFAULT = 450;
 export const FONT_WEIGHT_MIN = 300;
 export const FONT_WEIGHT_MAX = 700;
+const STREAMING_FRAME_INTERVAL_DEFAULT = 50;
+const STREAMING_FRAME_INTERVAL_MIN = 17;
+const STREAMING_FRAME_INTERVAL_MAX = 1_000;
+export const STREAMING_FRAME_INTERVAL_STEPS = [
+  1_000,
+  750,
+  500,
+  333,
+  250,
+  200,
+  150,
+  100,
+  67,
+  50,
+  40,
+  33,
+  25,
+  20,
+  17,
+] as const;
 
 export const DEFAULT_CODE_PREVIEW_POLICY = {
   interactive: true,
@@ -67,12 +87,15 @@ const UiPreferencesObjectSchema = z.object({
   contextWidth: z.number().int().min(280).max(520).default(380),
   showContextUsage: z.boolean().default(true),
   collapseWorkProcessByDefault: z.boolean().default(true),
-  streamingRefreshHz: z.union([z.literal(10), z.literal(15), z.literal(20), z.literal(30), z.literal(60)]).default(20),
+  streamingFrameIntervalMs: z.number().int()
+    .min(STREAMING_FRAME_INTERVAL_MIN)
+    .max(STREAMING_FRAME_INTERVAL_MAX)
+    .default(STREAMING_FRAME_INTERVAL_DEFAULT),
   codePreview: CodePreviewPolicySchema.default(DEFAULT_CODE_PREVIEW_POLICY),
   richTextRenderPolicy: RichTextRenderPolicySchema.default(DEFAULT_RICH_TEXT_RENDER_POLICY),
 });
 export const UiPreferencesSchema = z.preprocess(
-  migrateLegacyCornerScale,
+  migrateLegacyUiPreferences,
   UiPreferencesObjectSchema,
 );
 export type UiPreferences = z.infer<typeof UiPreferencesSchema>;
@@ -100,7 +123,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   contextWidth: 380,
   showContextUsage: true,
   collapseWorkProcessByDefault: true,
-  streamingRefreshHz: 20,
+  streamingFrameIntervalMs: STREAMING_FRAME_INTERVAL_DEFAULT,
   codePreview: DEFAULT_CODE_PREVIEW_POLICY,
   richTextRenderPolicy: DEFAULT_RICH_TEXT_RENDER_POLICY,
 };
@@ -110,16 +133,53 @@ export const UiPreferencesMutationSchema = z.object({
   preferences: UiPreferencesSchema,
 });
 
-function migrateLegacyCornerScale(value: unknown): unknown {
+function migrateLegacyUiPreferences(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const current = value as Record<string, unknown>;
-  if (current.cornerRadius !== undefined || current.cornerScale === undefined) return value;
-  const migrated: Record<string, unknown> = {
-    ...current,
-    cornerRadius: cornerRadiusFromLegacyScale(current.cornerScale),
-  };
-  delete migrated.cornerScale;
+  const migrated: Record<string, unknown> = { ...current };
+  let changed = false;
+  if (current.cornerRadius === undefined && current.cornerScale !== undefined) {
+    migrated.cornerRadius = cornerRadiusFromLegacyScale(current.cornerScale);
+    delete migrated.cornerScale;
+    changed = true;
+  }
+  if (
+    current.streamingFrameIntervalMs === undefined
+    && current.streamingRefreshHz !== undefined
+  ) {
+    migrated.streamingFrameIntervalMs = frameIntervalFromLegacyRefreshHz(
+      current.streamingRefreshHz,
+    );
+    delete migrated.streamingRefreshHz;
+    changed = true;
+  }
+  if (!changed) return value;
   return migrated;
+}
+
+export function resolveStreamingFrameIntervalMs(preferences: unknown): number {
+  if (!preferences || typeof preferences !== "object" || Array.isArray(preferences)) {
+    return STREAMING_FRAME_INTERVAL_DEFAULT;
+  }
+  const record = preferences as Record<string, unknown>;
+  const interval = record.streamingFrameIntervalMs;
+  if (typeof interval === "number" && Number.isFinite(interval)) {
+    return Math.max(
+      STREAMING_FRAME_INTERVAL_MIN,
+      Math.min(STREAMING_FRAME_INTERVAL_MAX, Math.round(interval)),
+    );
+  }
+  return frameIntervalFromLegacyRefreshHz(record.streamingRefreshHz);
+}
+
+function frameIntervalFromLegacyRefreshHz(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return STREAMING_FRAME_INTERVAL_DEFAULT;
+  }
+  return Math.max(
+    STREAMING_FRAME_INTERVAL_MIN,
+    Math.min(STREAMING_FRAME_INTERVAL_MAX, Math.round(1_000 / value)),
+  );
 }
 
 export const TaskScrollAnchorSchema = z.object({

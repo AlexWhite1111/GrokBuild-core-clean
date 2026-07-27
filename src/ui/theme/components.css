@@ -121,41 +121,43 @@
 
 [data-process-live-summary="true"] > [data-process-label] {
   position: relative;
+  isolation: isolate;
 }
 
-[data-process-live-summary="true"] > [data-process-label]::after {
+[data-process-live-sheen] {
   position: absolute;
   inset: 0;
-  overflow: hidden;
-  content: attr(data-process-label);
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent 40%,
-    var(--component-process-live-sheen-color) 50%,
-    transparent 60%,
-    transparent 100%
-  );
-  background-size: 260% 100%;
-  background-position: 120% 0;
-  background-repeat: no-repeat;
-  background-clip: text;
-  color: transparent;
-  -webkit-background-clip: text;
+  color: var(--component-process-live-sheen-color);
+  mask: linear-gradient(90deg, transparent 0%, transparent 30%, var(--color-mask-opaque) 50%, transparent 70%, transparent 100%) center / 26% 100% no-repeat;
+  -webkit-mask: linear-gradient(90deg, transparent 0%, transparent 30%, var(--color-mask-opaque) 50%, transparent 70%, transparent 100%) center / 26% 100% no-repeat;
   pointer-events: none;
   overflow-wrap: inherit;
   white-space: inherit;
-  animation: component-process-live-sheen var(--component-process-live-cycle-duration) linear infinite;
+  will-change: transform;
+  animation: component-process-live-sheen-window var(--component-process-live-cycle-duration) linear infinite;
 }
 
-@keyframes component-process-live-sheen {
-  0% { background-position: 120% 0; }
-  33.333% { background-position: -140% 0; }
-  100% { background-position: -140% 0; }
+[data-process-live-sheen] > span {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+  animation: component-process-live-sheen-content var(--component-process-live-cycle-duration) linear infinite;
+}
+
+@keyframes component-process-live-sheen-window {
+  0% { transform: translateX(70%); }
+  33.333% { transform: translateX(-190%); }
+  100% { transform: translateX(-190%); }
+}
+
+@keyframes component-process-live-sheen-content {
+  0% { transform: translateX(-70%); }
+  33.333% { transform: translateX(190%); }
+  100% { transform: translateX(190%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-process-live-summary="true"] > [data-process-label]::after { display: none; }
+  [data-process-live-sheen] { display: none; }
 }
 
 html[data-font-family-scope="global"] {

@@ -42,6 +42,8 @@
 - [x] P24：按语义边界即时封存闭合 Mermaid 等静态块，只让未完成尾部流式，并消除结构等价时的结束态重挂载。
 - [x] P25：把图片、嵌套链接、引用与多 Mermaid 的流式边界统一回 canonical 节点，并让富块后的纯文本尾部复用零解析快速路径。
 - [x] P26：把页面跟随收口为单一阅读意图；高速内容增长只更新几何，用户向上阅读才退出跟随，到达末尾才恢复。
+- [x] P27：把显示发布收口为自适应单槽调度；增加 17–1000 ms 细粒度滑条，并完成 Queue identity 中期检修与正式 App 验收。
+- [x] P28：把 Markdown 复制收口到 canonical 源坐标；普通文字精确到字符，结构单元保留原始 Markdown，显式代码复制完整围栏，并统一同 Session 媒体路径解析。
 
 ## 已确认不变量
 
@@ -103,13 +105,15 @@
 - 对话滚动只使用虚拟列表的一套末端/锚点模型：真实位于底部时跟随新增内容，离开底部后按稳定消息 id + 行内偏移保持阅读位置；已删除 revision 强制到底、上一帧方向、`pinnedToBottom` 和独立跟随帧。
 - 流式文字、Mermaid、LaTeX、图片和 Preview 改变当前阅读行高度时不改 `scrollTop`；只有完全位于视口上方的旧行重测才补偿，Composer 高度变化也只在原本位于底部时跟随。
 - 源码、数据表、Notebook、运行输出、SPICE 与 Preview Console 共用一个 3/4—1/4 滚轮路由；内联 HTML、图片、图表、3D 与 Matplotlib 的普通滚轮回到对话，`Ctrl` 缩放和超过 10px 的明确拖拽才归渲染视图。
-- Actor 仍逐条处理官方通知；WebSocket 完整投影采用首帧立即、连续流限频、尾帧必达的单计时器，默认 20 Hz。
-- 渲染设置提供 10 / 15 / 20 / 30 / 60 Hz 五档，只保存 `streamingRefreshHz`，不参与 Session 状态判断。
+- Actor 仍逐条、原序处理全部官方通知；显示层使用一个自适应单槽调度器，只保留最新待显示状态。新正文 burst 先用 8–50 ms 小窗口合并，连续正文再按所选间隔发布；完成、报错、Queue、权限、Gate 与其他结构变化在下一帧立即发布。
+- 渲染设置提供 15 级滑条（17–1000 ms，默认 50 ms），只保存 `streamingFrameIntervalMs`，不参与 Session 状态判断；旧 `streamingRefreshHz` 自动等价迁移。拖动只本地预览，松手、键盘提交或失焦才持久化。
 - 真实 JSON 快照按官方结构事件内容缓存时间线；流式文本的 `lastEvent` 变化只更新现有消息，不再重建整个历史。
 - Task 快照不再连带克隆全部消息与事件；Context Window 只在既有恢复/终态刷新点读取，不在每次 UI 投影同步读磁盘。
 - WebSocket 只保留 `task.projection`：初次连接与显式重同步发送完整帧；其后消息、事件和子 Agent 状态统一发送带 epoch/revision/index/count 的增量帧。
 - Renderer 只在版本、顺序、identity 与目标数量全部连续时原位合并增量；任一项失配便从同一官方 Task 端点重新同步，不增加第二事实源。
 - 同一刷新窗口内的消息与结构变化合并为一个最新增量；官方 Session 通知仍逐条、原序进入 Actor，完整消息和事件继续由唯一投影保存。
+- TaskActor 会原样转发 `text` / `delta` 变化分类，避免把可证明的正文增量误升级为完整 snapshot；终态和未知投递仍明确升级为结构变化。
+- 原生 Queue 显式 request id 只关联同 identity 的本地 prompt；未知 id 不再误占第一条未确认 prompt，已显式匹配条目也不会被后续顺序回退重复认领。其余 edit/remove/reorder/interject/clear、串行 mutation、版本冲突和 accepted waiter 主链保持不变。
 - 普通增长文本使用与 canonical 结果一致的窄语法路径；Markdown、HTML、公式、媒体、代码和最终完成态始终进入同一 canonical 富文本管线。
 - Renderer 与 Server 富文本缓存统一为按权重淘汰的 96 项 / 16 MiB 上限；超大结果照常渲染但不驻留。
 - 冷启动只枚举官方 Session id，不再为媒体清理回放全部历史；官方 Session 的未解析媒体保守保留，任务打开后从该 Session 的真实消息与事件完成引用解析。
@@ -128,6 +132,12 @@
 - 子 Session 的逐字 user/agent/thought chunk 只保留在其官方 Session 正文中，不再重复进入父任务 operational context、revision 和投影帧；结构化 spawned/progress/finished 事件仍完整投影。
 - 活跃 Agent 按启动时间稳定排列，进度变化不再重排；运行行固定为单行，只有完成时发生一次符合语义的历史区迁移。
 - 文本增量帧不再克隆或发送未变化的 Context；Renderer 沿用同一投影版本中最后接受的 Context，并在纯文本变化时复用右栏资源结果。
+- 已发布消息的后续文本帧只携带官方新增尾部、前序长度与同一消息 identity；Renderer 逐字拼回原文，任一版本、identity 或长度不连续都回到同一官方 Task 端点重同步，不创建缓存数据源。
+- 纯文本帧只携带 task identity、epoch、revision 与时间戳；命令表、Permission、Queue、Goal、Gate、Context 等未变化快照不再随每个 chunk 重复序列化。
+- 重复的 `available_commands_update` 在净化后内容一致时不再记录事件、递增 revision、重算 Context 或发布帧；恢复时也按同一规则合并，但官方 JSONL 不改写。
+- 普通前台工具不再触发后台 work/context 全历史重投影；只有带结构化后台证据的 tool call 及其后续同 identity 更新进入原 canonical work projector。
+- Timeline 直接依赖投影帧保留的 event 数组引用，不再为每个文本 chunk 序列化整段事件历史；文本时间戳也不再扇出重建整个 Workspace/Sidebar。
+- 跟随最新时持久化一个等价的语义锚点；Renderer 与状态存储两层都跳过相同值，避免流式布局增长每 240 ms 重写完整应用状态。
 - 复杂 Markdown 在已完成块与当前尾部的组合结果经 canonical parser 证明等价后，固定已完成块并只重解析尾部；闭合 Mermaid 等静态围栏立即以非流式段渲染，未闭合围栏内部空行不会误切分。
 - 图片、普通/嵌套/括号网址链接、行内代码、数学与任务框等已闭合语法由 canonical 节点和原坐标确认，不再由第二套链接正则猜测；shortcut/full/collapsed reference 与 definition 等跨块引用状态仍保持活动。
 - 已封存富块后的窄语法纯文本尾部复用原 canonical HAST 快速构造，不再因前文出现 Mermaid 或图片而退回整段 Markdown 重解析。
@@ -136,13 +146,15 @@
 - 非跟随状态继续按稳定 timeline item id + 行内 offset 恢复；任务切换前先持久化待写锚点。代码框、iframe 与可视化只负责把普通纵向滚轮交给同一页面滚动容器，不另建页面跟随状态。
 - `\(...\)` / `\[...\]` 只做等长的显式定界符转换；不再猜测普通括号或方括号，复制与本地链接直接复用同一棵 canonical 语法树的原始坐标。
 - 流式稳定边界识别会忽略数学内容中的 Markdown 符号；数学、Markdown、Mermaid 最终仍只进入原有 canonical 渲染主干。
-- Web Search 查询词从同一官方 Session 的 `backend_tool_call` 按 tool call id 合并到 `updates.jsonl` 的工具状态；live 与重启恢复共用同一净化和时间线入口，空标题不再丢失查询内容。
+- Web Search 实时完成更新直接读取同一官方 `tool_call_update.rawOutput.action.query`；旧格式恢复再从同一 Session 的 `backend_tool_call` 按 tool call id 补齐。两者进入同一净化和时间线入口，不依赖前端猜测或文件落盘先后。
+- 用户、助手与历史恢复消息中的同 Session 相对媒体路径统一按当前官方 Session 解算；消息原文保持不变，缺少 Session scope、目录穿越和兄弟 Session 路径均拒绝。
+- Markdown 选区复制复用 canonical HAST 的原始坐标：普通文字精确到字符，公式、链接、图片、行内代码等结构单元复制其完整原始 Markdown；代码块按钮对显式围栏复制完整原文（含围栏、语言、info string 与换行风格），对无围栏推断代码只复制原代码。
 
 ## 最终验证
 
 - `npm run typecheck`：通过。
 - `npm run test:segmentation`：96 / 96 通过。
-- `npm run test:task-runtime`：171 / 171 通过。
+- `npm run test:task-runtime`：200 / 200 通过。
 - `npm run build`：Web、Server、Electron Shell 通过。
 - `npm run architecture`：0 个错误；仅保留 2 个既有测试孤立警告，Knip 无未使用代码，重复率 0.05%。
 - `npm audit --omit=dev`：生产依赖 0 个漏洞。
@@ -150,9 +162,12 @@
 - Mermaid 数学与对比度回归：2 / 2 通过；覆盖统一 KaTeX 字形、严格模式、HTML/MathML 标签、深浅自定义底色和直接 SVG 不放宽。
 - `threadScroll.test.ts` 与 `CodeScrollRegion.test.ts`：8 / 8 行为用例通过；覆盖阅读意图、真实底部、当前阅读行不补偿、稳定 id 恢复、滚轮单位及代码区 3/4—1/4 边界。
 - Preview runtime 回归覆盖内联 HTML 与 Matplotlib iframe 的普通纵向滚轮回到对话、修饰键交互仍保留给渲染视图。
-- Web Search live / restore 回归：查询词按同一官方 tool call id 投影，完成态与重启恢复一致。
+- Web Search live / restore 回归：实时测试明确让历史查询暂不可用，仅凭官方完成更新投影查询词；旧格式恢复继续按同一 tool call id 补齐。
 - `taskThreadStructure.runtime.test.ts`：真实 JSON 克隆、1000 次文本追加和游标变化只构建 1 次时间线。
 - 投影帧回归覆盖引用保留、旧帧/跨 epoch/identity 与数量分歧、首个完整帧、消息/事件连续合并和同一子 Agent 多次状态更新。
+- 自适应调度回归覆盖 1 秒正文节奏、终态抢占、未知变化升级与单槽快进；10,000 次连续正文更新和 10,000 次结构更新分别只建立 1 个计时器并发布 1 个最新显示帧。
+- Actor 跨层回归确认真实 `text` 分类不会在适配层丢失；Queue 回归覆盖未知显式 id、显式匹配移出回退池与既有顺序关联。
+- Markdown 复制回归覆盖表格单行文字的字符级选区、公式/链接/图片原始地址、HTML 标签、CRLF 以及带语言和 info string 的原始代码围栏；同 Session 媒体回归覆盖用户/助手同约定解析与跨 Session/目录穿越拒绝。
 - 真实 10 子 Agent 历史基准：单次结构更新帧从 21,992,566 bytes 降至 194,927 bytes（112.8 倍）；序列化从 79.41 ms 降至 0.96 ms。
 - 新任务默认值回归覆盖完整五项解析、权限能力暂缺不污染持久偏好、显式 Permission 输入和旧 `workMode` 字段清理。
 - 富文本增长基准为 6,599 字符、150 次更新：增长阶段中位总耗时 10.67 ms，最终 canonical 解析 22.41 ms，增长阶段进入完整解析器的字符数为 0，最终结构精确一致。
@@ -163,6 +178,12 @@
 - 数学密集回复基准为 9,556 字符、150 次更新：累计解析 29,941 字符（3.13 倍），完成态 canonical 解析 71.75 ms；覆盖用户截图中的 Rolle 与 Cauchy 公式及每个切分边界。
 - 2,000 个 child `agent_message_chunk` 回归为父任务 0 个 operational event、0 次 context 重投影、0 次 revision/帧发布；结构化子 Agent 状态仍进入原统一增量帧。
 - 媒体缓存回归覆盖未解析官方 Session 保留、孤儿清理和任务打开后的引用解析；正式 Grok Home 状态下后端 1,577 ms 进入 ready。
+- 真实单 Session 有界压力验收（10 次 Web Search、6 个 Mermaid、8 个行间公式、12 个行内公式、双 30 行表、四代码块、双图与 160 行尾部）安装前后均完整到 `STRESS_TEST_COMPLETE`，恢复投影逐字段一致。
+- 同一提示词的终态墙钟观测从 168.08 s 降至 105.06 s；等完成窗口内 Renderer CPU 平均值从 31.61% 降至 16.37%，p95 从 56.0% 降至 41.0%，最大 RSS 从 905.89 MB 降至 640.97 MB。
+- 同窗口应用进程累计 CPU 时间近似值从 89.11 CPU-s 降至 37.60 CPU-s（-57.8%），Renderer 峰值从 82.6% 降至 66.9%；跟随滚动状态写入从 75 次降至 1 次。
+- 优化版该轮 `chat_history.jsonl` 增量为 252,640 bytes，高于旧版 179,446 bytes，仍取得上述下降；两轮均未记录 thermal 或 performance warning。
+- 正式 App 的 1 秒设置完成 120.2 秒真实单 Session 在线采样：Renderer CPU 平均 9.25%、p95 27.8%，Server 平均 1.08%、p95 4.0%，GPU 平均 4.82%、p95 14.5%；该轮官方 Session 新增 49,035 bytes 正文和 57,215 bytes 更新，终态完整到达，未出现 thermal/performance warning。该样本负载与旧压力轮不同，只作为功能和上界观察，不计算伪精确提升率。
+- 同期应用状态写入逐项核对后只来自真实草稿与阅读锚点变化；静置任务 UI 的 10 秒复查为 0 次变化，未发现投影刷新或等价值写入回归，因此未强行改动持久化主链。
 
 ## 桌面 UI 验证
 
@@ -183,7 +204,8 @@
 - Electron 双向切换阅读宽度 Full 后外层滚动保持 `0`，设置页位置不跳动且无底部底色遮挡。
 - 手机模拟视口 `390×844`：灯箱和视口均为全屏，图片 cover 为 `633×844`；Fit 仍返回 cover。
 - 手机真实双击顺序实测 `633×844 → 864×1152 → 273×364 → 633×844`，按实际尺寸正确回环。
-- 最新正式 App 已纯净替换并重启；`app.asar` SHA-256 为 `b5b27dcebd2cce4f3966187b27dfcd2f78103f73cc9fbb21c69fc4092e2b3c3d`。
+- 最新正式 App 已纯净替换并重启；`app.asar` SHA-256 为 `d6b6664b61cc4801f2c5d9f58757eeb7657312df9daf4705e7b96502fab0c2ce`。
+- 正式 Electron 设置页已验收 15 级流式刷新滑条、1 秒端点持久化与旧 10 Hz → 100 ms 等价迁移；说明文字明确正文可合并，而完成、报错、Queue 与权限状态立即呈现。
 - 正式 App 已展开验收真实历史中的 9 条 Web Search，均显示同一官方 Session 内按 tool call id 对齐的实际查询词。
 - 正式 App 已切换任务再返回验收：恢复到原稳定消息与行内位置，保持“回到最新”状态，不被历史重投影强制拉到底部；官方 Session 未改写。
 - 正式 Electron 设置页已只读验收：“新任务默认值”集中显示模型、推理强度、Permission、Sandbox 与 System Prompt，并明确只作用于未来任务，不修改当前官方 Session 或创建 Fork。
@@ -197,6 +219,7 @@
 - 用户使用“Mermaid 位于开头、后续 200 行继续生成”的正式 App prompt 完成手测，确认闭合图块无需等待整轮结束即可进入渲染主链。
 - 正式 App 的图片 + `[[嵌套链接]](...)` + 表格 + 三 Mermaid + 120 行长尾压力轮已逐帧验收：12:47:02 第二图已渲染且任务仍执行，12:47:06 第三图已渲染且长尾仍在生成，完成态没有回退源码或二次跳变。
 - 用户完成 240 行 + 三 Mermaid 的正式 App 滚动手测：初始持续跟随；生成中主动上滑后保持原阅读位置；停在上方发送追问仍未抢回末尾，最终评价为“完美”。
+- 正式 App 已在最新官方 Session 验收用户消息中的 `![1](images/1.jpg)`：图片按当前 Session 原路径正常显示，路由无崩溃；复制按钮保留显式代码块的完整原始围栏，用户最终手测评价为“完美版本”。
 - 完整预览验收后的静置状态下，核心 Electron 进程物理占用约 431 MB；三个已加载测试任务的 Grok 进程合计约 135 MB。进程 RSS 直接相加会重复计算共享页，不作为真实物理占用结论。
 - 当前源码目录已清除 `node_modules`、`dist*` 和 `release` 等可再生内容，从约 1.3 GB 收敛到约 8.8 MB；系统下载缓存与官方 Session 数据未动。
 

@@ -11,6 +11,87 @@ import type {
 } from "./contracts/task.js";
 
 const TERMINAL_WORK = new Set<WorkItemStatus>(["completed", "failed", "cancelled"]);
+const STRUCTURED_WORK_KINDS = new Set([
+  "task_backgrounded",
+  "task_completed",
+  "monitor_event",
+  "scheduled_task_created",
+  "scheduled_task_fired",
+  "scheduled_task_deleted",
+  "subagent_spawned",
+  "subagent_progress",
+  "subagent_finished",
+]);
+const WORK_CONTROL_TOOLS = new Set([
+  "get_command_or_subagent_output",
+  "wait_commands_or_subagents",
+  "kill_command_or_subagent",
+  "scheduler_delete",
+]);
+
+/**
+ * Stateful admission for the work projector. Normal foreground tools remain in
+ * the official event stream, but do not repeatedly replay background-work
+ * state. Once a tool advertises work evidence, later packets for that tool stay
+ * admitted even when the transport omits repeated metadata.
+ */
+export class TaskWorkEventAdmission {
+  readonly #workToolCallIds = new Set<string>();
+
+  reset(): void {
+    this.#workToolCallIds.clear();
+  }
+
+  observe(event: TaskEventEnvelope): boolean {
+    if (
+      event.method !== "session/update:tool_call"
+      && event.method !== "session/update:tool_call_update"
+    ) return eventAffectsTaskWorkState(event);
+    const payload = record(event.payload);
+    const toolCallId = text(payload.toolCallId);
+    const toolName = text(payload.toolName)?.toLowerCase() || null;
+    const directEvidence = Boolean(
+      text(payload.activityType)
+      || Array.isArray(payload.activityIds) && payload.activityIds.length
+      || Array.isArray(payload.activityResults) && payload.activityResults.length
+      || toolName && WORK_CONTROL_TOOLS.has(toolName)
+    );
+    if (directEvidence && toolCallId) this.#workToolCallIds.add(toolCallId);
+    return directEvidence || Boolean(toolCallId && this.#workToolCallIds.has(toolCallId));
+  }
+}
+
+/** Cheap, exact admission test for the canonical work projector. */
+function eventAffectsTaskWorkState(event: TaskEventEnvelope): boolean {
+  if (event.method === "session/load" || event.method === "task/work:stop_requested") return true;
+  if (event.method.startsWith("child/session/update:")) {
+    const updateType = event.method.slice("child/session/update:".length);
+    return updateType !== "agent_message_chunk"
+      && updateType !== "agent_thought_chunk"
+      && updateType !== "user_message_chunk";
+  }
+  if (
+    event.method === "session/update:tool_call"
+    || event.method === "session/update:tool_call_update"
+  ) return true;
+  const kind = event.method === "x.ai/session_notification"
+    ? text(record(event.payload).type)
+    : event.method.startsWith("session/update:")
+      ? event.method.slice("session/update:".length)
+      : null;
+  return Boolean(kind && STRUCTURED_WORK_KINDS.has(kind));
+}
+
+/** Events outside this set cannot alter Todo, work, or lifecycle context. */
+export function eventAffectsTaskContextOutsideWork(event: TaskEventEnvelope): boolean {
+  return event.method === "session/prompt:completed"
+    || event.method === "session/prompt:failed"
+    || event.method === "task/connection:interrupted"
+    || event.method === "session/update:plan"
+    || event.method === "session/update:plan_update"
+    || event.method === "session/update:plan_removed"
+    || event.method.startsWith("task/plan:");
+}
 
 /** Projects only structured ACP/XAI/supervisor evidence; message text is never inspected. */
 export function projectTaskOperationalContext(events: TaskEventEnvelope[]): TaskOperationalContextSnapshot {

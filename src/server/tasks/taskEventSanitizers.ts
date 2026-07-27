@@ -1,6 +1,31 @@
 import path from "node:path";
 import { createHash } from "node:crypto";
 
+export interface NormalizedOfficialSessionUpdate {
+  update: Record<string, unknown>;
+  updateType: string;
+  payload: Record<string, unknown>;
+}
+
+/**
+ * The one normalization boundary shared by live ACP projection and restoration
+ * from the same official Session. Transport-only metadata is folded into the
+ * safe payload once; callers may supply a query recovered from that Session's
+ * legacy backend history.
+ */
+export function normalizeOfficialSessionUpdate(
+  originalUpdate: Record<string, unknown>,
+  transportMeta: Record<string, unknown> = {},
+  restoredWebSearchQuery?: string,
+): NormalizedOfficialSessionUpdate {
+  const update = withOfficialWebSearchQuery(originalUpdate, restoredWebSearchQuery);
+  return {
+    update,
+    updateType: string(update.sessionUpdate) || "unknown",
+    payload: safeSessionUpdate(update, transportMeta),
+  };
+}
+
 export function safeSessionUpdate(
   update: Record<string, unknown>,
   transportMeta: Record<string, unknown> = {},
@@ -97,14 +122,18 @@ export function safeSessionUpdate(
   return safe;
 }
 
-export function withOfficialWebSearchQuery(
+function withOfficialWebSearchQuery(
   update: Record<string, unknown>,
-  query: string | undefined,
+  restoredQuery: string | undefined,
 ): Record<string, unknown> {
-  if (!query || string(update.query)) return update;
+  if (string(update.query)) return update;
   const rawInput = asRecord(update.rawInput);
+  const rawOutput = asRecord(update.rawOutput);
+  const action = asRecord(rawOutput.action);
   const isWebSearch = string(rawInput.variant)?.toLowerCase() === "websearch"
     || /^web search\s*:/i.test(string(update.title) || "");
+  const query = string(action.query) || restoredQuery;
+  if (!query) return update;
   return isWebSearch ? { ...update, query } : update;
 }
 

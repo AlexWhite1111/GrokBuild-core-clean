@@ -19,7 +19,13 @@ import { PathChip } from "../../ui/components/index.js";
 import { CodeBlock } from "./CodeBlock.js";
 import { InlineHtml } from "./InlineHtml.js";
 import { MediaPathChip, MessageMedia, RemoteMarkdownImage } from "./MessageMedia.js";
-import { annotateMarkdownSourceBlocks, copySelectedMarkdown, markdownSourceRange } from "./richTextMarkdownCopy.js";
+import {
+  annotateMarkdownSourceUnits,
+  copySelectedMarkdown,
+  markdownSourceAtomProps,
+  markdownSourceRange,
+  type MarkdownSourceRange,
+} from "./richTextMarkdownCopy.js";
 import {
   finalizeStreamingRichText,
   initialStreamingRichText,
@@ -100,7 +106,18 @@ export const RichText = memo(function RichText({
     syntax: item.syntax || "structured",
     anchor: item.anchor,
   }] : []), [media]);
-  const portableResponse = usePortableRichText(framedText, level, !document && portable, taskId, placements, renderPolicy);
+  // The local streaming projector already incrementally renders the exact
+  // official text. Reposting the growing cumulative message to the server on
+  // every animation frame duplicates parsing and produces quadratic traffic.
+  // Resolve the portable/sanitized document once the stream closes instead.
+  const portableResponse = usePortableRichText(
+    framedText,
+    level,
+    !document && portable && !streaming,
+    taskId,
+    placements,
+    renderPolicy,
+  );
   const streamState = useRef<{ key: string; value: StreamingRichTextState } | null>(null);
   const fallbackDocument = useMemo(() => {
     if (document) return document;
@@ -184,7 +201,7 @@ const RichTree = memo(function RichTree({
     streaming,
   }), [baseRenderer, density, localLinks, media, mediaScale, paths, renderPolicy, source, streaming, taskId]);
   const sourceDocument = useMemo(
-    () => annotateMarkdownSourceBlocks(document, source),
+    () => annotateMarkdownSourceUnits(document, source),
     [document, source],
   );
   return useMemo(
@@ -243,22 +260,31 @@ function richComponents(base: RichComponents, context: {
     const pathMedia = media.find((item) => item.pathRefId === pathIdentity);
     const bounds = nodeOffsets(node);
     const placementKey = bounds ? `${pathMedia?.placementId}:${bounds.start}:${bounds.end}` : pathMedia?.placementId;
-    if (!taskId || !pathMedia) return <InlinePath path={path} />;
+    if (!taskId || !pathMedia) return <InlinePath path={path} markdownSource={bounds} />;
     const presentation = richTextMediaPresentation(renderPolicy, pathMedia);
-    if (presentation === "inline") return <MessageMedia key={placementKey} taskId={taskId} items={[pathMedia]} sourceText={path.displayPath} density={density} defaultScale={mediaScale} />;
-    if (presentation === "link") return <MediaReference taskId={taskId} item={pathMedia} source={path.displayPath} />;
+    if (presentation === "inline") return <MessageMedia key={placementKey} taskId={taskId} items={[pathMedia]} sourceText={path.displayPath} density={density} defaultScale={mediaScale} markdownSource={bounds || undefined} />;
+    if (presentation === "link") return <MediaReference taskId={taskId} item={pathMedia} source={path.displayPath} markdownSource={bounds || undefined} />;
     return <code {...props} className={`${styles.inlineCode} ${className || ""}`} data-shape="detail">{children}</code>;
   };
   const renderer = {
     ...base,
     pre({ node, ...props }: { node?: unknown; [key: string]: unknown }) {
       const block = codeFence(node);
+      const markdownSource = markdownSourceRange(props) || nodeOffsets(node) || undefined;
       return block
-        ? <CodeBlock {...block} taskId={taskId} compact={density === "compact"} streaming={streaming} markdownSource={markdownSourceRange(props)} />
+        ? <CodeBlock
+            {...block}
+            taskId={taskId}
+            compact={density === "compact"}
+            streaming={streaming}
+            markdownSource={markdownSource}
+            markdownCopyText={markdownTextAt(text, markdownSource)}
+          />
         : <pre {...props} />;
     },
     code,
     [RICH_EXECUTABLE_CODE_TAG]({ source, language, node: _node }: { source?: unknown; language?: unknown; node?: unknown }) {
+      const markdownSource = nodeOffsets(_node) || undefined;
       return typeof source === "string" && source.trim()
         ? <CodeBlock
             language={typeof language === "string" ? language : "javascript"}
@@ -267,7 +293,8 @@ function richComponents(base: RichComponents, context: {
             compact={density === "compact"}
             implicit
             streaming={streaming}
-            markdownSource={nodeOffsets(_node) || undefined}
+            markdownSource={markdownSource}
+            markdownCopyText={markdownTextAt(text, markdownSource)}
           />
         : null;
     },
@@ -277,6 +304,7 @@ function richComponents(base: RichComponents, context: {
         : null;
     },
     [RICH_LIVE_HTML_TAG]({ source, node: _node, ...props }: { source?: unknown; node?: unknown }) {
+      const markdownSource = nodeOffsets(_node) || undefined;
       return typeof source === "string" && source.trim()
         ? <CodeBlock
             {...props}
@@ -286,7 +314,8 @@ function richComponents(base: RichComponents, context: {
             compact={density === "compact"}
             implicit
             streaming={streaming}
-            markdownSource={nodeOffsets(_node) || undefined}
+            markdownSource={markdownSource}
+            markdownCopyText={markdownTextAt(text, markdownSource)}
           />
         : null;
     },
@@ -296,29 +325,31 @@ function richComponents(base: RichComponents, context: {
       if (taskId && item) {
         const source = mediaSource(text, item);
         const presentation = richTextMediaPresentation(renderPolicy, item);
-        if (presentation === "inline") return <MessageMedia key={item.placementId} taskId={taskId} items={[item]} sourceText={source} density={density} defaultScale={mediaScale} />;
-        if (presentation === "link") return <MediaReference taskId={taskId} item={item} source={source} />;
+        if (presentation === "inline") return <MessageMedia key={item.placementId} taskId={taskId} items={[item]} sourceText={source} density={density} defaultScale={mediaScale} markdownSource={bounds || undefined} />;
+        if (presentation === "link") return <MediaReference taskId={taskId} item={item} source={source} markdownSource={bounds || undefined} />;
       }
       const fallback = bounds ? text.slice(bounds.start, bounds.end) : "";
-      return fallback ? <span>{fallback}</span> : null;
+      return fallback ? <span {...markdownSourceAtomProps(bounds)}>{fallback}</span> : null;
     },
     [RICH_LOCAL_LINK_TAG]({ node, children }: { node?: unknown; children?: ReactNode }) {
       const bounds = nodeOffsets(node);
       const link = bounds ? localLinks.find((candidate) => candidate.anchor.start === bounds.start && candidate.anchor.end === bounds.end) : undefined;
-      if (!link) return <span>{children}</span>;
-      if (!window.grokDesktop) return <span className={styles.localLinkUnavailable}>{children}</span>;
-      return <button data-rich-link type="button" title={link.path.displayPath} onClick={() => void window.grokDesktop?.revealPath(link.path.refId)}>{children}</button>;
+      if (!link) return <span {...markdownSourceAtomProps(bounds)}>{children}</span>;
+      if (!window.grokDesktop) return <span {...markdownSourceAtomProps(bounds)} className={styles.localLinkUnavailable}>{children}</span>;
+      return <button {...markdownSourceAtomProps(bounds)} data-rich-link type="button" title={link.path.displayPath} onClick={() => void window.grokDesktop?.revealPath(link.path.refId)}>{children}</button>;
     },
     [RICH_EXTERNAL_CODE_LINK_TAG]({ node, children }: { node?: unknown; children?: ReactNode }) {
       const bounds = nodeOffsets(node);
       const href = safeExternalHref(bounds ? inlineCodeSource(text.slice(bounds.start, bounds.end)) : plainText(children));
-      return href ? <a data-rich-link href={href} target="_blank" rel="noreferrer">{children}</a> : <span>{children}</span>;
+      return href
+        ? <a {...markdownSourceAtomProps(bounds)} data-rich-link href={href} target="_blank" rel="noreferrer">{children}</a>
+        : <span {...markdownSourceAtomProps(bounds)}>{children}</span>;
     },
     [RICH_REMOTE_MEDIA_TAG]({ node, children }: { node?: unknown; children?: ReactNode }) {
       const href = safeRemoteImageHref(plainText(children));
       const bounds = nodeOffsets(node);
       if (!href) return null;
-      if (!bounds || !taskId) return <a data-rich-link href={href} target="_blank" rel="noreferrer">{bounds ? remoteImageAlt(text, bounds) || href : href}</a>;
+      if (!bounds || !taskId) return <a {...markdownSourceAtomProps(bounds)} data-rich-link href={href} target="_blank" rel="noreferrer">{bounds ? remoteImageAlt(text, bounds) || href : href}</a>;
       return <RemoteMarkdownImage
         taskId={taskId}
         url={href}
@@ -332,12 +363,20 @@ function richComponents(base: RichComponents, context: {
   return renderer as RichComponents;
 }
 
-function MediaReference({ taskId, item, source }: { taskId: string; item: TaskMediaAttachment; source?: string }) {
-  return <span className={styles.mediaReference}><MediaPathChip taskId={taskId} item={item} source={cleanMediaSource(source)} /></span>;
+function MediaReference({ taskId, item, source, markdownSource }: { taskId: string; item: TaskMediaAttachment; source?: string; markdownSource?: MarkdownSourceRange | null }) {
+  return <span {...markdownSourceAtomProps(markdownSource)} className={styles.mediaReference}><MediaPathChip taskId={taskId} item={item} source={cleanMediaSource(source)} /></span>;
 }
 
-function InlinePath({ path }: { path: PathReferenceSummary }) {
-  return <PathChip path={path} onOpen={window.grokDesktop ? () => void window.grokDesktop?.revealPath(path.refId) : undefined} />;
+function InlinePath({ path, markdownSource }: { path: PathReferenceSummary; markdownSource?: MarkdownSourceRange | null }) {
+  return <span {...markdownSourceAtomProps(markdownSource)}>
+    <PathChip path={path} onOpen={window.grokDesktop ? () => void window.grokDesktop?.revealPath(path.refId) : undefined} />
+  </span>;
+}
+
+function markdownTextAt(source: string, range: MarkdownSourceRange | undefined): string | undefined {
+  return range && range.start >= 0 && range.end > range.start && range.end <= source.length
+    ? source.slice(range.start, range.end)
+    : undefined;
 }
 
 function plainText(children: ReactNode): string {

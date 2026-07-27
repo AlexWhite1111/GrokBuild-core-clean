@@ -19,6 +19,9 @@
   -webkit-backdrop-filter: var(--thread-edge-bottom-fog-filter);
   mask-image: var(--thread-edge-bottom-fog-mask);
   -webkit-mask-image: var(--thread-edge-bottom-fog-mask);
+  contain: paint;
+  will-change: transform;
+  transform: translateZ(0);
 }
 .error { box-sizing: border-box; width: 100%; margin: 0 0 var(--space-7); }
 .resumeNotice { box-sizing: border-box; width: 100%; margin: 0 0 var(--space-7); }

@@ -9,6 +9,7 @@ import { Control, Notice, PathChip, Spinner, Surface } from "../../ui/components
 import { PreviewShell } from "./PreviewShell.js";
 import { VisualCanvas, VisualCanvasControls, useVisualCanvasController } from "./VisualCanvas.js";
 import { useInlineMediaSizing } from "./useInlineMediaSizing.js";
+import { markdownSourceAtomProps, type MarkdownSourceRange } from "./richTextMarkdownCopy.js";
 import styles from "./MessageMedia.module.css";
 
 const mediaWidths = new Map<string, number>();
@@ -29,19 +30,24 @@ function useMediaLease(taskId: string, mediaId: string) {
   });
 }
 
-export function MessageMedia({ taskId, items, sourceText, density = "body", defaultScale }: {
+export function MessageMedia({ taskId, items, sourceText, density = "body", defaultScale, markdownSource }: {
   taskId: string;
   items: TaskMediaAttachment[];
   sourceText?: string;
   density?: "body" | "compact";
   defaultScale?: number;
+  markdownSource?: MarkdownSourceRange;
 }) {
   const preferences = useUiPreferences().data;
   const preferredScale = defaultScale ?? preferences?.mediaPreviewScale ?? 70;
   const initialSize = preferences?.mediaInitialSize ?? "native";
   const minimumSize = preferences?.mediaMinimumSize ?? 64;
   if (!items.length) return null;
-  return <span data-message-media className={`${styles.collection} ${density === "compact" ? styles.compact : ""}`}>
+  return <span
+    data-message-media
+    className={`${styles.collection} ${density === "compact" ? styles.compact : ""}`}
+    {...markdownSourceAtomProps(markdownSource)}
+  >
     {items.map((item) => <StableMediaItem key={item.placementId} taskId={taskId} item={item} sourceText={sourceText} defaultScale={preferredScale} initialSize={initialSize} minimumSize={minimumSize} />)}
   </span>;
 }
@@ -66,9 +72,30 @@ export function RemoteMarkdownImage({ taskId, url, name, anchor, density = "body
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
-  if (remote.isPending) return <Surface as="span" appearance="muted" shape="surface" className={styles.loading} aria-label={name || url}><Spinner size="compact" /></Surface>;
-  if (!remote.data) return <a data-rich-link className={styles.remoteFallback} href={url} target="_blank" rel="noreferrer">{name || url}</a>;
-  return <MessageMedia taskId={taskId} items={[remote.data.media]} sourceText={url} density={density} defaultScale={defaultScale} />;
+  if (remote.isPending) return <Surface
+    as="span"
+    appearance="muted"
+    shape="surface"
+    className={styles.loading}
+    aria-label={name || url}
+    {...markdownSourceAtomProps(anchor)}
+  ><Spinner size="compact" /></Surface>;
+  if (!remote.data) return <a
+    data-rich-link
+    className={styles.remoteFallback}
+    href={url}
+    target="_blank"
+    rel="noreferrer"
+    {...markdownSourceAtomProps(anchor)}
+  >{name || url}</a>;
+  return <MessageMedia
+    taskId={taskId}
+    items={[remote.data.media]}
+    sourceText={url}
+    density={density}
+    defaultScale={defaultScale}
+    markdownSource={anchor}
+  />;
 }
 
 const StableMediaItem = memo(function MediaItem({ taskId, item, sourceText, defaultScale, initialSize, minimumSize }: {

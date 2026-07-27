@@ -56,6 +56,12 @@ export function createThreadScrollAnchor(
   rowStart: number,
   followLatest: boolean,
 ): TaskScrollAnchor {
+  // Restoration ignores pixel coordinates while following the latest output.
+  // Persist one canonical value so programmatic bottom-follow scrolling during
+  // streaming cannot rewrite the complete preference document every 240 ms.
+  if (followLatest) {
+    return { itemId: null, fallbackIndex: 0, offset: 0, followLatest: true };
+  }
   const fallbackIndex = Math.max(0, Math.min(Math.max(0, items.length - 1), Math.trunc(index)));
   return {
     itemId: items[fallbackIndex]?.id || null,
@@ -63,6 +69,20 @@ export function createThreadScrollAnchor(
     offset: Math.max(0, Number((scrollTop - rowStart).toFixed(2))),
     followLatest,
   };
+}
+
+export function sameThreadScrollAnchor(
+  left: TaskScrollAnchor | null | undefined,
+  right: TaskScrollAnchor | null | undefined,
+): boolean {
+  return left === right || Boolean(
+    left
+    && right
+    && left.itemId === right.itemId
+    && left.fallbackIndex === right.fallbackIndex
+    && left.offset === right.offset
+    && left.followLatest === right.followLatest
+  );
 }
 
 export function threadLatestControl(atBottom: boolean, busy: boolean): "hidden" | "activity" | "latest" {

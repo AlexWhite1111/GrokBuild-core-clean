@@ -33,6 +33,11 @@ export interface TaskTranscriptAppendResult {
   turnId: string;
   blockId: string;
   created: boolean;
+  /**
+   * Exact text appended to an already-published row. Undefined means the
+   * renderer must receive a full replacement for this identity.
+   */
+  appendedText?: string;
 }
 
 /**
@@ -208,7 +213,7 @@ export class TaskRuntimeTranscript {
       existing.protocol = mergeTaskMessageProtocol(existing.protocol, advertisedBlockId
         ? protocol
         : { ...protocol, messageId: existing.protocol?.messageId || protocol.messageId });
-      return { turnId, blockId, created: false };
+      return { turnId, blockId, created: false, appendedText: text };
     }
     const discovered = role === "assistant" && this.media ? this.#discoverMedia(text) : [];
     const message: TaskMessageBlock = {
@@ -258,7 +263,12 @@ export class TaskRuntimeTranscript {
       if (local) {
         local.protocol = mergeTaskMessageProtocol(local.protocol, protocol);
         local.lastEvent = eventCursor(event);
-        return { turnId: local.turnId, blockId: local.blockId, created: false };
+        return {
+          turnId: local.turnId,
+          blockId: local.blockId,
+          created: false,
+          appendedText: "",
+        };
       }
     }
     if (this.#dedupedUserEchoTurns.has(correlationTurnId) || (requestId && this.#requestIds.has(requestId))) {
@@ -300,7 +310,12 @@ export class TaskRuntimeTranscript {
       this.#mediaScans.set(key, createMediaHintScanState(text));
     }
     if (requestId) this.#requestIds.add(requestId);
-    return { turnId, blockId, created };
+    return {
+      turnId,
+      blockId,
+      created,
+      ...(created ? {} : { appendedText: text }),
+    };
   }
 
   messageForRequest(requestId: string): TaskMessageBlock | undefined {

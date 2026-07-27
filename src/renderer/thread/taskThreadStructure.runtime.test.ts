@@ -18,7 +18,6 @@ test("pure text appends do not regroup the task timeline", () => {
     detail = {
       ...detail,
       snapshot: { ...detail.snapshot, revision: detail.snapshot.revision + 1 },
-      events: structuredClone(detail.events),
       messages: detail.messages.map((message) => message === target || message.blockId === target.blockId
         ? {
             ...message,
@@ -34,6 +33,24 @@ test("pure text appends do not regroup the task timeline", () => {
   assert.equal(projected.filter((item) => item.kind !== "assistant").every((item, index) => item === stableItems[index]), true);
   const answer = projected.findLast((item) => item.kind === "assistant");
   assert.equal(answer?.kind === "assistant" && answer.turn.segments.some((segment) => segment.kind === "assistant" && segment.message.text.endsWith("x".repeat(1_000))), true);
+});
+
+test("a changed official event array still regroups the task timeline", () => {
+  const initial = detailFixture();
+  let builds = 0;
+  const projector = createTurnTimelineProjector(() => { builds += 1; });
+
+  projector(initial);
+  projector({
+    ...initial,
+    snapshot: { ...initial.snapshot, revision: initial.snapshot.revision + 1 },
+    events: [
+      ...initial.events,
+      event(10, "session/prompt:completed", "turn-1", { stopReason: "end_turn" }),
+    ],
+  });
+
+  assert.equal(builds, 2);
 });
 
 test("unrelated scoped state updates do not steal the active prompt execution", () => {

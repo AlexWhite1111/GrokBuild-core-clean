@@ -16,7 +16,13 @@ export class UiStateStore {
     const stored = this.state.get<Record<string, unknown>>("ui.preferences");
     const parsed = UiPreferencesSchema.safeParse(stored);
     if (!parsed.success) return { ...DEFAULT_UI_PREFERENCES };
-    if (stored?.cornerRadius === undefined && stored?.cornerScale !== undefined) {
+    if (
+      (stored?.cornerRadius === undefined && stored?.cornerScale !== undefined)
+      || (
+        stored?.streamingFrameIntervalMs === undefined
+        && stored?.streamingRefreshHz !== undefined
+      )
+    ) {
       this.state.set("ui.preferences", parsed.data);
     }
     return parsed.data;

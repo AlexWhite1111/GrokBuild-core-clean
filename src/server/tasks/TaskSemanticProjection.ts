@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   projectTaskWorkState,
+  TaskWorkEventAdmission,
   ReasoningEffortSchema,
   type PendingGate,
   type PlanReviewDraftIdentity,
@@ -70,6 +71,7 @@ export class TaskSemanticProjection {
   readonly #commands = new TaskCommandProjection();
   readonly #turnIdentity = new TaskTurnIdentity();
   readonly #contextReducer = new TaskOperationalContextReducer();
+  readonly #workAdmission = new TaskWorkEventAdmission();
   readonly #turnByToolCall = new Map<string, ToolTurnIdentity>();
   readonly #permissionBase: ReturnType<typeof basePermissionMode>;
   readonly #planReview: PlanReviewState;
@@ -121,6 +123,8 @@ export class TaskSemanticProjection {
         .map((event) => event.sequence),
     );
     this.#contextReducer.restore(restored);
+    this.#workAdmission.reset();
+    for (const event of restored) this.#workAdmission.observe(event);
     this.#syncActivities();
     this.#turnByToolCall.clear();
     for (const event of restored) {
@@ -181,24 +185,36 @@ export class TaskSemanticProjection {
     });
     this.touch();
   }
-  applyAcpNotification(
+  applyNormalizedAcpNotification(
     params: unknown,
+    update: Record<string, unknown>,
+    updateType: string,
+    safePayload: Record<string, unknown>,
     turnId: string | null,
     userEcho?: PromptEchoIdentity,
-  ): void {
-    this.#applyAcpNotification(params, turnId, userEcho);
+  ): boolean {
+    return this.#applyAcpNotification(
+      params,
+      update,
+      updateType,
+      safePayload,
+      turnId,
+      userEcho,
+    );
   }
 
   #applyAcpNotification(
     params: unknown,
+    update: Record<string, unknown>,
+    updateType: string,
+    safePayload: Record<string, unknown>,
     turnId: string | null,
     userEcho?: PromptEchoIdentity,
-  ): void {
-    const record = asRecord(params);
-    const update = asRecord(record.update);
-    const transportMeta = readMeta(record);
-    const updateType = string(update.sessionUpdate) || "unknown";
-    const safePayload = safeSessionUpdate(update, transportMeta);
+  ): boolean {
+    if (
+      updateType === "available_commands_update"
+      && !applyAvailableCommands(this.snapshot, update.availableCommands)
+    ) return false;
     const signal = nativeTurnSignal(safePayload);
     const metaTurn = string(safePayload.turnId);
     const commandTurn = userEcho?.turnId || turnId;
@@ -231,13 +247,6 @@ export class TaskSemanticProjection {
           || (FALLBACK_MESSAGE_UPDATES.has(updateType) ? `turn_${this.#sequence + 1}` : null);
     const localTurnId = toolTurn?.localTurnId || commandTurn;
     if (localTurnId) safePayload.localTurnId = localTurnId;
-    const structuredMedia = mediaForSessionUpdate(
-      this.media,
-      this.snapshot.taskId,
-      updateType,
-      update,
-    );
-    if (structuredMedia.length) safePayload.media = structuredMedia;
     this.record(
       "acp",
       `session/update:${updateType}`,
@@ -300,7 +309,8 @@ export class TaskSemanticProjection {
         );
         break;
       case "available_commands_update":
-        applyAvailableCommands(this.snapshot, update.availableCommands);
+        // Applied before recording so a repeated registry snapshot is a true
+        // no-op: no event, revision, context rebuild, or renderer frame.
         break;
       case "session_info_update":
       case "usage_update":
@@ -318,6 +328,7 @@ export class TaskSemanticProjection {
         break;
     }
     this.touch();
+    return true;
   }
 
   applyChildAcpNotification(params: unknown): void {
@@ -686,9 +697,10 @@ export class TaskSemanticProjection {
       occurredAt: new Date().toISOString(),
       payload,
     };
-    this.#contextReducer.observe(event);
+    const affectsWork = this.#workAdmission.observe(event);
+    this.#contextReducer.observe(event, affectsWork);
     this.events.push(event);
-    this.#syncActivities();
+    if (affectsWork) this.#syncActivities();
     return event;
   }
 

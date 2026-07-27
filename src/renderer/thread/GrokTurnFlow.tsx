@@ -18,20 +18,22 @@ export const GrokTurnFlow = memo(function GrokTurnFlow({ taskId, segments, rende
   processExpanded?: boolean;
 }) {
   const { t } = useTranslation();
-  const processModels = new Map<string, ProcessGroupModel>();
-  for (const segment of segments) {
-    if (segment.kind !== "assistant") processModels.set(segment.id, segment.kind === "processGroup" ? processGroupModel(segment, t) : lifecycleModel(segment, t));
-  }
-  let activeProcessId: string | null = null;
-  const latestSegment = segments.at(-1);
-  if (latestSegment && latestSegment.kind !== "assistant" && processModels.get(latestSegment.id)?.status === "running") activeProcessId = latestSegment.id;
   const collapsedReplyId = [...segments].reverse().find((segment) => segment.kind === "assistant" && segment.final)?.id
     || [...segments].reverse().find((segment) => segment.kind === "assistant")?.id
     || segments.at(-1)?.id;
+  const visibleSegments = processExpanded
+    ? segments
+    : segments.filter((segment) => segment.id === collapsedReplyId);
+  const processModels = new Map<string, ProcessGroupModel>();
+  for (const segment of visibleSegments) {
+    if (segment.kind !== "assistant") processModels.set(segment.id, segment.kind === "processGroup" ? processGroupModel(segment, t) : lifecycleModel(segment, t));
+  }
+  let activeProcessId: string | null = null;
+  const latestSegment = visibleSegments.at(-1);
+  if (latestSegment && latestSegment.kind !== "assistant" && processModels.get(latestSegment.id)?.status === "running") activeProcessId = latestSegment.id;
 
   return <div className={styles.flow} data-turn-flow>
-    {segments.map((segment) => {
-      if (!processExpanded && segment.id !== collapsedReplyId) return null;
+    {visibleSegments.map((segment) => {
       return <div key={segment.id} className={segment.kind === "assistant" ? styles.messageSegment : styles.processSegment} data-turn-segment={segment.kind} data-message-block={segment.kind === "assistant" ? segment.message.protocol?.messageId || segment.message.blockId : undefined} data-final-reply={segment.kind === "assistant" && segment.final || undefined}>
         {segment.kind === "assistant"
           ? <RichContent taskId={taskId} className={styles.prose} text={segment.message.text} paths={segment.message.paths} media={segment.message.media} renderPolicy={renderPolicy} mediaScale={mediaScale} portable={!running} streaming={segment.message.streaming} streamingKey={segment.message.blockId} />

@@ -3,7 +3,13 @@ import test from "node:test";
 import type { Element, Root } from "hast";
 import { normalizeMathDelimiters } from "../../shared/richText.js";
 import { parseRichTextDocument } from "../../shared/richTextPipeline.js";
-import { annotateMarkdownSourceBlocks } from "./richTextMarkdownCopy.js";
+import {
+  annotateMarkdownSourceUnits,
+  codeBlockClipboardText,
+  markdownFromSourceRanges,
+  markdownSourceAtomProps,
+  replaceClipboardWithMarkdown,
+} from "./richTextMarkdownCopy.js";
 
 const POLICY = { level: "media" } as const;
 
@@ -60,10 +66,10 @@ test("whole-line double-dollar math remains display math after a Markdown hard b
   assert.equal(elementsWithClass(parseRichTextDocument("正文 $$x$$ 正文", POLICY), "katex-display").length, 0);
 });
 
-test("source-copy annotations use canonical positions without reparsing Markdown", () => {
+test("source-copy annotations retain canonical block positions without reparsing Markdown", () => {
   const blocks = ["第一段 \\(F(a)=F(b)\\)。", "第二段 **加粗**。"];
   const source = blocks.join("\n\n");
-  const annotated = annotateMarkdownSourceBlocks(parseRichTextDocument(source, POLICY), source);
+  const annotated = annotateMarkdownSourceUnits(parseRichTextDocument(source, POLICY), source);
   const ranges = annotated.children.flatMap((node) => {
     if (node.type !== "element") return [];
     const start = Number(node.properties["data-md-source-start"]);
@@ -71,6 +77,112 @@ test("source-copy annotations use canonical positions without reparsing Markdown
     return Number.isSafeInteger(start) && Number.isSafeInteger(end) ? [source.slice(start, end)] : [];
   });
   assert.deepEqual(ranges, blocks);
+});
+
+test("table text is character-addressable while formulas and inline syntax remain source atoms", () => {
+  const source = [
+    "| 名称 | 公式 |",
+    "| --- | --- |",
+    "| 能量 | $E=mc^2$ |",
+    "| 力 | **F=ma** |",
+  ].join("\n");
+  const annotated = annotateMarkdownSourceUnits(parseRichTextDocument(source, POLICY), source);
+
+  assert.deepEqual(sourceSlices(annotated, source, "data-md-copy-text"), [
+    "名称",
+    "公式",
+    "能量",
+    "力",
+  ]);
+  assert.deepEqual(sourceSlices(annotated, source, "data-md-copy-atom"), [
+    "$E=mc^2$",
+    "**F=ma**",
+  ]);
+  assert.deepEqual(elements(annotated, "tr").map((row) => sourceSlice(row, source)), [
+    "| 名称 | 公式 |",
+    "| 能量 | $E=mc^2$ |",
+    "| 力 | **F=ma** |",
+  ]);
+});
+
+test("KaTeX roots recover the exact authored delimiter range", () => {
+  const source = "行内 \\(E=mc^2\\)，行间：\n\n$$F=ma$$";
+  const annotated = annotateMarkdownSourceUnits(parseRichTextDocument(source, POLICY), source);
+  assert.deepEqual(
+    sourceSlices(annotated, source, "data-md-copy-atom"),
+    ["\\(E=mc^2\\)", "$$F=ma$$"],
+  );
+});
+
+test("the final clipboard slice spans only selected text offsets and complete syntax atoms", () => {
+  const source = "| 能量 | $E=mc^2$ |";
+  const formulaStart = source.indexOf("$");
+  assert.equal(markdownFromSourceRanges(source, [
+    { start: source.indexOf("量"), end: source.indexOf("量") + 1 },
+    { start: formulaStart, end: source.lastIndexOf("$") + 1 },
+  ]), "量 | $E=mc^2$");
+});
+
+test("Markdown selection copy removes the competing rendered HTML flavor", () => {
+  const calls: string[] = [];
+  const values = new Map<string, string>();
+  replaceClipboardWithMarkdown({
+    clearData() {
+      calls.push("clear");
+      values.clear();
+    },
+    setData(type, value) {
+      calls.push(type);
+      values.set(type, value);
+    },
+  }, "```text\nsource\n```");
+
+  assert.deepEqual(calls, ["clear", "text/plain", "text/markdown"]);
+  assert.deepEqual(Object.fromEntries(values), {
+    "text/plain": "```text\nsource\n```",
+    "text/markdown": "```text\nsource\n```",
+  });
+  assert.equal(values.has("text/html"), false);
+});
+
+test("custom rich projections can retain one exact source atom on their real DOM boundary", () => {
+  assert.deepEqual(markdownSourceAtomProps({ start: 14, end: 41 }), {
+    "data-md-source-start": "14",
+    "data-md-source-end": "41",
+    "data-md-copy-atom": "true",
+  });
+  assert.deepEqual(markdownSourceAtomProps(undefined), {});
+});
+
+test("a code-block copy keeps the exact authored fence, language, info string and line endings", () => {
+  const source = "~~~~typescript title=\"demo\"\r\nconst value = 1;\r\n~~~~";
+  const annotated = annotateMarkdownSourceUnits(parseRichTextDocument(source, POLICY), source);
+  const pre = elements(annotated, "pre")[0];
+  const authored = pre ? sourceSlice(pre, source) : undefined;
+
+  assert.equal(authored, source);
+  assert.equal(codeBlockClipboardText("const value = 1;", authored), source);
+  assert.equal(codeBlockClipboardText("const value = 1;"), "const value = 1;");
+});
+
+test("source annotation tolerates generated nodes with partial positions", () => {
+  const source = "正文";
+  const document = {
+    type: "root",
+    children: [{
+      type: "element",
+      tagName: "span",
+      properties: {},
+      children: [{ type: "text", value: source }],
+      position: {
+        start: { line: 1, column: 1 },
+        end: { line: 1, column: 3 },
+      },
+    }],
+  } as Root;
+
+  assert.doesNotThrow(() => annotateMarkdownSourceUnits(document, source));
+  assert.deepEqual(document.children[0]?.type === "element" ? document.children[0].properties : {}, {});
 });
 
 function elements(root: Root, tagName: string): Element[] {
@@ -91,6 +203,24 @@ function elementsWithClass(root: Root, className: string): Element[] {
     ) values.push(node);
   });
   return values;
+}
+
+function sourceSlices(root: Root, source: string, property: string): string[] {
+  const values: string[] = [];
+  visit(root, (node) => {
+    if (node.type !== "element" || !node.properties[property]) return;
+    const value = sourceSlice(node, source);
+    if (value !== undefined) values.push(value);
+  });
+  return values;
+}
+
+function sourceSlice(node: Element, source: string): string | undefined {
+  const start = Number(node.properties["data-md-source-start"]);
+  const end = Number(node.properties["data-md-source-end"]);
+  return Number.isSafeInteger(start) && Number.isSafeInteger(end)
+    ? source.slice(start, end)
+    : undefined;
 }
 
 function textOutsideMath(root: Root): string {

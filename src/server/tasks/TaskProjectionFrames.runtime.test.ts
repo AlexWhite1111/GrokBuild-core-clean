@@ -35,13 +35,22 @@ test("official streaming chunks publish ordered deltas from the first new messag
   const second = notify("B");
   const streamingFrame = projection.frame(second.projectionChange);
 
-  assert.equal(first.projectionChange, "delta");
-  assert.equal(second.projectionChange, "delta");
-  assert.equal(initialFrame.kind, "delta");
-  assert.equal(streamingFrame.kind, "delta");
-  if (initialFrame.kind !== "delta" || streamingFrame.kind !== "delta") return;
-  assert.equal(initialFrame.messages[0]?.message.text, "A");
-  assert.equal(streamingFrame.messages[0]?.message.text, "AB");
+  assert.equal(first.projectionChange, "text");
+  assert.equal(second.projectionChange, "text");
+  assert.equal(initialFrame.kind, "text-delta");
+  assert.equal(streamingFrame.kind, "text-delta");
+  if (initialFrame.kind !== "text-delta" || streamingFrame.kind !== "text-delta") return;
+  assert.equal(initialFrame.messages[0]?.kind, "replace");
+  assert.equal(initialFrame.messages[0]?.kind === "replace"
+    ? initialFrame.messages[0].message.text
+    : null, "A");
+  assert.equal(streamingFrame.messages[0]?.kind, "append");
+  assert.equal(streamingFrame.messages[0]?.kind === "append"
+    ? streamingFrame.messages[0].previousTextLength
+    : null, 1);
+  assert.equal(streamingFrame.messages[0]?.kind === "append"
+    ? streamingFrame.messages[0].appendText
+    : null, "B");
   assert.equal(streamingFrame.messageCount, 1);
   assert.equal(streamingFrame.messages[0]?.index, 0);
   assert.equal(streamingFrame.snapshot.revision, snapshot.revision);
@@ -49,14 +58,64 @@ test("official streaming chunks publish ordered deltas from the first new messag
   assert.equal("context" in streamingFrame, false);
 });
 
+test("a long streaming answer transports only its new official tail after the first frame", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-projection-tail-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const snapshot = createTaskSnapshotFixture("project-fixture");
+  snapshot.commands.available = Array.from({ length: 200 }, (_, index) => ({
+    name: `command-${index}`,
+    description: `UNCHANGED_COMMAND_REGISTRY:${"z".repeat(200)}`,
+    inputHint: null,
+  }));
+  const projection = new TaskRuntimeProjection(
+    snapshot,
+    new JsonStateStore(path.join(root, "state.json")),
+    {},
+  );
+  const notify = (text: string) => projection.applyNotification({
+    kind: "acp",
+    turnId: "turn-long",
+    params: {
+      sessionId: snapshot.sessionId,
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        messageId: "official-long-message",
+        content: { type: "text", text },
+      },
+    },
+  });
+  const prefix = `PREFIX_MARKER:${"x".repeat(128 * 1_024)}`;
+  projection.frame(notify(prefix).projectionChange);
+
+  const frame = projection.frame(notify("OFFICIAL_TAIL").projectionChange);
+  const serialized = JSON.stringify(frame);
+
+  assert.equal(frame.kind, "text-delta");
+  if (frame.kind !== "text-delta") return;
+  assert.equal(frame.messages[0]?.kind, "append");
+  assert.equal(frame.messages[0]?.kind === "append"
+    ? frame.messages[0].previousTextLength
+    : null, prefix.length);
+  assert.equal(frame.messages[0]?.kind === "append"
+    ? frame.messages[0].appendText
+    : null, "OFFICIAL_TAIL");
+  assert.equal(serialized.includes("PREFIX_MARKER"), false);
+  assert.equal(serialized.includes("UNCHANGED_COMMAND_REGISTRY"), false);
+  assert.ok(serialized.length < 10_000, `${serialized.length} bytes`);
+});
+
 test("projection frame coalescing keeps all official notification mixes incremental", () => {
   assert.equal(mergeTaskProjectionChange(null, "delta"), "delta");
   assert.equal(mergeTaskProjectionChange("delta", "delta"), "delta");
+  assert.equal(mergeTaskProjectionChange(null, "text"), "text");
+  assert.equal(mergeTaskProjectionChange("text", "text"), "text");
+  assert.equal(mergeTaskProjectionChange("text", "delta"), "delta");
+  assert.equal(mergeTaskProjectionChange("delta", "text"), "delta");
   assert.equal(mergeTaskProjectionChange("delta"), "snapshot");
   assert.equal(mergeTaskProjectionChange("snapshot", "delta"), "snapshot");
 });
 
-test("live Web Search updates carry the query from the same official Session", (t) => {
+test("live Web Search completion carries its own official query before history catches up", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-projection-web-search-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const snapshot = createTaskSnapshotFixture("project-fixture");
@@ -64,7 +123,7 @@ test("live Web Search updates carry the query from the same official Session", (
   const projection = new TaskRuntimeProjection(
     snapshot,
     new JsonStateStore(path.join(root, "state.json")),
-    { officialWebSearchQuery: (toolCallId) => toolCallId === "ws-1" ? query : undefined },
+    {},
   );
 
   projection.applyNotification({
@@ -73,15 +132,55 @@ test("live Web Search updates carry the query from the same official Session", (
     params: {
       sessionId: snapshot.sessionId,
       update: {
-        sessionUpdate: "tool_call",
+        sessionUpdate: "tool_call_update",
         toolCallId: "ws-1",
         title: "Web search:",
-        rawInput: { variant: "WebSearch", backend: true },
+        status: "completed",
+        rawOutput: {
+          action: { type: "search", query, sources: [] },
+          id: "ws-1",
+          status: "completed",
+        },
       },
     },
   });
 
   assert.equal(projection.detail().events[0]?.payload.query, query);
+});
+
+test("an identical command registry snapshot does not create another projection frame", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-projection-commands-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const snapshot = createTaskSnapshotFixture("project-fixture");
+  const projection = new TaskRuntimeProjection(
+    snapshot,
+    new JsonStateStore(path.join(root, "state.json")),
+    {},
+  );
+  const params = {
+    sessionId: snapshot.sessionId,
+    update: {
+      sessionUpdate: "available_commands_update",
+      availableCommands: [{
+        name: "search",
+        description: "Search the official Session",
+        input: { hint: "query" },
+      }],
+    },
+  };
+
+  const first = projection.applyNotification({ kind: "acp", turnId: null, params });
+  const revision = snapshot.revision;
+  const second = projection.applyNotification({
+    kind: "acp",
+    turnId: null,
+    params: structuredClone(params),
+  });
+
+  assert.equal(first.projectionChanged, true);
+  assert.equal(second.projectionChanged, false);
+  assert.equal(snapshot.revision, revision);
+  assert.equal(projection.detail().events.length, 1);
 });
 
 test("one refresh window can carry multiple changed message identities without a snapshot", (t) => {
@@ -109,15 +208,17 @@ test("one refresh window can carry multiple changed message identities without a
 
   const assistant = notify("agent_message_chunk", "assistant", "A");
   const thought = notify("agent_thought_chunk", "thought", "B");
-  const frame = projection.frame(mergeTaskProjectionChange(
+  const merged = mergeTaskProjectionChange(
     assistant.projectionChange,
     thought.projectionChange,
-  ) === "snapshot" ? undefined : "delta");
+  );
+  const frame = projection.frame(merged === "snapshot" ? undefined : merged);
 
-  assert.equal(frame.kind, "delta");
-  if (frame.kind !== "delta") return;
+  assert.equal(frame.kind, "text-delta");
+  if (frame.kind !== "text-delta") return;
   assert.equal(frame.messages.length, 2);
-  assert.deepEqual(frame.messages.map((entry) => entry.message.text), ["A", "B"]);
+  assert.deepEqual(frame.messages.map((entry) =>
+    entry.kind === "replace" ? entry.message.text : entry.appendText), ["A", "B"]);
 });
 
 test("repeated subagent phase updates coalesce to one latest event row in the same delta", (t) => {

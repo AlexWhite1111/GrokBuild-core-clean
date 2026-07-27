@@ -4,12 +4,14 @@ import type { TaskDetailProjection, TaskProjectionFrame, WorkspaceProjection } f
 import { createTaskSnapshotFixture } from "../../shared/taskTestFixtures.js";
 import { applyTaskDetailToWorkspace, applyTaskProjectionFrame } from "./taskProjectionFrame.js";
 
+type DeltaFrame = Extract<TaskProjectionFrame, { kind: "delta" }>;
+
 test("delta frames replace only changed projection rows and preserve unchanged history references", () => {
   const current = detailFixture();
   const firstMessage = current.messages[0];
   const events = current.events;
   const context = { currentTodo: null, activeWork: [], history: [] };
-  const frame: TaskProjectionFrame = {
+  const frame: DeltaFrame = {
     kind: "delta",
     snapshot: {
       ...current.snapshot,
@@ -18,7 +20,7 @@ test("delta frames replace only changed projection rows and preserve unchanged h
     },
     context,
     messageCount: 2,
-    messages: [{ index: 1, message: { ...current.messages[1], text: "AB" } }],
+    messages: [{ index: 1, kind: "replace", message: { ...current.messages[1], text: "AB" } }],
     eventCount: 0,
     events: [],
   };
@@ -47,6 +49,7 @@ test("a text-only delta preserves the existing operational context reference", (
     messageCount: current.messages.length,
     messages: [{
       index: 1,
+      kind: "replace",
       message: { ...current.messages[1], text: "AB" },
     }],
     eventCount: current.events.length,
@@ -55,6 +58,66 @@ test("a text-only delta preserves the existing operational context reference", (
 
   assert.equal(applied.accepted, true);
   assert.equal(applied.detail?.context, current.context);
+});
+
+test("an append delta reconstructs the exact official text without retransmitting its prefix", () => {
+  const current = detailFixture();
+  const previous = current.messages[1];
+  const { text: _text, ...metadata } = previous;
+  const applied = applyTaskProjectionFrame(current, {
+    kind: "text-delta",
+    snapshot: {
+      taskId: current.snapshot.taskId,
+      projectionEpoch: current.snapshot.projectionEpoch,
+      revision: current.snapshot.revision + 1,
+      updatedAt: "2026-07-20T00:00:01.000Z",
+    },
+    messageCount: current.messages.length,
+    messages: [{
+      index: 1,
+      kind: "append",
+      previousTextLength: previous.text.length,
+      appendText: "BC",
+      message: { ...metadata, streaming: true },
+    }],
+    eventCount: current.events.length,
+    events: [],
+  });
+
+  assert.equal(applied.synchronized, true);
+  assert.equal(applied.accepted, true);
+  assert.equal(applied.detail?.messages[1]?.text, "ABC");
+  assert.equal(applied.detail?.messages[1]?.streaming, true);
+  assert.equal(applied.detail?.snapshot.commands, current.snapshot.commands);
+  assert.equal(applied.detail?.snapshot.permission, current.snapshot.permission);
+  assert.equal(applied.detail?.snapshot.revision, current.snapshot.revision + 1);
+});
+
+test("an append delta with a missing predecessor requests authoritative resynchronization", () => {
+  const current = detailFixture();
+  const previous = current.messages[1];
+  const { text: _text, ...metadata } = previous;
+  const applied = applyTaskProjectionFrame(current, {
+    kind: "delta",
+    snapshot: {
+      ...current.snapshot,
+      revision: current.snapshot.revision + 1,
+    },
+    messageCount: current.messages.length,
+    messages: [{
+      index: 1,
+      kind: "append",
+      previousTextLength: previous.text.length + 1,
+      appendText: "BC",
+      message: metadata,
+    }],
+    eventCount: current.events.length,
+    events: [],
+  });
+
+  assert.equal(applied.synchronized, false);
+  assert.equal(applied.accepted, false);
+  assert.equal(applied.detail, current);
 });
 
 test("delta frames append complete new rows without retransmitting existing history", () => {
@@ -83,7 +146,7 @@ test("delta frames append complete new rows without retransmitting existing hist
     snapshot: { ...current.snapshot, revision: current.snapshot.revision + 1 },
     context: current.context,
     messageCount: 3,
-    messages: [{ index: 2, message }],
+    messages: [{ index: 2, kind: "replace", message }],
     eventCount: 1,
     events: [{ index: 0, event }],
   });
@@ -98,7 +161,7 @@ test("delta frames append complete new rows without retransmitting existing hist
 test("delta frames reject gaps, identity drift and new epochs while stale frames never roll back", () => {
   const current = detailFixture();
   current.snapshot.revision = 5;
-  const mismatched: TaskProjectionFrame = {
+  const mismatched: DeltaFrame = {
     kind: "delta",
     snapshot: {
       ...current.snapshot,
@@ -106,11 +169,11 @@ test("delta frames reject gaps, identity drift and new epochs while stale frames
     },
     context: current.context,
     messageCount: 4,
-    messages: [{ index: 3, message: { ...current.messages[1], blockId: "gap", text: "new" } }],
+    messages: [{ index: 3, kind: "replace", message: { ...current.messages[1], blockId: "gap", text: "new" } }],
     eventCount: 0,
     events: [],
   };
-  const stale: TaskProjectionFrame = {
+  const stale: DeltaFrame = {
     ...mismatched,
     snapshot: { ...mismatched.snapshot, revision: 4 },
   };
@@ -124,7 +187,7 @@ test("delta frames reject gaps, identity drift and new epochs while stale frames
     ...mismatched,
     snapshot: { ...mismatched.snapshot, projectionEpoch: "runtime:new" },
     messageCount: 2,
-    messages: [{ index: 1, message: { ...current.messages[1], text: "new" } }],
+    messages: [{ index: 1, kind: "replace", message: { ...current.messages[1], text: "new" } }],
   });
   assert.equal(newEpoch.synchronized, false);
   assert.equal(newEpoch.detail, current);
@@ -132,7 +195,7 @@ test("delta frames reject gaps, identity drift and new epochs while stale frames
   const identityDrift = applyTaskProjectionFrame(current, {
     ...mismatched,
     messageCount: 2,
-    messages: [{ index: 1, message: { ...current.messages[1], blockId: "different" } }],
+    messages: [{ index: 1, kind: "replace", message: { ...current.messages[1], blockId: "different" } }],
   });
   assert.equal(identityDrift.synchronized, false);
   assert.equal(identityDrift.detail, current);
@@ -162,6 +225,19 @@ test("an accepted terminal snapshot synchronizes the matching sidebar task immed
   assert.equal(task?.naturalStatus, "已就绪");
   assert.equal(task?.hasUserTurn, true);
   assert.equal(task?.updatedAt, detail.snapshot.updatedAt);
+});
+
+test("a text-only timestamp does not fan out into the workspace task list", () => {
+  const workspace = workspaceFixture();
+  workspace.tasks[0].hasUserTurn = true;
+  const detail = detailFixture();
+  detail.snapshot.updatedAt = "2026-07-20T00:00:05.000Z";
+
+  const next = applyTaskDetailToWorkspace(workspace, detail);
+
+  assert.equal(next, workspace);
+  assert.equal(next?.tasks, workspace.tasks);
+  assert.equal(next?.tasks[0], workspace.tasks[0]);
 });
 
 function detailFixture(): TaskDetailProjection {

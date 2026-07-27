@@ -1,19 +1,10 @@
 import {
+  eventAffectsTaskContextOutsideWork,
   projectTaskOperationalContext,
+  TaskWorkEventAdmission,
   type TaskEventEnvelope,
   type TaskOperationalContextSnapshot,
 } from "../../shared/contracts.js";
-import { isSessionTextEventMethod } from "./taskTextUpdates.js";
-
-const PARENT_TEXT_METHODS = new Set([
-  "session/update:agent_message_chunk",
-  "session/update:agent_thought_chunk",
-  "session/update:user_message_chunk",
-  "task/user_message",
-  "task/user_message_delivery",
-  "task/user_message_dispatched",
-  "task/user_message_protocol",
-]);
 
 /**
  * Keeps a sparse semantic event stream and only invokes the compatibility
@@ -22,6 +13,7 @@ const PARENT_TEXT_METHODS = new Set([
  */
 export class TaskOperationalContextReducer {
   readonly #events: TaskEventEnvelope[] = [];
+  readonly #workAdmission = new TaskWorkEventAdmission();
   #snapshot: TaskOperationalContextSnapshot = emptyContext();
   #dirty = false;
   #recomputeCount = 0;
@@ -34,8 +26,9 @@ export class TaskOperationalContextReducer {
     return this.#recomputeCount;
   }
 
-  observe(event: TaskEventEnvelope): boolean {
-    if (!affectsOperationalContext(event)) return false;
+  observe(event: TaskEventEnvelope, admittedWork?: boolean): boolean {
+    const affectsWork = admittedWork ?? this.#workAdmission.observe(event);
+    if (!affectsWork && !eventAffectsTaskContextOutsideWork(event)) return false;
     this.#events.push(sparseEvent(event));
     this.#dirty = true;
     return true;
@@ -43,8 +36,12 @@ export class TaskOperationalContextReducer {
 
   restore(events: readonly TaskEventEnvelope[]): void {
     this.#events.length = 0;
+    this.#workAdmission.reset();
     for (const event of events) {
-      if (affectsOperationalContext(event)) this.#events.push(sparseEvent(event));
+      const affectsWork = this.#workAdmission.observe(event);
+      if (affectsWork || eventAffectsTaskContextOutsideWork(event)) {
+        this.#events.push(sparseEvent(event));
+      }
     }
     this.#snapshot = projectTaskOperationalContext(this.#events);
     this.#dirty = false;
@@ -58,11 +55,6 @@ export class TaskOperationalContextReducer {
     this.#recomputeCount += 1;
     return this.#snapshot;
   }
-}
-
-function affectsOperationalContext(event: TaskEventEnvelope): boolean {
-  return !PARENT_TEXT_METHODS.has(event.method)
-    && !isSessionTextEventMethod(event.method);
 }
 
 function sparseEvent(event: TaskEventEnvelope): TaskEventEnvelope {
