@@ -23,9 +23,15 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const [removeProject, setRemoveProject] = useState<{ projectId: string; name: string } | null>(null);
   const [workspaceDropActive, setWorkspaceDropActive] = useState(false);
   const [workspaceDropError, setWorkspaceDropError] = useState<string | null>(null);
-  const visibleProjects = workspace.projects.filter((project) => `${project.name} ${project.displayPath}`.toLowerCase().includes(projectQuery.toLowerCase()));
+  const visibleProjects = useMemo(
+    () => workspace.projects.filter((project) => `${project.name} ${project.displayPath}`.toLowerCase().includes(projectQuery.toLowerCase())),
+    [projectQuery, workspace.projects],
+  );
   const projectTasks = useMemo(() => workspace.tasks.filter((task) => task.projectId === activeProject?.projectId), [activeProject?.projectId, workspace.tasks]);
-  const attention = workspace.tasks.filter((task) => task.needsAttention).length;
+  const attention = useMemo(
+    () => workspace.tasks.filter((task) => task.needsAttention).length,
+    [workspace.tasks],
+  );
   const lanShare = useLanShare();
   useEffect(() => { void window.grokDesktop?.setAttentionCount(attention); }, [attention]);
   const acceptsFinderDrop = (event: DragEvent) => Array.from(event.dataTransfer.types).includes("Files");

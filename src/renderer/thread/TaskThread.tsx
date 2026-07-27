@@ -17,6 +17,7 @@ import { ConversationForkIcon } from "./ConversationForkIcon.js";
 import {
   createThreadScrollAnchor,
   resolveThreadScrollAnchorIndex,
+  sameThreadScrollAnchor,
   threadAtBottom,
   threadFollowAfterScroll,
   threadLatestControl,
@@ -36,6 +37,7 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   const anchorTimer = useRef<number | null>(null);
   const restoreFrame = useRef<number | null>(null);
   const pendingAnchor = useRef<{ taskId: string; value: TaskScrollAnchor } | null>(null);
+  const submittedAnchor = useRef<TaskScrollAnchor | null>(null);
   const restoring = useRef(true);
   const followLatest = useRef(true);
   const previousScrollTop = useRef(0);
@@ -77,7 +79,16 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     const pending = pendingAnchor.current;
     if (!pending || !persistScroll) return;
     pendingAnchor.current = null;
-    void api.post(`/ui/tasks/${pending.taskId}`, { requestId: crypto.randomUUID(), scrollAnchor: pending.value }).catch(() => undefined);
+    if (sameThreadScrollAnchor(submittedAnchor.current, pending.value)) return;
+    submittedAnchor.current = pending.value;
+    void api.post(`/ui/tasks/${pending.taskId}`, {
+      requestId: crypto.randomUUID(),
+      scrollAnchor: pending.value,
+    }).catch(() => {
+      if (sameThreadScrollAnchor(submittedAnchor.current, pending.value)) {
+        submittedAnchor.current = null;
+      }
+    });
   }, [api, persistScroll]);
   useLayoutEffect(() => {
     const element = parent.current;
@@ -94,6 +105,7 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     restoring.current = true;
     followLatest.current = true;
     previousScrollTop.current = 0;
+    submittedAnchor.current = null;
     setSavedState(null);
     setAtBottom(true);
     if (!persistScroll) {
@@ -102,6 +114,7 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     }
     void api.get<TaskUiState>(`/ui/tasks/${detail.snapshot.taskId}`).then((state) => {
       if (!current) return;
+      submittedAnchor.current = state.scrollAnchor;
       setSavedState({ taskId: detail.snapshot.taskId, value: state });
     }).catch(() => {
       if (!current) return;
@@ -186,6 +199,7 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     const visible = virtualizer.getVirtualItems().find((row) => row.end > element.scrollTop + 1) || virtualizer.getVirtualItems()[0];
     if (visible) {
       const scrollAnchor = createThreadScrollAnchor(items, visible.index, element.scrollTop, visible.start, followLatest.current);
+      if (sameThreadScrollAnchor(submittedAnchor.current, scrollAnchor)) return;
       pendingAnchor.current = { taskId: detail.snapshot.taskId, value: scrollAnchor };
       if (anchorTimer.current != null) window.clearTimeout(anchorTimer.current);
       anchorTimer.current = window.setTimeout(persistPendingAnchor, 240);

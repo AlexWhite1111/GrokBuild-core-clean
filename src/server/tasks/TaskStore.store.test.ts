@@ -386,7 +386,39 @@ test("TaskStore joins backend Web Search queries onto official tool updates", (t
 
   assert.equal(detail?.events.length, 2);
   assert.deepEqual(detail?.events.map((event) => event.payload.query), [query, query]);
-  assert.equal(store.officialWebSearchQuery(sessionId, toolCallId), query);
+});
+
+test("TaskStore restores one event for repeated identical command registries", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-command-registry-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const projectPath = path.join(root, "project");
+  const grokHome = path.join(root, ".grok");
+  const sessionId = "019f0000-0000-7000-8000-000000000004";
+  const sessionPath = path.join(grokHome, "sessions", encodeURIComponent(projectPath), sessionId);
+  const startedAt = Date.parse("2026-07-27T00:00:00.000Z");
+  fs.mkdirSync(projectPath);
+  fs.mkdirSync(sessionPath, { recursive: true });
+  fs.writeFileSync(path.join(sessionPath, "summary.json"), JSON.stringify({
+    info: { id: sessionId, cwd: projectPath },
+    generated_title: "Official command registry",
+    created_at: new Date(startedAt).toISOString(),
+  }));
+  fs.writeFileSync(path.join(sessionPath, "chat_history.jsonl"), "");
+  const commands = [{ name: "search", description: "Search", input: { hint: "query" } }];
+  fs.writeFileSync(path.join(sessionPath, "updates.jsonl"), [
+    officialUpdate(sessionId, startedAt, "available_commands_update", { availableCommands: commands }),
+    officialUpdate(sessionId, startedAt + 1_000, "available_commands_update", { availableCommands: structuredClone(commands) }),
+  ].join("\n"));
+
+  const state = new JsonStateStore(path.join(root, "state.json"));
+  const projects = new ProjectStore(state);
+  projects.addProject(projectPath);
+  const detail = new TaskStore(grokHome, "native", projects, state).readDetail(sessionId);
+
+  assert.deepEqual(detail?.events.map((event) => event.method), [
+    "session/update:available_commands_update",
+  ]);
+  assert.deepEqual(detail?.snapshot.commands.available, []);
 });
 
 test("unloaded projection restores Todo, partial tools, and official child sessions", (t) => {

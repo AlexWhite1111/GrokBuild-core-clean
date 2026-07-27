@@ -1,4 +1,10 @@
-import type { TaskDetailProjection, TaskProjectionFrame, WorkspaceProjection } from "../../shared/contracts.js";
+import type {
+  TaskDetailProjection,
+  TaskMessageBlock,
+  TaskProjectionFrame,
+  TaskProjectionMessagePatch,
+  WorkspaceProjection,
+} from "../../shared/contracts.js";
 import { projectTaskListRuntime } from "../../shared/taskExecutionStatus.js";
 import { shouldApplyTaskProjection } from "./taskProjectionVersion.js";
 
@@ -31,12 +37,10 @@ export function applyTaskProjectionFrame(
   ) {
     return { detail: current, synchronized: false, structural: false, accepted: false };
   }
-  const messages = applyIndexedChanges(
+  const messages = applyMessageChanges(
     current.messages,
     frame.messageCount,
     frame.messages,
-    (entry) => `${entry.turnId}\u0000${entry.blockId}`,
-    (entry) => entry.message,
   );
   const events = applyIndexedChanges(
     current.events,
@@ -48,12 +52,17 @@ export function applyTaskProjectionFrame(
   if (!messages || !events) {
     return { detail: current, synchronized: false, structural: false, accepted: false };
   }
+  const snapshot = frame.kind === "text-delta"
+    ? { ...current.snapshot, ...frame.snapshot }
+    : frame.snapshot;
   return {
     detail: {
-      snapshot: frame.snapshot,
+      snapshot,
       messages,
       events,
-      context: frame.context ?? current.context,
+      context: frame.kind === "delta"
+        ? frame.context ?? current.context
+        : current.context,
     },
     synchronized: true,
     structural:
@@ -61,6 +70,51 @@ export function applyTaskProjectionFrame(
       || events.length !== current.events.length,
     accepted: true,
   };
+}
+
+function applyMessageChanges(
+  current: TaskMessageBlock[],
+  targetCount: number,
+  patches: TaskProjectionMessagePatch[],
+): TaskMessageBlock[] | null {
+  if (!Number.isSafeInteger(targetCount) || targetCount < current.length) return null;
+  if (!patches.length) return targetCount === current.length ? current : null;
+  const next = current.slice();
+  const indexes = new Set<number>();
+  for (const patch of [...patches].sort((left, right) => left.index - right.index)) {
+    if (
+      !Number.isSafeInteger(patch.index)
+      || patch.index < 0
+      || patch.index >= targetCount
+      || indexes.has(patch.index)
+    ) return null;
+    indexes.add(patch.index);
+    if (patch.kind === "append") {
+      if (patch.index >= current.length) return null;
+      const previous = current[patch.index];
+      if (
+        messageIdentity(previous) !== messageIdentity(patch.message)
+        || previous.text.length !== patch.previousTextLength
+      ) return null;
+      next[patch.index] = {
+        ...patch.message,
+        text: previous.text + patch.appendText,
+      };
+      continue;
+    }
+    if (patch.index < current.length) {
+      if (messageIdentity(current[patch.index]) !== messageIdentity(patch.message)) return null;
+      next[patch.index] = patch.message;
+      continue;
+    }
+    if (patch.index !== next.length) return null;
+    next.push(patch.message);
+  }
+  return next.length === targetCount ? next : null;
+}
+
+function messageIdentity(message: Pick<TaskMessageBlock, "turnId" | "blockId">): string {
+  return `${message.turnId}\u0000${message.blockId}`;
 }
 
 function applyIndexedChanges<T, P extends { index: number }>(
@@ -118,7 +172,6 @@ export function applyTaskDetailToWorkspace(
       && task.needsAttention === runtime.needsAttention
       && task.agentState === runtime.agentState
       && task.naturalStatus === runtime.naturalStatus
-      && task.updatedAt === runtime.updatedAt
     ) return task;
     changed = true;
     return { ...task, ...runtime, hasUserTurn };

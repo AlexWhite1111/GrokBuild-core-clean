@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -9,7 +9,7 @@ import { Control, FormDialog, MenuContent, MenuItem, MenuRoot, MenuSeparator, Me
 import { TaskInfoDialog } from "./TaskInfoDialog.js";
 import styles from "./Sidebar.module.css";
 
-export function TaskRow({ task, project }: { task: TaskListItem; project: WorkspaceProjection["projects"][number] }) {
+function TaskRowComponent({ task, project }: { task: TaskListItem; project: WorkspaceProjection["projects"][number] }) {
   const { t, i18n } = useTranslation();
   const { api } = useBootstrap();
   const client = useQueryClient();
@@ -60,6 +60,8 @@ export function TaskRow({ task, project }: { task: TaskListItem; project: Worksp
   </>;
 }
 
+export const TaskRow = memo(TaskRowComponent);
+
 function download(fileName: string, content: string): void {
   const url = URL.createObjectURL(new Blob([content], { type: "text/markdown" }));
   const link = document.createElement("a");
@@ -70,12 +72,17 @@ function download(fileName: string, content: string): void {
 }
 function relativeTime(value: string, locale: string): string {
   const seconds = Math.max(0, Math.round((Date.now() - Date.parse(value)) / 1000));
-  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  let formatter = relativeTimeFormatters.get(locale);
+  if (!formatter) {
+    formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+    relativeTimeFormatters.set(locale, formatter);
+  }
   if (seconds < 60) return formatter.format(-seconds, "second");
   if (seconds < 3600) return formatter.format(-Math.floor(seconds / 60), "minute");
   if (seconds < 86_400) return formatter.format(-Math.floor(seconds / 3600), "hour");
   return new Date(value).toLocaleDateString();
 }
+const relativeTimeFormatters = new Map<string, Intl.RelativeTimeFormat>();
 function taskStateLabel(state: TaskListItem["agentState"], t: (key: string) => string): string {
   return t(`taskState${state[0].toUpperCase()}${state.slice(1)}`);
 }

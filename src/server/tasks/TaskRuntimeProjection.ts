@@ -9,6 +9,7 @@ import type {
   TaskMessageBlock,
   TaskOperationalContextSnapshot,
   TaskProjectionFrame,
+  TaskProjectionMessagePatch,
   TaskSnapshot,
 } from "../../shared/contracts.js";
 import {
@@ -23,7 +24,7 @@ import { TaskSemanticProjection } from "./TaskSemanticProjection.js";
 import { TaskRuntimeTranscript } from "./TaskRuntimeTranscript.js";
 import type { TaskStoredTimelineItem, TaskStoreScope } from "./TaskStore.js";
 import { canTransitionDelivery, promptFingerprint } from "./taskDelivery.js";
-import { asRecord, readMeta, safeSessionUpdate, string, withOfficialWebSearchQuery } from "./taskEventSanitizers.js";
+import { asRecord, normalizeOfficialSessionUpdate, readMeta, string } from "./taskEventSanitizers.js";
 import { mediaForSessionUpdate, type ProjectionMediaContext } from "./taskMediaProjection.js";
 import { isSessionTextUpdate } from "./taskTextUpdates.js";
 
@@ -67,9 +68,19 @@ export interface TaskRuntimeNotificationResult {
   acceptedRequestIds: string[];
   refreshContextWindow: boolean;
   projectionChange: TaskProjectionChange;
+  projectionChanged: boolean;
 }
 
-export type TaskProjectionChange = "delta";
+export type TaskProjectionChange = "delta" | "text";
+
+type ChangedMessageIdentity = {
+  turnId: string;
+  blockId: string;
+  append: {
+    previousTextLength: number;
+    text: string;
+  } | null;
+};
 
 interface TaskRuntimeProjectionOptions {
   media?: ProjectionMediaContext;
@@ -77,7 +88,6 @@ interface TaskRuntimeProjectionOptions {
   readChild?(sessionId: string): TaskDetailProjection | null;
   pinned?: boolean;
   notify?(taskId: string, notification: TaskNotificationIntent): void;
-  officialWebSearchQuery?(toolCallId: string): string | undefined;
 }
 
 /**
@@ -92,13 +102,12 @@ export class TaskRuntimeProjection {
   readonly #timeline = new Map<string, TaskStoredTimelineItem>();
   readonly #timelineIndices = new Map<string, number>();
   readonly #timelineOrdinals = new Map<string, number>();
-  readonly #changedMessages = new Map<string, { turnId: string; blockId: string }>();
+  readonly #changedMessages = new Map<string, ChangedMessageIdentity>();
   readonly #changedTimelineIds = new Set<string>();
   readonly #officialEventIds = new Set<string>();
   readonly #media?: ProjectionMediaContext;
   readonly #readChild?: TaskRuntimeProjectionOptions["readChild"];
   readonly #notify?: TaskRuntimeProjectionOptions["notify"];
-  readonly #officialWebSearchQuery?: TaskRuntimeProjectionOptions["officialWebSearchQuery"];
   readonly #dispatchedFingerprints = new Map<string, string>();
   #context: TaskOperationalContextSnapshot;
   #contextChanged = false;
@@ -115,7 +124,6 @@ export class TaskRuntimeProjection {
     this.#media = options.media;
     this.#readChild = options.readChild;
     this.#notify = options.notify;
-    this.#officialWebSearchQuery = options.officialWebSearchQuery;
     const restored = options.restored;
     this.#restoredOfficialHistory = Boolean(
       restored?.events.length
@@ -163,12 +171,33 @@ export class TaskRuntimeProjection {
   }
 
   frame(change?: TaskProjectionChange): TaskProjectionFrame {
-    if (change === "delta") {
-      const messages = [...this.#changedMessages.values()].flatMap((identity) => {
-        const index = this.messages.findIndex((message) =>
-          message.turnId === identity.turnId && message.blockId === identity.blockId);
-        return index < 0 ? [] : [{ index, message: structuredClone(this.messages[index]) }];
-      }).sort((left, right) => left.index - right.index);
+    if (change === "delta" || change === "text") {
+      const messages: TaskProjectionMessagePatch[] = [...this.#changedMessages.values()].flatMap(
+        (identity): TaskProjectionMessagePatch[] => {
+          const index = this.messages.findIndex((message) =>
+            message.turnId === identity.turnId && message.blockId === identity.blockId);
+          if (index < 0) return [];
+          const message = this.messages[index];
+          if (
+            identity.append
+            && message.text.length === identity.append.previousTextLength + identity.append.text.length
+          ) {
+            const { text: _text, ...metadata } = message;
+            return [{
+              index,
+              kind: "append" as const,
+              previousTextLength: identity.append.previousTextLength,
+              appendText: identity.append.text,
+              message: structuredClone(metadata),
+            }];
+          }
+          return [{
+            index,
+            kind: "replace" as const,
+            message: structuredClone(message),
+          }];
+        },
+      ).sort((left, right) => left.index - right.index);
       const events = [...this.#changedTimelineIds].flatMap((itemId) => {
         const index = this.#timelineIndices.get(itemId);
         const item = this.#timeline.get(itemId);
@@ -176,15 +205,29 @@ export class TaskRuntimeProjection {
           ? []
           : [{ index, event: structuredClone(item.event) }];
       }).sort((left, right) => left.index - right.index);
-      const frame: TaskProjectionFrame = {
-        kind: "delta",
-        snapshot: structuredClone(this.snapshot),
-        ...(this.#contextChanged ? { context: structuredClone(this.#context) } : {}),
+      const rows = {
         messageCount: this.messages.length,
         messages,
         eventCount: this.#timeline.size,
         events,
       };
+      const frame: TaskProjectionFrame = change === "text" && !this.#contextChanged
+        ? {
+            kind: "text-delta",
+            snapshot: {
+              taskId: this.snapshot.taskId,
+              projectionEpoch: this.snapshot.projectionEpoch,
+              revision: this.snapshot.revision,
+              updatedAt: this.snapshot.updatedAt,
+            },
+            ...rows,
+          }
+        : {
+            kind: "delta",
+            snapshot: structuredClone(this.snapshot),
+            ...(this.#contextChanged ? { context: structuredClone(this.#context) } : {}),
+            ...rows,
+          };
       this.#clearFrameChanges();
       return frame;
     }
@@ -412,14 +455,16 @@ export class TaskRuntimeProjection {
   #applyAcp(params: unknown, turnId: string | null, userEcho?: PromptEchoIdentity): TaskRuntimeNotificationResult {
     const record = asRecord(params);
     const originalUpdate = asRecord(record.update);
-    const toolCallId = string(originalUpdate.toolCallId);
-    const update = withOfficialWebSearchQuery(
+    // Live ACP packets are already the authoritative Session stream. In
+    // particular, completed Web Search packets carry action.query themselves;
+    // consulting on-disk history here would synchronously rescan every Session
+    // on the hottest notification path.
+    const normalized = normalizeOfficialSessionUpdate(
       originalUpdate,
-      toolCallId ? this.#officialWebSearchQuery?.(toolCallId) : undefined,
+      readMeta(record),
     );
+    const { update, updateType, payload: safePayload } = normalized;
     const enrichedParams = update === originalUpdate ? params : { ...record, update };
-    const updateType = string(update.sessionUpdate) || "unknown";
-    const safePayload = safeSessionUpdate(update, readMeta(record));
     const replay = this.#transcript.isReplayUpdate(updateType, REPLAY_TURN_UPDATES);
     const effectiveTurn = replay
       ? this.#transcript.turnForReplay(updateType, this.#connectionEpoch, safePayload)
@@ -429,7 +474,7 @@ export class TaskRuntimeProjection {
       updateType,
       REPLAY_TURN_UPDATES,
       STATIC_TRANSCRIPT_UPDATES,
-    )) return result();
+    )) return result({ projectionChanged: false });
     const structuredMedia = mediaForSessionUpdate(this.#media, this.snapshot.taskId, updateType, update);
     if (structuredMedia.length) safePayload.media = structuredMedia;
     const event = this.#transientEvent("acp", `session/update:${updateType}`, effectiveTurn, safePayload);
@@ -447,7 +492,7 @@ export class TaskRuntimeProjection {
       );
       this.#markMessage(append);
       this.#semantic.touch();
-      return result();
+      return result({ projectionChange: "text" });
     }
 
     if (updateType === "user_message_chunk") {
@@ -467,14 +512,25 @@ export class TaskRuntimeProjection {
         this.setUserMessageDelivery(requestId, "accepted");
       }
       this.#semantic.touch();
-      return result({ acceptedRequestIds: userEcho ? [userEcho.requestId] : [] });
+      return result({
+        acceptedRequestIds: userEcho ? [userEcho.requestId] : [],
+        projectionChange: "text",
+      });
     }
 
     if (updateType === "tool_call" || updateType === "tool_call_update") {
       this.#transcript.closeSegment(effectiveTurn);
     }
     const before = this.#semantic.events.length;
-    this.#semantic.applyAcpNotification(enrichedParams, turnId, userEcho);
+    const semanticChanged = this.#semantic.applyNormalizedAcpNotification(
+      enrichedParams,
+      update,
+      updateType,
+      safePayload,
+      turnId,
+      userEcho,
+    );
+    if (!semanticChanged) return result({ projectionChanged: false });
     const events = this.#captureSemanticEvents(before);
     const acceptedRequestIds = updateType === "goal_updated"
       && events.some(({ event }) => event.method === "task/goal:structured")
@@ -592,11 +648,39 @@ export class TaskRuntimeProjection {
     return item;
   }
 
-  #markMessage(identity: { turnId: string; blockId: string } | null | undefined): void {
+  #markMessage(identity: {
+    turnId: string;
+    blockId: string;
+    created?: boolean;
+    appendedText?: string;
+  } | null | undefined): void {
     if (!identity) return;
-    this.#changedMessages.set(`${identity.turnId}\u0000${identity.blockId}`, {
+    const key = `${identity.turnId}\u0000${identity.blockId}`;
+    const current = this.#changedMessages.get(key);
+    const appendOnly = identity.created === false && identity.appendedText !== undefined;
+    if (!appendOnly || current?.append === null) {
+      this.#changedMessages.set(key, {
+        turnId: identity.turnId,
+        blockId: identity.blockId,
+        append: null,
+      });
+      return;
+    }
+    if (current?.append) {
+      current.append.text += identity.appendedText!;
+      return;
+    }
+    const message = this.messages.find((candidate) =>
+      candidate.turnId === identity.turnId && candidate.blockId === identity.blockId);
+    const previousTextLength = message
+      ? message.text.length - identity.appendedText!.length
+      : -1;
+    this.#changedMessages.set(key, {
       turnId: identity.turnId,
       blockId: identity.blockId,
+      append: previousTextLength >= 0
+        ? { previousTextLength, text: identity.appendedText! }
+        : null,
     });
   }
 
@@ -647,6 +731,7 @@ function result(overrides: Partial<TaskRuntimeNotificationResult> = {}): TaskRun
     acceptedRequestIds: [],
     refreshContextWindow: false,
     projectionChange: "delta",
+    projectionChanged: true,
     ...overrides,
   };
 }

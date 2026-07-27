@@ -1,6 +1,6 @@
-import type { PermissionModeAvailability, TaskPermissionMode, TaskSnapshot } from "../../shared/contracts.js";
-import { asRecord, string } from "./taskEventSanitizers.js";
+import type { PermissionModeAvailability, TaskPermissionMode } from "../../shared/contracts.js";
 import type { RuntimePermissionCapabilities } from "./taskTypes.js";
+export { applyAvailableCommands } from "./taskAvailableCommands.js";
 
 export function permissionModes(
   current: TaskPermissionMode,
@@ -15,22 +15,4 @@ export function permissionModes(
     { mode: "acceptEdits", available: capabilities.acceptEdits.available, effective: current === "acceptEdits", hotSwitch: baseMode === "acceptEdits" && alwaysHotSwitch, source: "config", reason: capabilities.acceptEdits.reason },
     { mode: "dontAsk", available: capabilities.dontAsk.available, effective: current === "dontAsk", hotSwitch: baseMode === "dontAsk" && alwaysHotSwitch, source: "config", reason: capabilities.dontAsk.reason },
   ];
-}
-
-function commandList(value: unknown): TaskSnapshot["commands"]["available"] {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, 500).flatMap((entry) => {
-    const command = asRecord(entry);
-    const name = string(command.name);
-    if (!name || !/^[a-z0-9][a-z0-9:_-]{0,127}$/i.test(name)) return [];
-    return [{
-      name,
-      description: (string(command.description) || name).slice(0, 500),
-      inputHint: string(asRecord(command.input).hint)?.slice(0, 300) || null,
-    }];
-  });
-}
-
-export function applyAvailableCommands(snapshot: TaskSnapshot, value: unknown): void {
-  snapshot.commands.available = commandList(value);
 }

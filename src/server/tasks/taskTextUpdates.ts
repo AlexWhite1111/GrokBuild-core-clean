@@ -8,8 +8,3 @@ const SESSION_TEXT_UPDATES = new Set([
 export function isSessionTextUpdate(value: string | null | undefined): boolean {
   return Boolean(value && SESSION_TEXT_UPDATES.has(value));
 }
-
-export function isSessionTextEventMethod(method: string): boolean {
-  const match = /^(?:child\/)?session\/update:(.+)$/.exec(method);
-  return isSessionTextUpdate(match?.[1]);
-}

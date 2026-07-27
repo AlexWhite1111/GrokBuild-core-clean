@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Code2, FolderCog, FolderPlus, Globe2, Image, Link2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { FONT_WEIGHT_DEFAULT, FONT_WEIGHT_MAX, FONT_WEIGHT_MIN, type GrokHomeProfileStatus, type GrokHomeProfileSummary, type MediaPresentation, type UiPreferences } from "../../shared/contracts.js";
+import { FONT_WEIGHT_DEFAULT, FONT_WEIGHT_MAX, FONT_WEIGHT_MIN, STREAMING_FRAME_INTERVAL_STEPS, type GrokHomeProfileStatus, type GrokHomeProfileSummary, type MediaPresentation, type UiPreferences } from "../../shared/contracts.js";
 import { CORNER_RADIUS_MAX, CORNER_RADIUS_MIN } from "../../shared/themeGeometry.js";
 import { useUiPreferenceIntent, useUiPreferences } from "../api/hooks.js";
 import { MEDIA_SCALE_MAX, MEDIA_SCALE_MIN } from "../mediaSizing.js";
@@ -22,9 +22,12 @@ export function GeneralSettings() {
   const [readingWidth, setReadingWidth] = useState(() => effectiveReadingWidth(preferences));
   const [continuous, setContinuous] = useState<ContinuousValues>(() => continuousValues(preferences));
   const [cornerRadius, setCornerRadius] = useState(preferences.cornerRadius);
+  const [streamingFrameStep, setStreamingFrameStep] = useState(() =>
+    streamingFrameIntervalIndex(preferences.streamingFrameIntervalMs));
   const lastSubmittedReadingWidth = useRef(effectiveReadingWidth(preferences));
   const lastSubmittedContinuous = useRef(continuousValues(preferences));
   const lastSubmittedCornerRadius = useRef(preferences.cornerRadius);
+  const lastSubmittedStreamingFrameInterval = useRef(preferences.streamingFrameIntervalMs);
   const persistedVisualPreferences = useRef(preferences);
   const update = (values: Partial<UiPreferences>) => savePreferences.mutate({ ...preferences, ...values });
   useEffect(() => {
@@ -44,6 +47,10 @@ export function GeneralSettings() {
     // transient preview also makes a failed mutation roll back correctly.
     previewCornerRadius(null);
   }, [preferences.cornerRadius]);
+  useEffect(() => {
+    setStreamingFrameStep(streamingFrameIntervalIndex(preferences.streamingFrameIntervalMs));
+    lastSubmittedStreamingFrameInterval.current = preferences.streamingFrameIntervalMs;
+  }, [preferences.streamingFrameIntervalMs]);
   useEffect(() => {
     persistedVisualPreferences.current = preferences;
   }, [preferences]);
@@ -84,6 +91,12 @@ export function GeneralSettings() {
     if (value === lastSubmittedCornerRadius.current) return;
     lastSubmittedCornerRadius.current = value;
     update({ cornerRadius: value });
+  };
+  const commitStreamingFrameStep = (step = streamingFrameStep) => {
+    const value = STREAMING_FRAME_INTERVAL_STEPS[step] ?? preferences.streamingFrameIntervalMs;
+    if (value === lastSubmittedStreamingFrameInterval.current) return;
+    lastSubmittedStreamingFrameInterval.current = value;
+    update({ streamingFrameIntervalMs: value });
   };
   const updateMediaPresentation = (source: "nativeMedia" | "localMedia", kind: "image" | "video" | "audio", value: MediaPresentation) => update({
     richTextRenderPolicy: {
@@ -148,7 +161,37 @@ export function GeneralSettings() {
       <SettingCard grouped title={t("timestamps")} description={t("timestampsDescription")}><SegmentedControl value={preferences.timestamps} options={(["hover", "always"] as const).map((value) => ({ value, label: value === "hover" ? "Hover / Focus" : t("alwaysVisible") }))} onChange={(timestamps) => update({ timestamps })} /></SettingCard>
     </SettingSection>
     <SettingSection title={t("rendering")} description={t("renderingDescription")}>
-      <SettingCard grouped title={t("streamingRefresh")} description={t("streamingRefreshDescription")}><SegmentedControl value={String(preferences.streamingRefreshHz)} options={([10, 15, 20, 30, 60] as const).map((value) => ({ value: String(value), label: `${value} Hz` }))} onChange={(value) => update({ streamingRefreshHz: Number(value) as UiPreferences["streamingRefreshHz"] })} /></SettingCard>
+      <SettingCard grouped title={t("streamingRefresh")} description={t("streamingRefreshDescription")}>
+        <div className={styles.scaleControl}>
+          <div className={styles.scaleReadout}>
+            <Text tone="muted" size="label">{streamingRefreshBias(streamingFrameStep, t)}</Text>
+            <Text as="strong" tone="muted" font="numeric">
+              {formatStreamingFrameInterval(
+                STREAMING_FRAME_INTERVAL_STEPS[streamingFrameStep]
+                  ?? preferences.streamingFrameIntervalMs,
+                t,
+              )}
+            </Text>
+          </div>
+          <Input
+            aria-label={t("streamingRefresh")}
+            type="range"
+            min={0}
+            max={STREAMING_FRAME_INTERVAL_STEPS.length - 1}
+            step={1}
+            value={streamingFrameStep}
+            onChange={(event) => setStreamingFrameStep(Number(event.target.value))}
+            onPointerUp={(event) => commitStreamingFrameStep(Number(event.currentTarget.value))}
+            onKeyUp={(event) => commitStreamingFrameStep(Number(event.currentTarget.value))}
+            onBlur={(event) => commitStreamingFrameStep(Number(event.currentTarget.value))}
+          />
+          <div className={styles.scaleAxis}>
+            <Text tone="muted" size="caption">{t("streamingRefreshEnergySaving")}</Text>
+            <Text tone="muted" size="caption">{t("streamingRefreshBalanced")}</Text>
+            <Text tone="muted" size="caption">{t("streamingRefreshImmediate")}</Text>
+          </div>
+        </div>
+      </SettingCard>
       <SettingCard grouped title={t("collapseWorkProcessByDefault")} description={t("collapseWorkProcessByDefaultDescription")}><Switch checked={preferences.collapseWorkProcessByDefault} onChange={(event) => update({ collapseWorkProcessByDefault: event.target.checked })} label={t("collapseWorkProcessByDefaultToggle")} /></SettingCard>
       <SettingCard grouped title={t("showContextUsage")} description={t("showContextUsageDescription")}><Switch checked={preferences.showContextUsage} onChange={(event) => update({ showContextUsage: event.target.checked })} label={t("showContextUsageToggle")} /></SettingCard>
       <SettingCard grouped title={t("codePreviewRendering")} description={t("codePreviewRenderingDescription")}>
@@ -271,6 +314,37 @@ function effectiveReadingWidth(preferences: Pick<UiPreferences, "readingWidth" |
 
 function formatScale(value: number): string {
   return `${Number((value / 100).toFixed(2))}×`;
+}
+
+function streamingFrameIntervalIndex(value: number): number {
+  let bestIndex = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  STREAMING_FRAME_INTERVAL_STEPS.forEach((candidate, index) => {
+    const distance = Math.abs(candidate - value);
+    if (distance < bestDistance) {
+      bestIndex = index;
+      bestDistance = distance;
+    }
+  });
+  return bestIndex;
+}
+
+function formatStreamingFrameInterval(
+  value: number,
+  t: ReturnType<typeof useTranslation>["t"],
+): string {
+  if (value >= 1_000) return t("streamingRefreshEverySecond");
+  if (value >= 100) return t("streamingRefreshEveryMilliseconds", { count: value });
+  return t("streamingRefreshPerSecond", { count: Math.round(1_000 / value) });
+}
+
+function streamingRefreshBias(
+  step: number,
+  t: ReturnType<typeof useTranslation>["t"],
+): string {
+  if (step <= 4) return t("streamingRefreshEnergySaving");
+  if (step >= 10) return t("streamingRefreshImmediate");
+  return t("streamingRefreshBalanced");
 }
 
 function continuousValues(preferences: UiPreferences): ContinuousValues {

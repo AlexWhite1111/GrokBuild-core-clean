@@ -43,19 +43,22 @@ export function usePortableRichText(
 ): RichTextRenderResponse | null {
   const renderer = useContext(PortableRichTextContext);
   const input = useMemo(() => ({ text, level, taskId, placements, policy }), [level, placements, policy, taskId, text]);
-  const key = renderKey(input);
+  // Disabled streaming callers must not manufacture a cumulative-text cache
+  // key on every frame; the exact key is needed only for an actual render.
+  const key = enabled ? renderKey(input) : null;
   const [resolved, setResolved] = useState<{ key: string; response: RichTextRenderResponse } | null>(() => {
-    const response = enabled ? renderer?.cached(input) || null : null;
-    return response ? { key, response } : null;
+    const response = key ? renderer?.cached(input) || null : null;
+    return response && key ? { key, response } : null;
   });
   useEffect(() => {
     let active = true;
-    const cached = enabled ? renderer?.cached(input) || null : null;
+    if (!key) return () => { active = false; };
+    const cached = renderer?.cached(input) || null;
     if (cached) setResolved({ key, response: cached });
-    else if (enabled && renderer) void renderer.render(input).then((response) => { if (active) setResolved({ key, response }); }).catch(() => undefined);
+    else if (renderer) void renderer.render(input).then((response) => { if (active) setResolved({ key, response }); }).catch(() => undefined);
     return () => { active = false; };
-  }, [enabled, input, key, renderer]);
-  return resolved?.key === key ? resolved.response : null;
+  }, [input, key, renderer]);
+  return key && resolved?.key === key ? resolved.response : null;
 }
 
 function createRenderer(api: ApiClient): PortableRenderer {

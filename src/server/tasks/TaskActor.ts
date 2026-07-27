@@ -61,8 +61,6 @@ export class TaskActor extends EventEmitter {
     this.#projection = new TaskRuntimeProjection(snapshot, options.state, {
       restored: options.existing,
       readChild: (sessionId) => options.taskStore.readChildDetail(snapshot.taskId, sessionId),
-      officialWebSearchQuery: (toolCallId) =>
-        options.taskStore.officialWebSearchQuery(snapshot.taskId, toolCallId),
       media: options.media ? { store: options.media, projectPath: options.projectPath, grokHome: options.grokHome } : undefined,
       notify: options.publishNotification,
     });
@@ -70,7 +68,7 @@ export class TaskActor extends EventEmitter {
     this.#receipts = new TaskPromptReceiptRuntime({
       projection: this.#projection, acceptedWaiters: this.#acceptedWaiters,
       connectionInterrupted: () => this.#connectionInterrupted(),
-      touch: () => this.#touch(), change: () => this.#emitChange(),
+      touch: () => this.#touch(), change: (change) => this.#emitChange(change),
     });
     this.#permissions = new TaskPermissionRuntime({
       client: this.#client, projection: this.#projection, requested: options.permission,
@@ -84,7 +82,7 @@ export class TaskActor extends EventEmitter {
       projection: this.#projection, promptEchoes: this.#promptEchoes, activeTurns: this.#activeTurns,
       syncActiveTurn: () => this.#syncActiveTurn(),
       notifyIdle: () => this.#notifyIdle(), turnDone: () => this.#machine.send({ type: "TURN_DONE" }),
-      refreshContextWindow: () => { this.#refreshContextWindow(); }, touch: () => this.#touch(), change: () => this.#emitChange(),
+      refreshContextWindow: () => { this.#refreshContextWindow(); }, touch: () => this.#touch(), change: (change) => this.#emitChange(change),
       connectionInterrupted: () => this.#connectionInterrupted(),
     };
     const runtime = createTaskRuntimeContext({
@@ -96,7 +94,7 @@ export class TaskActor extends EventEmitter {
       settleTurn: (turnId, outcome, value) => outcome === "completed"
         ? this.#completeTurn(turnId, value)
         : this.#rejectTurn(turnId, value),
-      change: () => this.#emitChange(),
+      change: (change) => this.#emitChange(change),
       disconnectMachine: () => this.#machine.send({ type: "DISCONNECTED" }),
     });
     wireTaskClientEvents(runtime);

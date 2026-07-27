@@ -41,6 +41,7 @@ export function parseRichTextDocument(text: string, policy: RichTextPolicy): Roo
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkMath)
+    .use(remarkRememberMathSourcePositions)
     .use(remarkWholeLineDisplayMath, { source });
   if (policy.level === "media") processor.use(remarkLocalMedia, { source });
   processor.use(remarkBreaks);
@@ -56,7 +57,9 @@ export function parseRichTextDocument(text: string, policy: RichTextPolicy): Roo
       .use(rehypeMediaPlaceholders, { originalSource: text, parsedSource: source, placements: policy.mediaPlacements || [], policy: renderPolicy })
       .use(rehypeMediaFallbacks, { source, policy: renderPolicy });
   }
-  processor.use(rehypeKatex);
+  processor
+    .use(rehypeKatex)
+    .use(rehypeRestoreMathSourcePositions);
   return processor.runSync(processor.parse(source)) as Root;
 }
 
@@ -84,6 +87,58 @@ type MarkdownTreeNode = {
   position?: { start?: { offset?: number }; end?: { offset?: number } };
   children?: MarkdownTreeNode[];
 };
+
+const MATH_SOURCE_POSITIONS = "grokMathSourcePositions";
+
+/**
+ * KaTeX replaces the original math node and otherwise drops its Markdown
+ * position. Carry that already-parsed position through the same canonical
+ * pipeline so selection copy can recover the exact authored delimiters.
+ */
+const remarkRememberMathSourcePositions: Plugin<[], MdastRoot> = () =>
+  (tree, file): void => {
+    const positions: NonNullable<HtmlTreeNode["position"]>[] = [];
+    const visit = (node: MarkdownTreeNode): void => {
+      if (
+        (node.type === "inlineMath" || node.type === "math")
+        && validSourcePosition(node.position)
+      ) positions.push(node.position);
+      node.children?.forEach(visit);
+    };
+    visit(tree as unknown as MarkdownTreeNode);
+    (file.data as Record<string, unknown>)[MATH_SOURCE_POSITIONS] = positions;
+  };
+
+const rehypeRestoreMathSourcePositions: Plugin<[], Root> = () =>
+  (tree, file): void => {
+    const stored = (file.data as Record<string, unknown>)[MATH_SOURCE_POSITIONS];
+    if (!Array.isArray(stored) || !stored.length) return;
+    const positions = stored.filter(validSourcePosition);
+    let index = 0;
+    const visit = (node: HtmlTreeNode, insideMathRoot: boolean): void => {
+      const classes = elementClasses(node);
+      const mathRoot = !insideMathRoot && (
+        classes.includes("katex-display")
+        || classes.includes("katex")
+        || classes.includes("katex-error")
+      );
+      if (mathRoot && positions[index]) node.position = positions[index++];
+      node.children?.forEach((child) => visit(child, insideMathRoot || mathRoot));
+    };
+    visit(tree as unknown as HtmlTreeNode, false);
+  };
+
+function validSourcePosition(value: unknown): value is NonNullable<HtmlTreeNode["position"]> {
+  const position = value as HtmlTreeNode["position"] | undefined;
+  const start = position?.start?.offset;
+  const end = position?.end?.offset;
+  return typeof start === "number" && typeof end === "number" && start >= 0 && end > start;
+}
+
+function elementClasses(node: HtmlTreeNode): string[] {
+  const value = node.type === "element" ? node.properties?.className : undefined;
+  return Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split(/\s+/) : [];
+}
 
 /** A complete $$...$$ source line is display math even inside a hard-break paragraph. */
 const remarkWholeLineDisplayMath: Plugin<[{ source: string }], MdastRoot> = (options) =>

@@ -17,7 +17,8 @@ import { projectTaskOperationalContext } from "../../shared/contracts.js";
 import type { ProjectStore } from "../projects/ProjectStore.js";
 import type { JsonStateStore } from "../storage/JsonStateStore.js";
 import { TaskCommandProjection } from "./TaskCommandProjection.js";
-import { readMeta, safeSessionUpdate, withOfficialWebSearchQuery } from "./taskEventSanitizers.js";
+import { normalizeOfficialSessionUpdate, readMeta } from "./taskEventSanitizers.js";
+import { availableCommandsKey } from "./taskAvailableCommands.js";
 import { applyGoalSessionUpdate } from "./taskGoalProjection.js";
 import { storedInlineMediaForSessionUpdate } from "./taskMediaProjection.js";
 import { TaskRuntimeTranscript } from "./TaskRuntimeTranscript.js";
@@ -137,11 +138,6 @@ export class TaskStore {
   readDetail(taskId: string): TaskDetailProjection | null {
     const row = this.row(taskId);
     return row ? this.#detail(row) : null;
-  }
-
-  officialWebSearchQuery(taskId: string, toolCallId: string): string | undefined {
-    const row = this.row(taskId);
-    return row ? this.#officialWebSearchQueries(row).get(toolCallId) : undefined;
   }
 
   #detail(row: TaskRow): TaskDetailProjection {
@@ -334,23 +330,34 @@ function projectOfficialHistory(
   const events: TaskEventEnvelope[] = [];
   let eventSequence = 0;
   let updates = 0;
+  let previousAvailableCommandsKey: string | null = null;
   for (const record of logicalOfficialUpdates(source)) {
     const rawParams = object(record?.params);
     const params = rawParams ? withOfficialTimestamp(rawParams, record?.timestamp) : null;
     const originalUpdate = object(params?.update);
-    const update = originalUpdate
-      ? withOfficialWebSearchQuery(
-          originalUpdate,
-          webSearchQueries.get(text(originalUpdate.toolCallId)),
-        )
-      : null;
-    const updateType = text(update?.sessionUpdate);
-    if (!params || !update || !updateType) continue;
+    if (!params || !originalUpdate) continue;
+    const {
+      update,
+      updateType,
+      payload,
+    } = normalizeOfficialSessionUpdate(
+      originalUpdate,
+      readMeta(params),
+      webSearchQueries.get(text(originalUpdate.toolCallId)),
+    );
+    if (!updateType || updateType === "unknown") continue;
+    if (updateType === "available_commands_update") {
+      const commandKey = availableCommandsKey(update.availableCommands);
+      if (commandKey === previousAvailableCommandsKey) {
+        updates += 1;
+        continue;
+      }
+      previousAvailableCommandsKey = commandKey;
+    }
     if (updateType === "current_mode_update") {
       const mode = text(update.currentModeId) || text(update.modeId);
       if (mode === "normal" || mode === "plan") snapshot.workMode = mode;
     }
-    const payload = safeSessionUpdate(update, readMeta(params));
     const structuredMedia = storedInlineMediaForSessionUpdate(row.task_id, updateType, update);
     if (structuredMedia.length) payload.media = structuredMedia;
     const previousGoal = updateType === "goal_updated" ? {

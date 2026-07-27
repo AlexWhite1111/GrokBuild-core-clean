@@ -476,11 +476,37 @@ export interface TaskDetailProjection {
   context: TaskOperationalContextSnapshot;
 }
 
+export type TaskProjectionMessagePatch =
+  | {
+      index: number;
+      kind: "replace";
+      message: TaskMessageBlock;
+    }
+  | {
+      index: number;
+      kind: "append";
+      previousTextLength: number;
+      appendText: string;
+      message: Omit<TaskMessageBlock, "text">;
+    };
+
+interface TaskProjectionDeltaRows {
+  messageCount: number;
+  messages: TaskProjectionMessagePatch[];
+  eventCount: number;
+  events: Array<{
+    index: number;
+    event: TaskEventEnvelope;
+  }>;
+}
+
 /**
  * Ordered renderer-facing frames from the one authoritative task projection.
- * Snapshot frames establish structure. Delta frames replace only changed
- * messages/events while carrying the current task projection. Operational
- * context is included only when that projection actually changed.
+ * Snapshot frames establish structure. Delta frames replace changed rows or,
+ * for an already-published streaming row, carry only the newly appended text.
+ * Text delta frames carry only the monotonic snapshot identity and clock;
+ * structural or semantic changes automatically use a complete delta snapshot.
+ * Operational context is included only when that projection actually changed.
  * The official Session remains the sole source for both forms.
  */
 export type TaskProjectionFrame =
@@ -488,21 +514,15 @@ export type TaskProjectionFrame =
       kind: "snapshot";
       detail: TaskDetailProjection;
     }
-  | {
+  | ({
       kind: "delta";
       snapshot: TaskSnapshot;
       context?: TaskOperationalContextSnapshot;
-      messageCount: number;
-      messages: Array<{
-        index: number;
-        message: TaskMessageBlock;
-      }>;
-      eventCount: number;
-      events: Array<{
-        index: number;
-        event: TaskEventEnvelope;
-      }>;
-    };
+    } & TaskProjectionDeltaRows)
+  | ({
+      kind: "text-delta";
+      snapshot: Pick<TaskSnapshot, "taskId" | "projectionEpoch" | "revision" | "updatedAt">;
+    } & TaskProjectionDeltaRows);
 
 export const NewTaskDraftKeySchema = z.string().regex(/^new:project_[a-f0-9]{24}(?::[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/i);
 

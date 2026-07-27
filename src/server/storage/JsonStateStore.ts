@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 interface StateDocument {
   version: 1;
@@ -20,7 +21,9 @@ export class JsonStateStore {
   }
 
   set(key: string, value: unknown): void {
-    this.#document.values[key] = structuredClone(value);
+    const next = structuredClone(value);
+    if (isDeepStrictEqual(this.#document.values[key], next)) return;
+    this.#document.values[key] = next;
     this.#write();
   }
 

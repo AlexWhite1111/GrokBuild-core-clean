@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   createThreadScrollAnchor,
   resolveThreadScrollAnchorIndex,
+  sameThreadScrollAnchor,
   threadAtBottom,
   threadFollowAfterScroll,
   threadLatestControl,
@@ -44,6 +45,27 @@ test("reading position restores by stable item identity before using the fallbac
   });
   assert.equal(resolveThreadScrollAnchorIndex([{ id: "new" }, { id: "a" }, { id: "b" }], anchor), 2);
   assert.equal(resolveThreadScrollAnchorIndex([{ id: "a" }], { ...anchor, itemId: "missing" }), 0);
+});
+
+test("following the latest output persists one stable semantic anchor", () => {
+  const first = createThreadScrollAnchor(
+    [{ id: "old" }, { id: "growing" }],
+    1,
+    1_500,
+    1_000,
+    true,
+  );
+  const second = createThreadScrollAnchor(
+    [{ id: "new" }],
+    0,
+    9_000,
+    8_000,
+    true,
+  );
+  assert.deepEqual(first, { itemId: null, fallbackIndex: 0, offset: 0, followLatest: true });
+  assert.deepEqual(second, first);
+  assert.equal(sameThreadScrollAnchor(first, second), true);
+  assert.equal(sameThreadScrollAnchor(first, { ...second, followLatest: false }), false);
 });
 
 test("the latest control becomes activity dots only while Grok is generating away from bottom", () => {

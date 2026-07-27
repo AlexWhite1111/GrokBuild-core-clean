@@ -18,7 +18,6 @@ export const GrokTurnBlock = memo(function GrokTurnBlock({ taskId, turn, renderP
   const [copied, setCopied] = useState(false);
   const answerText = turn.segments.flatMap((segment) => segment.kind === "assistant" && segment.final ? [segment.message.text] : []).filter(Boolean).join("\n\n");
   const theme = turn.outcome !== "running" && answerText ? themeCandidateFromMarkdown(answerText) : null;
-  const durationMs = useLiveDuration(turn);
   const latestSegment = turn.segments.at(-1);
   const statusLive = turn.outcome === "running" && (
     !processAvailable
@@ -35,7 +34,7 @@ export const GrokTurnBlock = memo(function GrokTurnBlock({ taskId, turn, renderP
   };
   return <article className={`${styles.message} ${styles.assistant}`} data-grok-presentation={presentation} {...typographyScope("content")}>
     <Surface appearance={presentation === "bubble" ? "message" : "plain"} elevation={presentation === "bubble" ? "content" : "none"} shape={presentation === "bubble" ? "surface" : "none"} className={styles.surface}>
-      <TurnStatus turn={turn} durationMs={durationMs} collapsible={processAvailable} expanded={processExpanded} live={statusLive} onToggle={onToggleProcess} />
+      <TurnStatus turn={turn} collapsible={processAvailable} expanded={processExpanded} live={statusLive} onToggle={onToggleProcess} />
       <GrokTurnFlow taskId={taskId} segments={turn.segments} renderPolicy={renderPolicy} mediaScale={mediaScale} running={turn.outcome === "running"} processExpanded={processExpanded} />
     </Surface>
     {theme && <ThemeCandidateAction theme={theme} />}
@@ -79,27 +78,34 @@ function GoalOutcomeRow({ value }: { value: GoalOutcomePresentation }) {
   </div>;
 }
 
-function TurnStatus({ turn, durationMs, collapsible, expanded, live, onToggle }: {
+function TurnStatus({ turn, collapsible, expanded, live, onToggle }: {
   turn: GrokTurnPresentation;
-  durationMs: number | null;
   collapsible: boolean;
   expanded: boolean;
   live: boolean;
   onToggle?: () => void;
 }) {
   const { t } = useTranslation();
+  const durationMs = useLiveDuration(turn);
   if (!turn.showStatus || turn.outcome === "unknown") return null;
   const label = turn.outcome === "running" ? t("workingFor", { duration: formatDuration(durationMs) })
     : turn.outcome === "completed" ? t("workedFor", { duration: formatDuration(turn.durationMs) })
       : turn.outcome === "stopped" ? t("stoppedAfter", { duration: formatDuration(turn.durationMs) })
         : t("failedAfter", { duration: formatDuration(turn.durationMs) });
   if (collapsible && onToggle) return <Control recipe="text" density="body" shape="none" hover="color" className={styles.turnStatus} data-outcome={turn.outcome} data-process-live-summary={live || undefined} onClick={onToggle} aria-label={label} aria-expanded={expanded}>
-    <span data-process-label={label}>{label}</span>
+    <ProcessStatusLabel label={label} live={live} />
     <DisclosureGlyph className={expanded ? styles.turnStatusOpen : ""} />
   </Control>;
   return <div className={styles.turnStatus} data-outcome={turn.outcome} data-process-live-summary={live || undefined} aria-label={label}>
-    <span data-process-label={label}>{label}</span>
+    <ProcessStatusLabel label={label} live={live} />
   </div>;
+}
+
+function ProcessStatusLabel({ label, live }: { label: string; live: boolean }) {
+  return <span data-process-label={label}>
+    {label}
+    {live && <span data-process-live-sheen aria-hidden><span>{label}</span></span>}
+  </span>;
 }
 
 function useLiveDuration(turn: GrokTurnPresentation): number | null {

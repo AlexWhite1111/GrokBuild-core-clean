@@ -12,6 +12,9 @@
 
 .scaleControl { display: grid; gap: var(--space-9); }
 .scaleReadout { display: flex; align-items: baseline; justify-content: space-between; }
+.scaleAxis { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: calc(-1 * var(--space-4)); }
+.scaleAxis span:nth-child(2) { text-align: center; }
+.scaleAxis span:last-child { text-align: right; }
 .policyGroups { display: grid; gap: var(--space-8); padding-top: var(--space-3); }
 .policyGroup { display: grid; gap: var(--space-7); padding: var(--space-9); background: var(--background-surface-muted, var(--color-surface-muted)); }
 .policyHeading, .policyRow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }

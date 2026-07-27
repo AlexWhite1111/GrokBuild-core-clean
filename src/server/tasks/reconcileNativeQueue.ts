@@ -20,7 +20,15 @@ export function reconcileNativeQueue(snapshot: TaskSnapshot, payload: unknown, n
         : nativeId
           ? byEntryId.get(nativeId)
           : undefined;
-    const correlated = existing || unassigned.shift();
+    if (existing && !existing.entryId) {
+      const unassignedIndex = unassigned.indexOf(existing);
+      if (unassignedIndex >= 0) unassigned.splice(unassignedIndex, 1);
+    }
+    const correlated = existing || (
+      !explicitRequestId && !mappedRequestId
+        ? unassigned.shift()
+        : undefined
+    );
     const requestId = explicitRequestId || mappedRequestId || correlated?.requestId || nativeId;
     if (!requestId) return [];
     if (nativeId) nativeRequestIds.set(nativeId, requestId);

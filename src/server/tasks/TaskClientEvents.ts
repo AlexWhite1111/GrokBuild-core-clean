@@ -25,6 +25,7 @@ export function wireTaskClientEvents(options: TaskRuntimeContext): void {
         const updateType = string(asRecord(params.update).sessionUpdate);
         if (isSessionTextUpdate(updateType)) return;
         const outcome = options.projection.applyNotification({ kind: "child-acp", params: value.params });
+        if (!outcome.projectionChanged) return;
         options.touch();
         options.change(outcome.projectionChange);
         return;
@@ -57,6 +58,7 @@ export function wireTaskClientEvents(options: TaskRuntimeContext): void {
           terminal === "failed" ? turnFailure(update) : update,
         );
       }
+      if (!outcome.projectionChanged) return;
     } else if (method.startsWith("x.ai/")) {
       const sessionId = string(asRecord(value.params).sessionId);
       if (sessionId && sessionId !== options.projection.snapshot.sessionId) {
@@ -84,6 +86,7 @@ export function wireTaskClientEvents(options: TaskRuntimeContext): void {
           const terminalValue = sanitizeXai(method, value.params);
           options.settleTurn(turnId, terminal, terminal === "failed" ? turnFailure(asRecord(terminalValue)) : terminalValue);
         }
+        if (!outcome.projectionChanged) return;
       }
     }
     options.touch();

@@ -15,6 +15,7 @@ import { VisualCanvasControls, useVisualCanvasController, type VisualCanvasContr
 import { highlightCodeSource } from "./codeSyntax.js";
 import { CodeScrollRegion } from "./CodeScrollRegion.js";
 import { useProjectTerminal } from "../terminal/TerminalWorkspace.js";
+import { codeBlockClipboardText, markdownSourceAtomProps, type MarkdownSourceRange } from "./richTextMarkdownCopy.js";
 import styles from "./CodeBlock.module.css";
 
 export function CodeBlock({
@@ -25,6 +26,7 @@ export function CodeBlock({
   implicit = false,
   streaming = false,
   markdownSource,
+  markdownCopyText,
 }: {
   language?: string;
   code: string;
@@ -32,7 +34,8 @@ export function CodeBlock({
   compact?: boolean;
   implicit?: boolean;
   streaming?: boolean;
-  markdownSource?: { start: number; end: number };
+  markdownSource?: MarkdownSourceRange;
+  markdownCopyText?: string;
 }) {
   const { t } = useTranslation();
   const preferences = useUiPreferences().data;
@@ -67,7 +70,7 @@ export function CodeBlock({
   useEffect(() => { if (spiceUsesProject && !localRun.snapshot) setRunDirectory("project"); }, [localRun.snapshot, spiceUsesProject]);
 
   const copy = async () => {
-    await navigator.clipboard.writeText(code);
+    await navigator.clipboard.writeText(codeBlockClipboardText(code, markdownCopyText));
     setCopied(true);
     setTimeout(() => setCopied(false), 1_200);
   };
@@ -101,10 +104,7 @@ export function CodeBlock({
 
   if (implicit) return <div
     className={`${styles.block} ${styles.implicitBlock} ${compact ? styles.compact : ""}`}
-    {...(markdownSource ? {
-      "data-md-source-start": String(markdownSource.start),
-      "data-md-source-end": String(markdownSource.end),
-    } : {})}
+    {...markdownSourceAtomProps(markdownSource)}
   >
     {webPreview && <div className={styles.implicitAction}>
       <Control
@@ -126,10 +126,7 @@ export function CodeBlock({
       elevation="content"
       shape={compact ? "control" : "surface"}
       className={`${styles.block} ${compact ? styles.compact : ""}`}
-      {...(markdownSource ? {
-        "data-md-source-start": String(markdownSource.start),
-        "data-md-source-end": String(markdownSource.end),
-      } : {})}
+      {...markdownSourceAtomProps(markdownSource)}
     >
       <div className={styles.toolbar}>
         <Control recipe="text" density="compact" shape="none" className={styles.collapse} onClick={() => setCollapsed((value) => !value)} aria-expanded={!collapsed} aria-label={t(collapsed ? "expandCode" : "collapseCode")}><ChevronDown className={collapsed ? styles.chevronCollapsed : ""} size={13} /><span>{displayLanguage}</span></Control>

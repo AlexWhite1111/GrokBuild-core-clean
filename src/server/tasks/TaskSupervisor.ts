@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { z } from "zod";
-import { QueueMutationSchema, type ComposerReplayDocument, type GateDecision, type PathReferenceSummary, type PlanReviewDraftIdentity, type PlanReviewDraftSnapshot, type TaskCreate, type ProjectDefaults, type SystemPromptPresetSave, type TaskDetailProjection, type TaskFork, type TaskGoalAction, type TaskListItem, type TaskSearchResult, type TaskSnapshot, type TaskSubmissionMode, type WorkMode, type WorkspaceProjection } from "../../shared/contracts.js";
+import { QueueMutationSchema, resolveStreamingFrameIntervalMs, type ComposerReplayDocument, type GateDecision, type PathReferenceSummary, type PlanReviewDraftIdentity, type PlanReviewDraftSnapshot, type TaskCreate, type ProjectDefaults, type SystemPromptPresetSave, type TaskDetailProjection, type TaskFork, type TaskGoalAction, type TaskListItem, type TaskSearchResult, type TaskSnapshot, type TaskSubmissionMode, type WorkMode, type WorkspaceProjection } from "../../shared/contracts.js";
 import type { TaskNotificationIntent } from "../../shared/taskNotifications.js";
 import type { ProjectStore } from "../projects/ProjectStore.js";
 import { AppProblem } from "../security/problemResponse.js";
@@ -23,6 +23,9 @@ import { TaskStore } from "./TaskStore.js";
 import { OwnedProcessRegistry } from "../runtime/OwnedProcessRegistry.js";
 import { SystemPromptPresetStore } from "../projects/SystemPromptPresetStore.js";
 import type { TaskProjectionChange } from "./TaskRuntimeProjection.js";
+import { TaskProjectionFrameScheduler } from "./taskProjectionScheduling.js";
+
+export { mergeTaskProjectionChange } from "./taskProjectionScheduling.js";
 
 export class TaskSupervisor extends EventEmitter {
   readonly #actors = new Map<string, TaskActor>();
@@ -394,33 +397,20 @@ export class TaskSupervisor extends EventEmitter {
       || this.#observedActors.has(actor)
     ) return;
     this.#observedActors.add(actor);
-    let pendingChange: NodeJS.Timeout | null = null;
-    let pendingProjection: TaskProjectionChange | "snapshot" | null = null;
-    let lastPublishedAt = 0;
-    const publish = () => {
-      pendingChange = null;
-      if (this.#actors.get(snapshot.taskId) !== actor) return;
-      lastPublishedAt = performance.now();
-      const frame = actor.projectionFrame(
-        pendingProjection === null || pendingProjection === "snapshot"
-          ? undefined
-          : pendingProjection,
-      );
-      pendingProjection = null;
-      this.emit("task.changed", frame);
-    };
+    const scheduler = new TaskProjectionFrameScheduler({
+      intervalMs: () => taskChangeFrameMs(this.#state),
+      publish: (pendingProjection) => {
+        if (this.#actors.get(snapshot.taskId) !== actor) return;
+        const frame = actor.projectionFrame(
+          pendingProjection === "snapshot"
+            ? undefined
+            : pendingProjection,
+        );
+        this.emit("task.changed", frame);
+      },
+    });
     actor.on("change", (change?: TaskProjectionChange) => {
-      pendingProjection = mergeTaskProjectionChange(pendingProjection, change);
-      if (pendingChange) return;
-      const wait = taskChangeFrameMs(this.#state) - (performance.now() - lastPublishedAt);
-      if (wait <= 0) {
-        publish();
-        return;
-      }
-      pendingChange = setTimeout(() => {
-        publish();
-      }, wait);
-      pendingChange.unref();
+      scheduler.enqueue(change);
     });
   }
   #actorRuntime(projectId: string) {
@@ -509,21 +499,8 @@ export class TaskSupervisor extends EventEmitter {
   }
 }
 
-export function mergeTaskProjectionChange(
-  pending: TaskProjectionChange | "snapshot" | null,
-  incoming?: TaskProjectionChange,
-): TaskProjectionChange | "snapshot" {
-  if (!incoming || pending === "snapshot") return "snapshot";
-  return pending === null ? incoming : "delta";
-}
-
 function taskChangeFrameMs(state: JsonStateStore): number {
-  const refreshHz = state.get<{ streamingRefreshHz?: number }>("ui.preferences")?.streamingRefreshHz;
-  return Math.round(1_000 / (
-    refreshHz === 10 || refreshHz === 15 || refreshHz === 20 || refreshHz === 30 || refreshHz === 60
-      ? refreshHz
-      : 20
-  ));
+  return resolveStreamingFrameIntervalMs(state.get("ui.preferences"));
 }
 
 export function projectTaskDiagnostics(details: readonly TaskDetailProjection[]): Array<{ taskId: string | null; method: string; severity: string; count: number; firstSeenAt: string; lastSeenAt: string; summary: string }> {

@@ -1,5 +1,8 @@
 import type { PromptEchoQueue } from "./PromptEchoQueue.js";
-import type { TaskRuntimeProjection as TaskProjection } from "./TaskRuntimeProjection.js";
+import type {
+  TaskProjectionChange,
+  TaskRuntimeProjection as TaskProjection,
+} from "./TaskRuntimeProjection.js";
 import { asRecord, errorMessage, nonEmptyString } from "./taskValue.js";
 
 export interface TaskTurnSettlementContext {
@@ -11,7 +14,7 @@ export interface TaskTurnSettlementContext {
   turnDone(): void;
   refreshContextWindow(): void;
   touch(): void;
-  change(): void;
+  change(change?: TaskProjectionChange): void;
   connectionInterrupted(): boolean;
 }
 
@@ -42,7 +45,7 @@ export function completeTaskTurn(context: TaskTurnSettlementContext, turnId: str
   context.refreshContextWindow();
   context.projection.touch();
   context.touch();
-  context.change();
+  context.change("delta");
   return true;
 }
 
@@ -62,7 +65,7 @@ export function rejectTaskTurn(context: TaskTurnSettlementContext, turnId: strin
     context.projection.record("supervisor", "session/prompt:interrupted", turnId, { requestId, code: "ACP_DISCONNECTED" });
     context.projection.touch();
     context.touch();
-    context.change();
+    context.change("delta");
     return true;
   }
   context.projection.setUserMessageDelivery(requestId, "failed");
@@ -75,6 +78,6 @@ export function rejectTaskTurn(context: TaskTurnSettlementContext, turnId: strin
   if (!commandName) context.projection.snapshot.error = { code: "PROMPT_FAILED", message };
   if (!context.activeTurns.size) context.turnDone();
   context.projection.touch();
-  context.change();
+  context.change("delta");
   return true;
 }
