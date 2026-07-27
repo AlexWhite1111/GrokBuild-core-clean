@@ -50,6 +50,7 @@ import {
   TaskTurnIdentity,
 } from "./TaskTurnIdentity.js";
 import { TaskOperationalContextReducer } from "./TaskOperationalContextReducer.js";
+import { isSessionTextUpdate } from "./taskTextUpdates.js";
 const FALLBACK_MESSAGE_UPDATES = new Set([
   "user_message_chunk",
   "agent_message_chunk",
@@ -328,6 +329,7 @@ export class TaskSemanticProjection {
     const sessionId = string(value.sessionId);
     const update = asRecord(value.update);
     const updateType = string(update.sessionUpdate) || "unknown";
+    if (isSessionTextUpdate(updateType)) return;
     const transportMeta = readMeta(value);
     const turnId =
       string(transportMeta.turnId) || string(readMeta(update).turnId) ||

@@ -23,9 +23,8 @@
 .wrap code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .visual { min-height: 120px; padding: var(--space-16); background: var(--background-code-visual); }
 .diagram { min-width: 0; }
-.diagram :global(svg text), .diagram :global(svg tspan) { fill: var(--color-text) !important; }
-.diagram :global(.label), .diagram :global(.nodeLabel), .diagram :global(.edgeLabel), .diagram :global(.messageText), .diagram :global(.loopText) { color: var(--color-text) !important; }
-.diagram :global(.label p), .diagram :global(.nodeLabel p) { color: var(--color-text) !important; }
+/* Mermaid hard-codes KaTeX paths black; standard KaTeX uses currentColor. */
+.diagram :global(.node .katex path) { fill: currentColor !important; stroke: none !important; }
 .previewLoading { min-height: 120px; background: var(--background-preview-loading); background-size: 220% 100%; animation: previewShimmer 1.2s linear infinite; }
 .renderError { padding: var(--space-18) var(--space-14); color: var(--color-text-muted); font: var(--type-label)/calc(1.5 * var(--line-spacing-scale)) var(--font-ui); }
 .dataPreview { max-height: 520px; }

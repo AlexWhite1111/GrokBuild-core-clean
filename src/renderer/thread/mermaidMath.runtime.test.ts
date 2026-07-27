@@ -7,6 +7,7 @@ test("Mermaid math uses strict HTML labels without relaxing direct SVG input", (
   const configuration = mermaidConfiguration({});
   assert.equal(configuration.securityLevel, "strict");
   assert.equal(configuration.htmlLabels, true);
+  assert.equal(configuration.forceLegacyMathML, true);
 
   const directSvg = svgSanitizerPolicy(false, true);
   assert.equal(directSvg.allowGeneratedHtmlLabels, false);

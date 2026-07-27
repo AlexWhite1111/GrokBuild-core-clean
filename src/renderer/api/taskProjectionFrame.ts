@@ -53,7 +53,7 @@ export function applyTaskProjectionFrame(
       snapshot: frame.snapshot,
       messages,
       events,
-      context: frame.context,
+      context: frame.context ?? current.context,
     },
     synchronized: true,
     structural:

@@ -45,6 +45,8 @@ test("official streaming chunks publish ordered deltas from the first new messag
   assert.equal(streamingFrame.messageCount, 1);
   assert.equal(streamingFrame.messages[0]?.index, 0);
   assert.equal(streamingFrame.snapshot.revision, snapshot.revision);
+  assert.equal("context" in initialFrame, false);
+  assert.equal("context" in streamingFrame, false);
 });
 
 test("projection frame coalescing keeps all official notification mixes incremental", () => {
@@ -122,6 +124,7 @@ test("repeated subagent phase updates coalesce to one latest event row in the sa
   assert.equal(frame.events.length, 1);
   assert.equal(frame.eventCount, 1);
   assert.equal(JSON.stringify(frame.events[0]?.event.payload).includes("phase-two"), true);
+  assert.equal(JSON.stringify(frame.context).includes("phase-two"), true);
 });
 
 test("a structural delta never serializes unchanged transcript or event history", (t) => {

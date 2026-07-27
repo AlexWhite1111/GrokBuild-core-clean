@@ -2,6 +2,9 @@ import type { ElementContent, Root } from "hast";
 import {
   isImplicitExecutableRichText,
   parseRichTextDocument,
+  RICH_EXECUTABLE_CODE_TAG,
+  RICH_LIVE_HTML_TAG,
+  RICH_STATIC_HTML_TAG,
   type RichTextPolicy,
 } from "../../shared/richTextPipeline.js";
 
@@ -9,7 +12,12 @@ export interface StreamingRichTextState {
   source: string;
   committedSource: string;
   committedTree: Root | null;
+  committedSegments: Array<{
+    sourceAtCommit: string;
+    tree: Root;
+  }>;
   activeSource: string;
+  activeTree: Root;
   tree: Root;
   mode: "plain" | "incremental" | "full";
   /** Test/diagnostic counter; it does not participate in rendering. */
@@ -25,7 +33,9 @@ export function initialStreamingRichText(source: string, policy: RichTextPolicy)
     source: "",
     committedSource: "",
     committedTree: null,
+    committedSegments: [],
     activeSource: "",
+    activeTree: empty,
     tree: empty,
     mode: "full",
     parsedCharacters: 0,
@@ -51,7 +61,9 @@ export function updateStreamingRichText(
       source,
       committedSource: "",
       committedTree: null,
+      committedSegments: [],
       activeSource: source,
+      activeTree: tree,
       tree,
       mode: "full",
       parsedCharacters: previous.parsedCharacters + source.length,
@@ -62,12 +74,15 @@ export function updateStreamingRichText(
   if (source === previous.source) return previous;
 
   if (isPlainParagraph(source, policy)) {
+    const tree = plainParagraphTree(source);
     return {
       source,
       committedSource: "",
       committedTree: null,
+      committedSegments: [],
       activeSource: source,
-      tree: plainParagraphTree(source),
+      activeTree: tree,
+      tree,
       mode: "plain",
       parsedCharacters: previous.parsedCharacters,
       policyKey: nextPolicyKey,
@@ -83,23 +98,33 @@ export function updateStreamingRichText(
   if (
     boundary > 0
     && absoluteBoundary !== previous.lastAttemptedBoundary
-    && safeProsePrefix(activeSource.slice(0, boundary))
+    && stableCompletedPrefix(activeSource.slice(0, boundary))
     && placementsStayInsideBoundary(policy, absoluteActiveOffset + boundary)
   ) {
     const prefixSource = activeSource.slice(0, boundary);
     const tailSource = activeSource.slice(boundary);
     const prefixTree = parseSegment(prefixSource, absoluteActiveOffset, source, policy);
     const tailTree = parseSegment(tailSource, absoluteActiveOffset + boundary, source, policy);
+    const proposedActive = mergeRoots(prefixTree, tailTree);
+    const authoritativeActive = parseSegment(activeSource, absoluteActiveOffset, source, policy);
     const committedTree = mergeRoots(previous.committedTree, prefixTree);
     const proposed = mergeRoots(committedTree, tailTree);
-    const authoritative = parseRichTextDocument(source, policy);
-    const parsedCharacters = previous.parsedCharacters + prefixSource.length + tailSource.length + source.length;
-    if (safeCommittedTree(prefixTree) && sameChildren(proposed, authoritative)) {
+    const parsedCharacters = previous.parsedCharacters
+      + prefixSource.length
+      + tailSource.length
+      + activeSource.length;
+    if (safeCommittedTree(prefixTree) && sameChildren(proposedActive, authoritativeActive)) {
+      const committedSource = previous.committedSource + prefixSource;
       return {
         source,
-        committedSource: previous.committedSource + prefixSource,
+        committedSource,
         committedTree,
+        committedSegments: [
+          ...previous.committedSegments,
+          { sourceAtCommit: committedSource, tree: prefixTree },
+        ],
         activeSource: tailSource,
+        activeTree: tailTree,
         tree: proposed,
         mode: "incremental",
         parsedCharacters,
@@ -111,7 +136,8 @@ export function updateStreamingRichText(
       ...previous,
       source,
       activeSource,
-      tree: authoritative,
+      activeTree: authoritativeActive,
+      tree: mergeRoots(previous.committedTree, authoritativeActive),
       mode: previous.committedTree ? "incremental" : "full",
       parsedCharacters,
       policyKey: nextPolicyKey,
@@ -125,6 +151,7 @@ export function updateStreamingRichText(
       ...previous,
       source,
       activeSource,
+      activeTree: tailTree,
       tree: mergeRoots(previous.committedTree, tailTree),
       mode: "incremental",
       parsedCharacters: previous.parsedCharacters + activeSource.length,
@@ -138,6 +165,7 @@ export function updateStreamingRichText(
     ...previous,
     source,
     activeSource,
+    activeTree: tree,
     tree,
     mode: "full",
     parsedCharacters: previous.parsedCharacters + source.length,
@@ -157,7 +185,9 @@ export function finalizeStreamingRichText(
     source,
     committedSource: source,
     committedTree: tree,
+    committedSegments: [{ sourceAtCommit: source, tree }],
     activeSource: "",
+    activeTree: emptyRoot(),
     tree,
     mode: "full",
     parsedCharacters: previous.parsedCharacters + source.length,
@@ -177,18 +207,21 @@ function latestCompletedBlockBoundary(source: string): number {
 }
 
 /**
- * These exclusions are intentionally conservative. The parser proof below is
- * necessary but global reference definitions and open block constructs can be
- * changed by future source, so they never become committed prefixes.
+ * A blank-line boundary is committed only after the active segment proves
+ * compositional against the canonical parser. Reference-style Markdown is the
+ * remaining cross-block state: a later definition can rewrite an earlier
+ * shortcut, or an earlier definition can rewrite a future tail. Those sources
+ * deliberately remain active until finalization.
  */
-function safeProsePrefix(source: string): boolean {
+function stableCompletedPrefix(source: string): boolean {
   if (!source.endsWith("\n\n") && !/\n[\t ]*\n$/.test(source)) return false;
-  if (/[`$<>\[\]]/.test(source)) return false;
-  if (/^\s*(?:\\\[|\\\(|\[[^\]]+\]:)/m.test(source)) return false;
-  if (/^(?:\t| {4}| {0,3}(?:>|[-+*][\t ]+|\d+[.)][\t ]+))/m.test(source)) return false;
-  if (/^\s*\|.*\|\s*$/m.test(source)) return false;
-  if (/^\s*(?:`{3,}|~{3,})/m.test(source)) return false;
-  return true;
+  const visible = markdownOutsideCode(source)
+    .replace(/\\\[[\s\S]*?\\\]/g, "")
+    .replace(/!?\[[^\]\n]*\]\((?:\\.|[^)\n])*\)/g, "")
+    .replace(/\[(?: |x|X)\](?=[\t ])/g, "");
+  return !/^\s{0,3}\[[^\]\n]+\]:/m.test(visible)
+    && !/!?\[[^\]\n]+\]\s*\[[^\]\n]*\]/.test(visible)
+    && !/[\[\]]/.test(visible);
 }
 
 /**
@@ -271,10 +304,71 @@ function plainParagraphTree(source: string): Root {
 }
 
 function safeCommittedTree(tree: Root): boolean {
-  return tree.children.every((node) => {
-    if (node.type === "text") return node.value === "\n";
-    return node.type === "element" && /^(?:p|h[1-6])$/.test(node.tagName);
-  });
+  let safe = true;
+  const visit = (node: unknown): void => {
+    if (!safe || !node || typeof node !== "object") return;
+    const value = node as { type?: string; children?: unknown[] };
+    if (value.type === "raw") { safe = false; return; }
+    value.children?.forEach(visit);
+  };
+  visit(tree);
+  if (!safe) return false;
+  const last = [...tree.children].reverse().find((node) =>
+    node.type !== "text" || Boolean(node.value.trim()));
+  return !last || !openWebBundlePart(last);
+}
+
+function openWebBundlePart(node: Root["children"][number]): boolean {
+  if (node.type !== "element") return false;
+  if (node.tagName === RICH_EXECUTABLE_CODE_TAG || node.tagName === RICH_STATIC_HTML_TAG) {
+    return true;
+  }
+  if (node.tagName === RICH_LIVE_HTML_TAG) {
+    const source = typeof node.properties?.source === "string"
+      ? node.properties.source
+      : "";
+    return !/<!doctype\s+html|<html(?:\s|>)|<script(?:\s|>)/i.test(source);
+  }
+  if (node.tagName !== "pre") return false;
+  const code = node.children.find((child) =>
+    child.type === "element" && child.tagName === "code");
+  if (code?.type !== "element") return false;
+  const rawClassName: unknown = code.properties?.className;
+  const classes = Array.isArray(rawClassName)
+    ? rawClassName.map(String)
+    : typeof rawClassName === "string"
+      ? rawClassName.split(/\s+/)
+      : [];
+  const language = classes
+    .map((value) => /^language-(.+)$/i.exec(value)?.[1]?.toLowerCase())
+    .find(Boolean);
+  return Boolean(language && [
+    "html", "htm", "css", "javascript", "js", "mjs", "cjs",
+    "typescript", "ts", "jsx", "tsx",
+  ].includes(language));
+}
+
+function markdownOutsideCode(source: string): string {
+  const lines = source.match(/[^\n]*(?:\n|$)/g) || [];
+  let fence: { marker: string; length: number } | null = null;
+  let visible = "";
+  for (const line of lines) {
+    const body = line.replace(/\n$/, "");
+    if (fence) {
+      const closing = new RegExp(`^[\\t ]{0,3}${fence.marker}{${fence.length},}[\\t ]*$`);
+      if (closing.test(body)) fence = null;
+      visible += line.endsWith("\n") ? "\n" : "";
+      continue;
+    }
+    const opening = /^[\t ]{0,3}(`{3,}|~{3,})/.exec(body);
+    if (opening) {
+      fence = { marker: opening[1][0], length: opening[1].length };
+      visible += line.endsWith("\n") ? "\n" : "";
+      continue;
+    }
+    visible += line.replace(/(`+)([^`\n]*?)\1/g, "");
+  }
+  return visible;
 }
 
 function placementsStayInsideBoundary(policy: RichTextPolicy, boundary: number): boolean {
@@ -338,9 +432,23 @@ function countLineBreaks(value: string): number {
 function mergeRoots(left: Root | null, right: Root): Root {
   if (!left?.children.length) return right;
   if (!right.children.length) return left;
+  const children = [...left.children];
+  const append = (node: Root["children"][number]) => {
+    const previous = children.at(-1);
+    if (previous?.type === "text" && node.type === "text") {
+      children[children.length - 1] = {
+        type: "text",
+        value: previous.value + node.value,
+      };
+      return;
+    }
+    children.push(node);
+  };
+  append({ type: "text", value: "\n" });
+  right.children.forEach(append);
   return {
     type: "root",
-    children: [...left.children, { type: "text", value: "\n" }, ...right.children],
+    children,
     data: right.data || left.data,
   };
 }

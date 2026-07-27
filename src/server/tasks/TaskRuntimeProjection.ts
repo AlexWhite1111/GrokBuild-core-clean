@@ -25,6 +25,7 @@ import type { TaskStoredTimelineItem, TaskStoreScope } from "./TaskStore.js";
 import { canTransitionDelivery, promptFingerprint } from "./taskDelivery.js";
 import { asRecord, readMeta, safeSessionUpdate, string } from "./taskEventSanitizers.js";
 import { mediaForSessionUpdate, type ProjectionMediaContext } from "./taskMediaProjection.js";
+import { isSessionTextUpdate } from "./taskTextUpdates.js";
 
 const REPLAY_TURN_UPDATES = new Set([
   "user_message_chunk",
@@ -54,12 +55,6 @@ const REPLAY_TURN_UPDATES = new Set([
 const STATIC_TRANSCRIPT_UPDATES = new Set([
   "user_message_chunk",
   "agent_message_chunk",
-]);
-
-const TEXT_UPDATES = new Set([
-  "user_message_chunk",
-  "agent_message_chunk",
-  "agent_thought_chunk",
 ]);
 
 export type TaskRuntimeNotification =
@@ -104,6 +99,7 @@ export class TaskRuntimeProjection {
   readonly #notify?: TaskRuntimeProjectionOptions["notify"];
   readonly #dispatchedFingerprints = new Map<string, string>();
   #context: TaskOperationalContextSnapshot;
+  #contextChanged = false;
   #sequence = 0;
   #connectionEpoch = 1;
   #restoredOfficialHistory: boolean;
@@ -180,7 +176,7 @@ export class TaskRuntimeProjection {
       const frame: TaskProjectionFrame = {
         kind: "delta",
         snapshot: structuredClone(this.snapshot),
-        context: structuredClone(this.#context),
+        ...(this.#contextChanged ? { context: structuredClone(this.#context) } : {}),
         messageCount: this.messages.length,
         messages,
         eventCount: this.#timeline.size,
@@ -537,7 +533,7 @@ export class TaskRuntimeProjection {
       const updateKind = event.method
         .replace(/^child\//, "")
         .replace(/^session\/update:/, "");
-      if (TEXT_UPDATES.has(updateKind) || event.method === "task/user_message") continue;
+      if (isSessionTextUpdate(updateKind) || event.method === "task/user_message") continue;
       const item = this.#upsertTimeline(event, true);
       if (item) items.push(item);
     }
@@ -550,7 +546,10 @@ export class TaskRuntimeProjection {
   }
 
   #refreshContext(): void {
-    this.#context = this.#semantic.context();
+    const next = this.#semantic.context();
+    if (next === this.#context) return;
+    this.#context = next;
+    this.#contextChanged = true;
   }
 
   #upsertTimeline(event: TaskEventEnvelope, remapCursor: boolean): TaskStoredTimelineItem | null {
@@ -595,6 +594,7 @@ export class TaskRuntimeProjection {
   #clearFrameChanges(): void {
     this.#changedMessages.clear();
     this.#changedTimelineIds.clear();
+    this.#contextChanged = false;
   }
 
   #publish(events: readonly TaskStoredTimelineItem[]): void {

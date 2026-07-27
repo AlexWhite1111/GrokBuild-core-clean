@@ -3,6 +3,7 @@ import {
   type TaskEventEnvelope,
   type TaskOperationalContextSnapshot,
 } from "../../shared/contracts.js";
+import { isSessionTextEventMethod } from "./taskTextUpdates.js";
 
 const PARENT_TEXT_METHODS = new Set([
   "session/update:agent_message_chunk",
@@ -60,7 +61,8 @@ export class TaskOperationalContextReducer {
 }
 
 function affectsOperationalContext(event: TaskEventEnvelope): boolean {
-  return !PARENT_TEXT_METHODS.has(event.method);
+  return !PARENT_TEXT_METHODS.has(event.method)
+    && !isSessionTextEventMethod(event.method);
 }
 
 function sparseEvent(event: TaskEventEnvelope): TaskEventEnvelope {

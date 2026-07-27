@@ -200,7 +200,13 @@ function projectWorkItems(events: TaskEventEnvelope[]): WorkItemSnapshot[] {
     if (!latestLoad || TERMINAL_WORK.has(item.status)) return item;
     const confirmedAfterLoad = events.some((event) => compareEvent(event, latestLoad) > 0 && confirmsWorkItem(event, item));
     return confirmedAfterLoad ? item : { ...item, status: "unconfirmed" as const, currentActivity: null };
-  }).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }).sort(compareWorkDisplayOrder);
+}
+
+/** Live work keeps its launch order; progress timestamps never reshuffle rows. */
+function compareWorkDisplayOrder(left: WorkItemSnapshot, right: WorkItemSnapshot): number {
+  return left.startedAt.localeCompare(right.startedAt)
+    || left.id.localeCompare(right.id);
 }
 
 function confirmsWorkItem(event: TaskEventEnvelope, item: WorkItemSnapshot): boolean {

@@ -92,10 +92,8 @@ export function VisualCanvas({ children, controller, naturalWidth, naturalHeight
         : controller.view.mode === "comfortable" ? comfortableScale
           : controller.view.mode === "double" ? comfortableScale * 2 : fitScale;
   const scale = modeScale * controller.view.zoom;
-  const renderedWidth = natural.width * scale;
   const renderedHeight = natural.height * scale;
   const stageHeight = detail ? undefined : inlineVisualStageHeight(renderedHeight, layout.paddingY, viewportHeight);
-  const pannable = renderedWidth > viewportWidth + 1 || renderedHeight > viewportHeight + 1;
 
   const constrainAtZoom = useCallback((zoom: number, x: number, y: number) => {
     const width = natural.width * modeScale * zoom;
@@ -179,7 +177,7 @@ export function VisualCanvas({ children, controller, naturalWidth, naturalHeight
       };
       return;
     }
-    if (event.button !== 0 || !pannable) return;
+    if (event.button !== 0) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     gesture.current = {
       kind: "pan",
@@ -230,7 +228,7 @@ export function VisualCanvas({ children, controller, naturalWidth, naturalHeight
     const deltaX = event.clientX - origin.clientX;
     const deltaY = event.clientY - origin.clientY;
     if (!origin.committed) {
-      if (!pannable || Math.hypot(deltaX, deltaY) < TOUCH_PAN_THRESHOLD) return;
+      if (Math.hypot(deltaX, deltaY) < TOUCH_PAN_THRESHOLD) return;
       origin.committed = true;
     }
     event.preventDefault();
@@ -324,7 +322,7 @@ export function VisualCanvas({ children, controller, naturalWidth, naturalHeight
     aria-keyshortcuts="+ - 0 ArrowUp ArrowDown ArrowLeft ArrowRight"
     tabIndex={0}
     data-detail={detail || undefined}
-    data-pannable={pannable || undefined}
+    data-pannable="true"
     onKeyDown={keyDown}
     onWheel={wheel}
     onPointerDown={(event) => { event.currentTarget.focus({ preventScroll: true }); pointerDown(event); }}

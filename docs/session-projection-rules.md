@@ -17,6 +17,7 @@
 - Goal 转换具有稳定 identity，可跨重启恢复。
 - Plan 只恢复官方 Session 中实际持久化的内容；live reverse request 不另建影子存储。
 - child session 可按官方 session id 读取，不进入主任务列表。
+- child transcript 的逐字 chunk 只属于其官方 child Session，不进入父任务 operational context；父任务只投影结构化 child lifecycle。
 - child reverse request 进入同一 Gate 队列，并携带 parent/child scope。
 - turn 终态只绑定明确 identity；仅剩一个 active turn 时才允许回退。
 - 单槽命令摘要只能由相同 request identity 的完成态更新。
@@ -27,6 +28,8 @@
 - 空白 Session 在首条用户消息前更换 System Prompt 或 Sandbox 时，由一个新官方 Session 原位接替；旧空 Session 归档，不生成可见 Fork。
 - Session 已有用户消息后再更换固定设置，必须保留源 Session 并创建普通官方 Fork；Goal、Queue、Gate、未确认投递或后台工作未结束时禁止改写历史。
 - Project 新任务默认值是非对话配置，只能在创建新官方 Session 时读取；任务创建和当前 Session 的权限切换都不得反写默认值。
+- 文本 delta 可省略未变化的 Context；Renderer 只能沿用同一官方投影链最后接受的 Context，不得从旁路重建。
+- 流式富文本只可缓存经 canonical 组合等价验证的完成块；结束时必须由同一个 one-shot canonical parser 重新建立最终树，不得退回源码或增加第二渲染链。
 
 ## 禁止状态
 

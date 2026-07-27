@@ -36,6 +36,27 @@ test("delta frames replace only changed projection rows and preserve unchanged h
   assert.equal(applied.detail?.snapshot, frame.snapshot);
 });
 
+test("a text-only delta preserves the existing operational context reference", () => {
+  const current = detailFixture();
+  const applied = applyTaskProjectionFrame(current, {
+    kind: "delta",
+    snapshot: {
+      ...current.snapshot,
+      revision: current.snapshot.revision + 1,
+    },
+    messageCount: current.messages.length,
+    messages: [{
+      index: 1,
+      message: { ...current.messages[1], text: "AB" },
+    }],
+    eventCount: current.events.length,
+    events: [],
+  });
+
+  assert.equal(applied.accepted, true);
+  assert.equal(applied.detail?.context, current.context);
+});
+
 test("delta frames append complete new rows without retransmitting existing history", () => {
   const current = detailFixture();
   const message = {

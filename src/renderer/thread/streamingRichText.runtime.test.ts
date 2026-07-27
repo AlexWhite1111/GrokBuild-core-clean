@@ -114,3 +114,78 @@ test("plain streaming returns to the canonical parser as soon as syntax becomes 
     assert.deepEqual(state.tree, parseRichTextDocument(source, POLICY), source);
   }
 });
+
+test("complex streaming stays visibly canonical while committed blocks remain stable", () => {
+  const source = [
+    "# 标题",
+    "",
+    "正文有 **强调**、[链接](https://example.com) 与 $E=mc^2$。",
+    "",
+    "- 第一项",
+    "- 第二项",
+    "",
+    "| A | B |",
+    "| - | - |",
+    "| 1 | 2 |",
+    "",
+    "```ts",
+    "const xs = [1, 2];",
+    "```",
+    "",
+    "<div class=\"card\">HTML</div>",
+    "",
+    "结尾",
+  ].join("\n");
+  let state = initialStreamingRichText("", POLICY);
+  for (let cursor = 1; cursor <= source.length; cursor += 1) {
+    const partial = source.slice(0, cursor);
+    state = updateStreamingRichText(state, partial, POLICY);
+    assert.deepEqual(
+      visibleChildren(state.tree),
+      visibleChildren(parseRichTextDocument(partial, POLICY)),
+      `cursor ${cursor}`,
+    );
+  }
+  assert.ok(state.committedSource.length > source.length * 0.7);
+});
+
+test("complex Markdown parsing amplification stays bounded", () => {
+  const section = (index: number) => [
+    `## 模块 ${index}`,
+    "",
+    `这里是包含 **强调**、[链接](https://example.com/${index}) 和公式 $E=mc^2$ 的说明。`,
+    "",
+    `- 条目 A ${index}`,
+    `- 条目 B ${index}`,
+    "",
+    "| 名称 | 数值 |",
+    "| --- | ---: |",
+    `| 项目 ${index} | ${index} |`,
+    "",
+    "```ts",
+    `const value${index}: number = ${index};`,
+    `console.log(value${index});`,
+    "```",
+    "",
+  ].join("\n");
+  let source = "";
+  for (let index = 1; source.length < 9_500; index += 1) source += section(index);
+  let state = initialStreamingRichText("", POLICY);
+  for (let frame = 1; frame <= 150; frame += 1) {
+    state = updateStreamingRichText(
+      state,
+      source.slice(0, Math.floor(source.length * frame / 150)),
+      POLICY,
+    );
+  }
+
+  assert.ok(
+    state.parsedCharacters <= source.length * 5,
+    `${state.parsedCharacters} parsed characters for ${source.length} source characters`,
+  );
+});
+
+function visibleChildren(root: ReturnType<typeof parseRichTextDocument>): unknown[] {
+  return root.children.flatMap((node) =>
+    node.type === "text" && !node.value.trim() ? [] : [node]);
+}

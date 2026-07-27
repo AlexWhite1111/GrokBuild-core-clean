@@ -116,18 +116,12 @@ test("the official live session notification projects a subagent", (t) => {
 });
 
 test("official XAI subagent updates stay on the incremental projection path", (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-live-delta-"));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const snapshot = createTaskSnapshotFixture("project-fixture");
-  snapshot.sessionId = "parent-session";
-  const projection = new TaskRuntimeProjection(
-    snapshot,
-    new JsonStateStore(path.join(root, "state.json")),
-    {},
-  );
-  const client = new EventEmitter();
   const changes: TaskProjectionChange[] = [];
-  wireClient(client, projection, null, (change) => changes.push(change));
+  const { client, projection } = liveProjection(
+    t,
+    null,
+    (change) => changes.push(change),
+  );
 
   client.emit("notification", {
     method: "x.ai/session_notification",
@@ -262,6 +256,38 @@ test("a live parent reads child conversation through the official Session projec
   assert.equal(projection.detail().messages.length, 0);
 });
 
+test("child transcript chunks do not publish or revise the parent projection", (t) => {
+  const changes: TaskProjectionChange[] = [];
+  const { client, projection } = liveProjection(
+    t,
+    null,
+    (change) => changes.push(change),
+  );
+  const revision = projection.snapshot.revision;
+
+  for (let index = 0; index < 2_000; index += 1) {
+    client.emit("notification", {
+      method: "session/update",
+      params: {
+        sessionId: "child-session",
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: "x" },
+        },
+      },
+    });
+  }
+
+  assert.equal(changes.length, 0);
+  assert.equal(projection.snapshot.revision, revision);
+  assert.equal(projection.detail().events.length, 0);
+  assert.deepEqual(projection.detail().context, {
+    currentTodo: null,
+    activeWork: [],
+    history: [],
+  });
+});
+
 test("an official prompt completion clears only its stale running queue slot", (t) => {
   const { client, projection } = liveProjection(t);
   client.emit("notification", {
@@ -370,7 +396,11 @@ test("tool updates stay on their official tool call when update packets omit pro
   assert.notEqual(turns[0], null);
 });
 
-function liveProjection(t: { after(callback: () => void): void }, latestTurnId: string | null = null) {
+function liveProjection(
+  t: { after(callback: () => void): void },
+  latestTurnId: string | null = null,
+  change: (change?: TaskProjectionChange) => void = () => undefined,
+) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "grok-build-live-projection-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const snapshot = createTaskSnapshotFixture("project-fixture");
@@ -381,7 +411,7 @@ function liveProjection(t: { after(callback: () => void): void }, latestTurnId: 
     {},
   );
   const client = new EventEmitter();
-  wireClient(client, projection, latestTurnId);
+  wireClient(client, projection, latestTurnId, change);
   return { client, projection };
 }
 

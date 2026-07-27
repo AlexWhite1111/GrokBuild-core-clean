@@ -10,6 +10,7 @@ import { renumberGates, toGate } from "./taskGates.js";
 import type { TaskRuntimeContext } from "./TaskRuntimeContext.js";
 import type { TaskProjectionChange } from "./TaskRuntimeProjection.js";
 import { PROMPT_RECEIPT_TIMEOUT_MS } from "./taskDelivery.js";
+import { isSessionTextUpdate } from "./taskTextUpdates.js";
 
 export function wireTaskClientEvents(options: TaskRuntimeContext): void {
   options.client.on("notification", (event: unknown) => {
@@ -21,6 +22,8 @@ export function wireTaskClientEvents(options: TaskRuntimeContext): void {
       const sessionId = string(params.sessionId);
       const ownSession = !sessionId || sessionId === options.projection.snapshot.sessionId;
       if (!ownSession) {
+        const updateType = string(asRecord(params.update).sessionUpdate);
+        if (isSessionTextUpdate(updateType)) return;
         const outcome = options.projection.applyNotification({ kind: "child-acp", params: value.params });
         options.touch();
         options.change(outcome.projectionChange);

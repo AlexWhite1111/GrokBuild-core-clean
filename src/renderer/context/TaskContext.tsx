@@ -1,5 +1,5 @@
 import { ChevronRight, Paperclip, Plus, Square, X } from "lucide-react";
-import { useState, type CSSProperties, type DragEvent } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { ContextHistoryItem, PathReferenceSummary, SavedContextResource, TaskDetailProjection, WorkItemSnapshot } from "../../shared/contracts.js";
 import { firstMarkdownHeading } from "../design/markdownTitle.js";
@@ -7,7 +7,7 @@ import { snapshotDroppedFiles } from "../files/dropFiles.js";
 import { Collapsible } from "../../ui/primitives/index.js";
 import { Control, Notice, operationalGlyphs, PanelEmpty, PanelRow, PanelSection, PATH_CHIP_MIME, ResizeHandle, SegmentedControl, Surface, UiIcon, readPathChipTransfer } from "../../ui/components/index.js";
 import { ContextResourceView } from "./ContextResourceView.js";
-import { projectTaskContext } from "./contextProjection.js";
+import { projectTaskContext, sameTaskResourceInputs, type TaskContextProjection } from "./contextProjection.js";
 import { localizedSubagentTitle } from "./subagentTitle.js";
 import { TaskTodoGroup } from "./TaskTodoGroup.js";
 import { useRightRailResize } from "../layout/useRightRailResize.js";
@@ -39,11 +39,24 @@ export function TaskContext(props: TaskContextProps) {
   const { t } = useTranslation();
   const { detail, savedResources = [], focus } = props;
   const { snapshot } = detail;
-  const projection = projectTaskContext(detail, savedResources);
-  const activeAgents = projection.activeWork.filter((item) => item.kind === "agent");
-  const history = historyForSection(projection.history, focus);
-  const resources = [...projection.inputs, ...projection.artifacts].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
-  const savedPathKeys = new Set(savedResources.map((item) => pathKey(item.path)));
+  const projection = useStableTaskContextProjection(detail, savedResources);
+  const activeAgents = useMemo(
+    () => projection.activeWork.filter((item) => item.kind === "agent"),
+    [projection.activeWork],
+  );
+  const history = useMemo(
+    () => historyForSection(projection.history, focus),
+    [focus, projection.history],
+  );
+  const resources = useMemo(
+    () => [...projection.inputs, ...projection.artifacts]
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
+    [projection.artifacts, projection.inputs],
+  );
+  const savedPathKeys = useMemo(
+    () => new Set(savedResources.map((item) => pathKey(item.path))),
+    [savedResources],
+  );
   const [dropActive, setDropActive] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
   const { liveWidth, beginResize, resizeWithKeyboard } = useRightRailResize(props);
@@ -135,7 +148,7 @@ function AgentRow({ item, onOpen, canStop, stopPending, onStop }: { item: WorkIt
   const title = localizedSubagentTitle(item.title, t("subagent"));
   const activity = item.currentActivity && item.currentActivity !== item.title ? item.currentActivity : undefined;
   const actions = canStop && onStop ? [{ label: t("stopSubagent"), onClick: () => onStop(item), icon: Square, tone: "danger" as const, disabled: stopPending }] : [];
-  return <div className={styles.agentItem} data-agent-status={item.status} data-running={item.status === "pending" || item.status === "running" || undefined}><PanelRow icon={operationalGlyphs.subagent} title={title} detail={activity} trailing={openable ? <UiIcon source={ChevronRight} size="detail" /> : undefined} actions={actions} tone={workStatusTone(item.status)} wrap contentText onClick={openable ? () => onOpen(item) : undefined} /></div>;
+  return <div className={styles.agentItem} data-agent-status={item.status} data-running={item.status === "pending" || item.status === "running" || undefined}><PanelRow icon={operationalGlyphs.subagent} title={title} detail={activity} trailing={openable ? <UiIcon source={ChevronRight} size="detail" /> : undefined} actions={actions} tone={workStatusTone(item.status)} contentText onClick={openable ? () => onOpen(item) : undefined} /></div>;
 }
 
 function HistoryRow({ item, onOpenChild }: { item: ContextHistoryItem; onOpenChild: (item: WorkItemSnapshot) => void }) {
@@ -168,3 +181,35 @@ function workStatusTone(status: WorkItemSnapshot["status"]): "neutral" | "accent
 function formatTime(value: string): string { return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
 function pathKey(path: Pick<PathReferenceSummary, "withinProject" | "displayPath">): string { return `${path.withinProject ? "project" : "external"}:${path.displayPath}`; }
 function acceptsResourceDrop(transfer: DataTransfer): boolean { const types = Array.from(transfer.types); return types.includes(PATH_CHIP_MIME) || types.includes("Files"); }
+
+function useStableTaskContextProjection(
+  detail: TaskDetailProjection,
+  savedResources: SavedContextResource[],
+): TaskContextProjection {
+  const cache = useRef<{
+    detail: TaskDetailProjection;
+    savedResources: SavedContextResource[];
+    projection: TaskContextProjection;
+  } | null>(null);
+  const previous = cache.current;
+  const resourcesStable = Boolean(
+    previous
+    && previous.savedResources === savedResources
+    && sameTaskResourceInputs(previous.detail.messages, detail.messages),
+  );
+  if (
+    previous
+    && resourcesStable
+    && previous.detail.context === detail.context
+  ) return previous.projection;
+
+  const projection = resourcesStable && previous
+    ? {
+        ...detail.context,
+        inputs: previous.projection.inputs,
+        artifacts: previous.projection.artifacts,
+      }
+    : projectTaskContext(detail, savedResources);
+  cache.current = { detail, savedResources, projection };
+  return projection;
+}

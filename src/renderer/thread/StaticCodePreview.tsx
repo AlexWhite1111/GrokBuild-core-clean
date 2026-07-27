@@ -4,6 +4,7 @@ import type { StaticPreviewKind } from "./codeBlockRegistry.js";
 import { THEME_APPLIED_EVENT } from "../../ui/theme/index.js";
 import { DiagramViewport } from "./DiagramViewport.js";
 import type { VisualCanvasController } from "./VisualCanvas.js";
+import { repairMermaidLabelContrast } from "./mermaidLabelContrast.js";
 import { mermaidConfiguration } from "./mermaidPreviewPolicy.js";
 import { sanitizeSvgMarkup } from "./svgSanitizer.js";
 import { SpicePreview } from "./SpicePreview.js";
@@ -63,7 +64,7 @@ async function renderMermaidMarkup(source: string, id: string): Promise<string> 
   const rendered = await mermaid.render(id, source);
   const clean = sanitizeSvgMarkup(rendered.svg, true, true);
   if (!clean) throw new Error("Unsafe Mermaid output");
-  return clean;
+  return repairMermaidLabelContrast(clean);
 }
 
 function PreviewState({ value, controller, detail, comfortablePercent, minimumSize }: { value: string | false | null; controller?: VisualCanvasController; detail?: boolean; comfortablePercent?: number; minimumSize?: number }) {

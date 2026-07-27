@@ -479,7 +479,8 @@ export interface TaskDetailProjection {
 /**
  * Ordered renderer-facing frames from the one authoritative task projection.
  * Snapshot frames establish structure. Delta frames replace only changed
- * messages/events while carrying the current small task/context projections.
+ * messages/events while carrying the current task projection. Operational
+ * context is included only when that projection actually changed.
  * The official Session remains the sole source for both forms.
  */
 export type TaskProjectionFrame =
@@ -490,7 +491,7 @@ export type TaskProjectionFrame =
   | {
       kind: "delta";
       snapshot: TaskSnapshot;
-      context: TaskOperationalContextSnapshot;
+      context?: TaskOperationalContextSnapshot;
       messageCount: number;
       messages: Array<{
         index: number;

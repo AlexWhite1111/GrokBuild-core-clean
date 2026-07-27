@@ -7,6 +7,7 @@ export function mermaidConfiguration(themeVariables: MermaidConfig["themeVariabl
     suppressErrorRendering: true,
     theme: "base",
     htmlLabels: true,
+    forceLegacyMathML: true,
     flowchart: { useMaxWidth: true },
     themeVariables,
   };

@@ -28,6 +28,50 @@ test("an ended turn preserves the last official Todo item statuses", () => {
   ]);
 });
 
+test("live subagents keep launch order while alternating progress updates", () => {
+  const spawned = [
+    event(1, "x.ai/session_notification", {
+      type: "subagent_spawned",
+      subagentId: "agent-a",
+      childSessionId: "agent-a",
+      title: "Agent A",
+    }),
+    event(2, "x.ai/session_notification", {
+      type: "subagent_spawned",
+      subagentId: "agent-b",
+      childSessionId: "agent-b",
+      title: "Agent B",
+    }),
+  ];
+  const afterB = projectTaskOperationalContext([
+    ...spawned,
+    event(3, "x.ai/session_notification", {
+      type: "subagent_progress",
+      subagentId: "agent-b",
+      childSessionId: "agent-b",
+      message: "B progress",
+    }),
+  ]);
+  const afterA = projectTaskOperationalContext([
+    ...spawned,
+    event(3, "x.ai/session_notification", {
+      type: "subagent_progress",
+      subagentId: "agent-b",
+      childSessionId: "agent-b",
+      message: "B progress",
+    }),
+    event(4, "x.ai/session_notification", {
+      type: "subagent_progress",
+      subagentId: "agent-a",
+      childSessionId: "agent-a",
+      message: "A progress",
+    }),
+  ]);
+
+  assert.deepEqual(afterB.activeWork.map((item) => item.id), ["agent-a", "agent-b"]);
+  assert.deepEqual(afterA.activeWork.map((item) => item.id), ["agent-a", "agent-b"]);
+});
+
 function event(sequence: number, method: string, payload: unknown): TaskEventEnvelope {
   return {
     eventId: `event-${sequence}`,

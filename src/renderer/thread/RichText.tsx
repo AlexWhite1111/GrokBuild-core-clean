@@ -119,25 +119,79 @@ export const RichText = memo(function RichText({
     }
     return parseRichTextDocument(framedText, policy);
   }, [document, framedText, level, placements, renderPolicy, streaming, streamingKey]);
-  const baseRenderer = flow === "inline" ? inlineComponents : components;
   const responseLinks = portableResponse?.localLinks;
   const resolvedLinks = localLinks?.length ? localLinks : responseLinks?.length ? responseLinks : EMPTY_LOCAL_LINKS;
+  const richDocument = document || portableResponse?.document || fallbackDocument;
+  const activeStream = streaming
+    && !document
+    && !portableResponse
+    && flow === "block"
+    && streamState.current?.key === streamingKey
+    && streamState.current.value.committedSegments.length
+    ? streamState.current.value
+    : null;
+  const copyMarkdown = (event: ClipboardEvent<HTMLElement>) => copySelectedMarkdown(event, framedText);
+  const treeProps = { taskId, paths, media, localLinks: resolvedLinks, renderPolicy, mediaScale, density, flow, streaming };
+  return <div className={`${styles.richText} ${density === "compact" ? styles.compact : ""} ${flow === "inline" ? styles.inlineFlow : ""} ${className}`} onCopy={copyMarkdown}>
+    {activeStream ? <>
+      {activeStream.committedSegments.map((segment, index) =>
+        <RichTree key={`${streamingKey}:committed:${index}`} document={segment.tree} source={segment.sourceAtCommit} {...treeProps} />)}
+      <RichTree key={`${streamingKey}:active`} document={activeStream.activeTree} source={framedText} {...treeProps} />
+    </> : <RichTree key="full" document={richDocument} source={framedText} {...treeProps} />}
+  </div>;
+});
+
+const RichTree = memo(function RichTree({
+  document,
+  source,
+  taskId,
+  paths,
+  media,
+  localLinks,
+  renderPolicy,
+  mediaScale,
+  density,
+  flow,
+  streaming,
+}: {
+  document: PortableRichTextDocument;
+  source: string;
+  taskId?: string;
+  paths: PathReferenceSummary[];
+  media: TaskMediaAttachment[];
+  localLinks: RichTextLocalLink[];
+  renderPolicy: RichTextRenderPolicy;
+  mediaScale?: number;
+  density: RichTextDensity;
+  flow: RichTextFlow;
+  streaming: boolean;
+}) {
+  const baseRenderer = flow === "inline" ? inlineComponents : components;
   const renderer = useMemo(() => richComponents(baseRenderer, {
     taskId,
-    text: framedText,
+    text: source,
     paths,
     media,
-    localLinks: resolvedLinks,
+    localLinks,
     renderPolicy,
     mediaScale,
     density,
     streaming,
-  }), [baseRenderer, density, framedText, media, mediaScale, paths, renderPolicy, resolvedLinks, streaming, taskId]);
-  const richDocument = document || portableResponse?.document || fallbackDocument;
-  const sourceDocument = useMemo(() => annotateMarkdownSourceBlocks(richDocument, framedText), [framedText, richDocument]);
-  const markdown = useMemo(() => toJsxRuntime(sourceDocument, { Fragment, jsx, jsxs, components: renderer, passNode: true }), [renderer, sourceDocument]);
-  const copyMarkdown = (event: ClipboardEvent<HTMLElement>) => copySelectedMarkdown(event, framedText);
-  return <div className={`${styles.richText} ${density === "compact" ? styles.compact : ""} ${flow === "inline" ? styles.inlineFlow : ""} ${className}`} onCopy={copyMarkdown}>{markdown}</div>;
+  }), [baseRenderer, density, localLinks, media, mediaScale, paths, renderPolicy, source, streaming, taskId]);
+  const sourceDocument = useMemo(
+    () => annotateMarkdownSourceBlocks(document, source),
+    [document, source],
+  );
+  return useMemo(
+    () => toJsxRuntime(sourceDocument, {
+      Fragment,
+      jsx,
+      jsxs,
+      components: renderer,
+      passNode: true,
+    }),
+    [renderer, sourceDocument],
+  );
 });
 
 function useAnimationFrameText(text: string, streaming: boolean, key: string): string {

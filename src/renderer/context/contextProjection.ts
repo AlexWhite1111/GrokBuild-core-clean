@@ -30,6 +30,28 @@ export function projectTaskContext(detail: TaskDetailProjection, savedResources:
   return { ...detail.context, ...projectResources(detail, savedResources) };
 }
 
+/** Ignores text-only message replacements while detecting every resource input. */
+export function sameTaskResourceInputs(
+  left: TaskDetailProjection["messages"],
+  right: TaskDetailProjection["messages"],
+): boolean {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    const previous = left[index];
+    const next = right[index];
+    if (previous === next) continue;
+    if (
+      previous.blockId !== next.blockId
+      || previous.role !== next.role
+      || previous.createdAt !== next.createdAt
+      || JSON.stringify(previous.paths || []) !== JSON.stringify(next.paths || [])
+      || JSON.stringify(previous.media || []) !== JSON.stringify(next.media || [])
+    ) return false;
+  }
+  return true;
+}
+
 function projectResources(detail: TaskDetailProjection, savedResources: SavedContextResource[]): Pick<TaskContextProjection, "inputs" | "artifacts"> {
   const inputs = new Map<string, ContextResourceItem>();
   const artifacts = new Map<string, ContextResourceItem>();

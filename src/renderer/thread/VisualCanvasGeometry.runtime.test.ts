@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inlineVisualHeightLimit, inlineVisualStageHeight, scaleVisualOffset } from "./VisualCanvasGeometry.js";
+import { constrainVisualOffset, inlineVisualHeightLimit, inlineVisualStageHeight, scaleVisualOffset } from "./VisualCanvasGeometry.js";
 
 test("inline generated visuals have a bounded responsive height", () => {
   assert.equal(inlineVisualHeightLimit(300), 240);
@@ -29,4 +29,15 @@ test("pinch and wheel scaling keep the visual point under the moving anchor", ()
     nextAnchorX: 70,
     nextAnchorY: 35,
   }), { x: -10, y: -15 });
+});
+
+test("a visual smaller than its viewport can still be deliberately repositioned", () => {
+  assert.deepEqual(constrainVisualOffset({
+    x: 120,
+    y: -90,
+    renderedWidth: 240,
+    renderedHeight: 160,
+    viewportWidth: 800,
+    viewportHeight: 600,
+  }), { x: 120, y: -90 });
 });
