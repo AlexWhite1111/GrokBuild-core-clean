@@ -26,6 +26,12 @@ export interface StreamingRichTextState {
   lastAttemptedBoundary: number;
 }
 
+interface StreamingRichTextRenderSegment {
+  source: string;
+  tree: Root;
+  streaming: boolean;
+}
+
 /** Start a stream using the same parser that owns finalized rich text. */
 export function initialStreamingRichText(source: string, policy: RichTextPolicy): StreamingRichTextState {
   const empty = emptyRoot();
@@ -119,10 +125,9 @@ export function updateStreamingRichText(
         source,
         committedSource,
         committedTree,
-        committedSegments: [
-          ...previous.committedSegments,
-          { sourceAtCommit: committedSource, tree: prefixTree },
-        ],
+        committedSegments: hasRenderableChildren(prefixTree)
+          ? [...previous.committedSegments, { sourceAtCommit: committedSource, tree: prefixTree }]
+          : previous.committedSegments,
         activeSource: tailSource,
         activeTree: tailTree,
         tree: proposed,
@@ -174,18 +179,32 @@ export function updateStreamingRichText(
   };
 }
 
-/** A completed turn is always replaced by the existing one-shot pipeline. */
+/**
+ * The one-shot parser always establishes the completed canonical tree. Proven
+ * segments stay mounted only when their composed children are exactly equal.
+ */
 export function finalizeStreamingRichText(
   previous: StreamingRichTextState,
   source: string,
   policy: RichTextPolicy,
 ): StreamingRichTextState {
   const tree = parseRichTextDocument(source, policy);
+  const keepSegments = previous.source === source
+    && previous.committedSegments.length > 0
+    && sameChildren(previous.tree, tree);
+  const committedSegments = keepSegments
+    ? hasRenderableChildren(previous.activeTree)
+      ? [
+          ...previous.committedSegments,
+          { sourceAtCommit: source, tree: previous.activeTree },
+        ]
+      : previous.committedSegments
+    : [{ sourceAtCommit: source, tree }];
   return {
     source,
     committedSource: source,
     committedTree: tree,
-    committedSegments: [{ sourceAtCommit: source, tree }],
+    committedSegments,
     activeSource: "",
     activeTree: emptyRoot(),
     tree,
@@ -196,14 +215,72 @@ export function finalizeStreamingRichText(
   };
 }
 
+/**
+ * Keeps parser-proven blocks mounted while the tail grows. A completed
+ * portable document may reuse them only when it is structurally identical;
+ * backend link enrichment therefore still takes over when required.
+ */
+export function streamingRichTextRenderSegments(
+  state: StreamingRichTextState,
+  authoritativeTree?: Root | null,
+): StreamingRichTextRenderSegment[] | null {
+  if (!state.committedSegments.length) return null;
+  if (authoritativeTree && !sameChildren(state.tree, authoritativeTree)) return null;
+  return [
+    ...state.committedSegments.map((segment) => ({
+      source: segment.sourceAtCommit,
+      tree: segment.tree,
+      streaming: false,
+    })),
+    ...(hasRenderableChildren(state.activeTree) ? [{
+      source: state.source,
+      tree: state.activeTree,
+      streaming: true,
+    }] : []),
+  ];
+}
+
+function hasRenderableChildren(tree: Root): boolean {
+  return tree.children.some((node) => node.type !== "text" || Boolean(node.value.trim()));
+}
+
 function latestCompletedBlockBoundary(source: string): number {
-  const blank = /\n[\t ]*\n/g;
-  let boundary = -1;
-  for (let match = blank.exec(source); match; match = blank.exec(source)) {
-    const end = match.index + match[0].length;
-    if (source.slice(end).trim()) boundary = end;
+  const boundaries = markdownBlockBoundaries(source);
+  const blank = boundaries.blank >= 0 && source.slice(boundaries.blank).trim()
+    ? boundaries.blank
+    : -1;
+  return Math.max(blank, boundaries.fence);
+}
+
+function markdownBlockBoundaries(source: string): { blank: number; fence: number } {
+  let blank = -1;
+  let completedFence = -1;
+  let offset = 0;
+  let fence: { marker: string; length: number } | null = null;
+  for (const line of source.match(/[^\n]*(?:\n|$)/g) || []) {
+    if (!line) continue;
+    const terminated = line.endsWith("\n");
+    const body = terminated ? line.slice(0, -1) : line;
+    const end = offset + line.length;
+    if (fence) {
+      const closing = new RegExp(`^[\\t ]{0,3}${fence.marker}{${fence.length},}[\\t ]*$`);
+      if (terminated && closing.test(body)) {
+        fence = null;
+        completedFence = end;
+      }
+      offset = end;
+      continue;
+    }
+    const opening = /^[\t ]{0,3}(`{3,}|~{3,})/.exec(body);
+    if (opening) {
+      fence = { marker: opening[1][0], length: opening[1].length };
+      offset = end;
+      continue;
+    }
+    if (terminated && !body.trim()) blank = end;
+    offset = end;
   }
-  return boundary;
+  return { blank, fence: completedFence };
 }
 
 /**
@@ -214,7 +291,8 @@ function latestCompletedBlockBoundary(source: string): number {
  * deliberately remain active until finalization.
  */
 function stableCompletedPrefix(source: string): boolean {
-  if (!source.endsWith("\n\n") && !/\n[\t ]*\n$/.test(source)) return false;
+  const boundaries = markdownBlockBoundaries(source);
+  if (boundaries.blank !== source.length && boundaries.fence !== source.length) return false;
   const visible = markdownOutsideCode(source)
     .replace(/\\\[[\s\S]*?\\\]|\\\([^\n]*?\\\)|\$\$[\s\S]*?\$\$|\$[^$\n]+\$/g, "")
     .replace(/!?\[[^\]\n]*\]\((?:\\.|[^)\n])*\)/g, "")

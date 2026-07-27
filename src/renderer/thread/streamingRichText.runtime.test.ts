@@ -5,6 +5,7 @@ import { parseRichTextDocument } from "../../shared/richTextPipeline.js";
 import {
   finalizeStreamingRichText,
   initialStreamingRichText,
+  streamingRichTextRenderSegments,
   updateStreamingRichText,
 } from "./streamingRichText.js";
 
@@ -52,6 +53,87 @@ test("unsafe open constructs never become a guessed cached prefix", () => {
     assert.equal(state.mode, "full", source);
     assert.equal(state.committedSource, "", source);
   }
+});
+
+test("a closed Mermaid fence becomes a non-streaming render segment immediately", () => {
+  const source = [
+    "```mermaid",
+    "flowchart TD",
+    "  A[开始] --> B[完成]",
+    "```",
+    "",
+  ].join("\n");
+  let state = initialStreamingRichText("", POLICY);
+  for (let cursor = 1; cursor <= source.length; cursor += 1) {
+    state = updateStreamingRichText(state, source.slice(0, cursor), POLICY);
+  }
+
+  assert.equal(state.committedSource, source);
+  assert.equal(state.activeSource, "");
+  assert.deepEqual(
+    streamingRichTextRenderSegments(state)?.map((segment) => segment.streaming),
+    [false],
+  );
+  assert.deepEqual(state.tree, parseRichTextDocument(source, POLICY));
+});
+
+test("blank lines inside an unfinished fence never create a completed segment", () => {
+  const source = [
+    "```mermaid",
+    "flowchart TD",
+    "",
+    "  A[开始] --> B[仍在生成]",
+    "",
+  ].join("\n");
+  const state = updateStreamingRichText(initialStreamingRichText("", POLICY), source, POLICY);
+  assert.equal(state.committedSource, "");
+  assert.equal(state.committedSegments.length, 0);
+  assert.equal(streamingRichTextRenderSegments(state), null);
+});
+
+test("completed blocks stay mounted while only the active tail remains streaming", () => {
+  const source = [
+    "```mermaid",
+    "flowchart LR",
+    "  A --> B",
+    "```",
+    "",
+    "后续正文仍在生成",
+  ].join("\n");
+  let state = initialStreamingRichText("", POLICY);
+  for (let cursor = 1; cursor <= source.length; cursor += 1) {
+    state = updateStreamingRichText(state, source.slice(0, cursor), POLICY);
+  }
+  const committed = state.committedSegments[0];
+
+  assert.deepEqual(
+    streamingRichTextRenderSegments(state)?.map((segment) => segment.streaming),
+    [false, true],
+  );
+
+  const final = finalizeStreamingRichText(state, source, POLICY);
+  assert.strictEqual(final.committedSegments[0], committed);
+  assert.deepEqual(
+    streamingRichTextRenderSegments(final)?.map((segment) => segment.streaming),
+    [false, false],
+  );
+  assert.deepEqual(final.tree, parseRichTextDocument(source, POLICY));
+});
+
+test("portable enrichment takes over only when its authoritative tree differs", () => {
+  const source = "第一段。\n\n第二段。";
+  let state = initialStreamingRichText("", POLICY);
+  for (let cursor = 1; cursor <= source.length; cursor += 1) {
+    state = updateStreamingRichText(state, source.slice(0, cursor), POLICY);
+  }
+  const final = finalizeStreamingRichText(state, source, POLICY);
+  assert.ok(streamingRichTextRenderSegments(final, parseRichTextDocument(source, POLICY)));
+
+  const enriched = structuredClone(final.tree);
+  const first = enriched.children.find((node) => node.type === "element");
+  assert.ok(first && first.type === "element");
+  first.tagName = "grok-local-link";
+  assert.equal(streamingRichTextRenderSegments(final, enriched), null);
 });
 
 test("completed prose prefixes are parsed once while the active tail grows", () => {
@@ -203,6 +285,39 @@ test("math-rich Markdown commits stable blocks and keeps parsing amplification b
     finalizeStreamingRichText(state, source, POLICY).tree,
     parseRichTextDocument(source, POLICY),
   );
+});
+
+test("many Mermaid blocks stay bounded and survive final canonical verification", () => {
+  const section = (index: number) => [
+    `## 图 ${index}`,
+    "",
+    `说明含 [链接](https://example.com/${index}) 与 $E=mc^2$。`,
+    "",
+    "```mermaid",
+    "flowchart LR",
+    `  A${index}[输入] --> B${index}[处理] --> C${index}[完成]`,
+    "```",
+    "",
+  ].join("\n");
+  const source = repeatedSource(section);
+  const state = streamInFrames(source);
+  const committed = state.committedSegments.slice();
+  const final = finalizeStreamingRichText(state, source, POLICY);
+
+  assert.ok(
+    state.parsedCharacters <= source.length * 4,
+    `${state.parsedCharacters} parsed characters for ${source.length} source characters`,
+  );
+  assert.ok(committed.length > 1);
+  assert.equal(
+    committed.every((segment, index) => final.committedSegments[index] === segment),
+    true,
+  );
+  assert.equal(
+    streamingRichTextRenderSegments(final)?.every((segment) => !segment.streaming),
+    true,
+  );
+  assert.deepEqual(final.tree, parseRichTextDocument(source, POLICY));
 });
 
 function visibleChildren(root: ReturnType<typeof parseRichTextDocument>): unknown[] {

@@ -23,6 +23,7 @@ import { annotateMarkdownSourceBlocks, copySelectedMarkdown, markdownSourceRange
 import {
   finalizeStreamingRichText,
   initialStreamingRichText,
+  streamingRichTextRenderSegments,
   updateStreamingRichText,
   type StreamingRichTextState,
 } from "./streamingRichText.js";
@@ -114,7 +115,7 @@ export const RichText = memo(function RichText({
     }
     if (holder?.key === streamingKey) {
       const value = finalizeStreamingRichText(holder.value, framedText, policy);
-      streamState.current = null;
+      streamState.current = { key: streamingKey, value };
       return value.tree;
     }
     return parseRichTextDocument(framedText, policy);
@@ -122,22 +123,26 @@ export const RichText = memo(function RichText({
   const responseLinks = portableResponse?.localLinks;
   const resolvedLinks = localLinks?.length ? localLinks : responseLinks?.length ? responseLinks : EMPTY_LOCAL_LINKS;
   const richDocument = document || portableResponse?.document || fallbackDocument;
-  const activeStream = streaming
-    && !document
-    && !portableResponse
-    && flow === "block"
-    && streamState.current?.key === streamingKey
-    && streamState.current.value.committedSegments.length
-    ? streamState.current.value
-    : null;
+  const streamValue = streamState.current?.key === streamingKey ? streamState.current.value : null;
+  const streamSegments = useMemo(
+    () => !document && flow === "block" && streamValue
+      ? streamingRichTextRenderSegments(streamValue, portableResponse?.document)
+      : null,
+    [document, flow, portableResponse?.document, streamValue],
+  );
   const copyMarkdown = (event: ClipboardEvent<HTMLElement>) => copySelectedMarkdown(event, framedText);
-  const treeProps = { taskId, paths, media, localLinks: resolvedLinks, renderPolicy, mediaScale, density, flow, streaming };
+  const treeProps = { taskId, paths, media, localLinks: resolvedLinks, renderPolicy, mediaScale, density, flow };
   return <div className={`${styles.richText} ${density === "compact" ? styles.compact : ""} ${flow === "inline" ? styles.inlineFlow : ""} ${className}`} onCopy={copyMarkdown}>
-    {activeStream ? <>
-      {activeStream.committedSegments.map((segment, index) =>
-        <RichTree key={`${streamingKey}:committed:${index}`} document={segment.tree} source={segment.sourceAtCommit} {...treeProps} />)}
-      <RichTree key={`${streamingKey}:active`} document={activeStream.activeTree} source={framedText} {...treeProps} />
-    </> : <RichTree key="full" document={richDocument} source={framedText} {...treeProps} />}
+    {streamSegments
+      ? streamSegments.map((segment, index) =>
+          <RichTree
+            key={`${streamingKey}:${segment.streaming ? "active" : `committed:${index}`}`}
+            document={segment.tree}
+            source={segment.source}
+            streaming={segment.streaming}
+            {...treeProps}
+          />)
+      : <RichTree key="full" document={richDocument} source={framedText} streaming={streaming} {...treeProps} />}
   </div>;
 });
 

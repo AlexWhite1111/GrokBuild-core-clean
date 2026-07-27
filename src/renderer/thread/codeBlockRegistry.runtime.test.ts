@@ -20,7 +20,7 @@ test("non-Web code remains source-owned", () => {
   });
 });
 
-test("executable previews wait for the official message to finish streaming", () => {
+test("only unfinished code segments suppress their executable preview", () => {
   const mermaid = codeCapability("mermaid", "flowchart LR\nA --> B");
   const browser = codeCapability("typescript", "document.body.textContent = 'ready';");
 

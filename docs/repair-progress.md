@@ -39,6 +39,7 @@
 - [x] P21：集中新任务默认值，删除任务创建反写默认配置和无效 Work Mode 默认字段。
 - [x] P22：过滤父任务中的子 Session 逐字噪声，稳定 Agent 排序，并把复杂 Markdown 收敛为可证明等价的增量 canonical 渲染。
 - [x] P23：收口显式 LaTeX 定界符与数学密集流式渲染，删除复制、链接坐标的重复解析分支。
+- [x] P24：按语义边界即时封存闭合 Mermaid 等静态块，只让未完成尾部流式，并消除结构等价时的结束态重挂载。
 
 ## 已确认不变量
 
@@ -125,7 +126,8 @@
 - 子 Session 的逐字 user/agent/thought chunk 只保留在其官方 Session 正文中，不再重复进入父任务 operational context、revision 和投影帧；结构化 spawned/progress/finished 事件仍完整投影。
 - 活跃 Agent 按启动时间稳定排列，进度变化不再重排；运行行固定为单行，只有完成时发生一次符合语义的历史区迁移。
 - 文本增量帧不再克隆或发送未变化的 Context；Renderer 沿用同一投影版本中最后接受的 Context，并在纯文本变化时复用右栏资源结果。
-- 复杂 Markdown 在已完成块与当前尾部的组合结果经 canonical parser 证明等价后，固定已完成块并只重解析尾部；完成态仍由原有 one-shot canonical parser 全量接管，不显示源码、不增加 fallback 或第二渲染器。
+- 复杂 Markdown 在已完成块与当前尾部的组合结果经 canonical parser 证明等价后，固定已完成块并只重解析尾部；闭合 Mermaid 等静态围栏立即以非流式段渲染，未闭合围栏内部空行不会误切分。
+- 完成态仍由原有 one-shot canonical parser 做唯一权威校验；结构精确一致时保留已挂载段及预览实例，便携树包含额外链接增强而结构不同时才由权威树接管。不显示源码、不增加 fallback 或第二渲染器。
 - `\(...\)` / `\[...\]` 只做等长的显式定界符转换；不再猜测普通括号或方括号，复制与本地链接直接复用同一棵 canonical 语法树的原始坐标。
 - 流式稳定边界识别会忽略数学内容中的 Markdown 符号；数学、Markdown、Mermaid 最终仍只进入原有 canonical 渲染主干。
 - Web Search 查询词从同一官方 Session 的 `backend_tool_call` 按 tool call id 合并到 `updates.jsonl` 的工具状态；live 与重启恢复共用同一净化和时间线入口，空标题不再丢失查询内容。
@@ -134,9 +136,9 @@
 
 - `npm run typecheck`：通过。
 - `npm run test:segmentation`：96 / 96 通过。
-- `npm run test:task-runtime`：全部通过。
+- `npm run test:task-runtime`：167 / 167 通过。
 - `npm run build`：Web、Server、Electron Shell 通过。
-- `npm run architecture`：0 个错误；仅保留 2 个既有测试孤立警告，Knip 无未使用代码，重复率 0.09%。
+- `npm run architecture`：0 个错误；仅保留 2 个既有测试孤立警告，Knip 无未使用代码，重复率 0.05%。
 - `npm audit --omit=dev`：生产依赖 0 个漏洞。
 - `git diff --check`：通过。
 - Mermaid 数学与对比度回归：2 / 2 通过；覆盖统一 KaTeX 字形、严格模式、HTML/MathML 标签、深浅自定义底色和直接 SVG 不放宽。
@@ -149,6 +151,7 @@
 - 新任务默认值回归覆盖完整五项解析、权限能力暂缺不污染持久偏好、显式 Permission 输入和旧 `workMode` 字段清理。
 - 富文本增长基准为 6,599 字符、150 次更新：增长阶段中位总耗时 10.67 ms，最终 canonical 解析 22.41 ms，增长阶段进入完整解析器的字符数为 0，最终结构精确一致。
 - 复杂 Markdown 基准为 9,523 字符、150 次更新：累计解析从 717,634 字符（75.36 倍、约 1,731.6 ms）降至 30,040 字符（3.15 倍、约 224.5 ms）；解析量降低 23.9 倍，完成态结构仍精确等于 canonical。
+- 多 Mermaid 当前基准为 10,071 字符、150 次更新：累计解析 28,913 字符（2.87 倍），增长阶段约 135.11 ms，最终 canonical 校验约 17.88 ms；结束前已有的 130 / 130 个语义段对象全部保留，最终结构精确等于 canonical。
 - 数学密集回复基准为 9,556 字符、150 次更新：累计解析 29,941 字符（3.13 倍），完成态 canonical 解析 71.75 ms；覆盖用户截图中的 Rolle 与 Cauchy 公式及每个切分边界。
 - 2,000 个 child `agent_message_chunk` 回归为父任务 0 个 operational event、0 次 context 重投影、0 次 revision/帧发布；结构化子 Agent 状态仍进入原统一增量帧。
 - 媒体缓存回归覆盖未解析官方 Session 保留、孤儿清理和任务打开后的引用解析；正式 Grok Home 状态下后端 1,577 ms 进入 ready。
@@ -172,7 +175,7 @@
 - Electron 双向切换阅读宽度 Full 后外层滚动保持 `0`，设置页位置不跳动且无底部底色遮挡。
 - 手机模拟视口 `390×844`：灯箱和视口均为全屏，图片 cover 为 `633×844`；Fit 仍返回 cover。
 - 手机真实双击顺序实测 `633×844 → 864×1152 → 273×364 → 633×844`，按实际尺寸正确回环。
-- 最新正式 App 已纯净替换并重启；`app.asar` SHA-256 为 `3bfd08d98e1c746179dcb10a98e9745839e1579d7a60cfa7326af87666adcbc4`。
+- 最新正式 App 已纯净替换并重启；`app.asar` SHA-256 为 `99b7d3bb69f5f149a63cc878ca193a25edd1f4295475eafa762ff3464abc9672`。
 - 正式 App 已展开验收真实历史中的 9 条 Web Search，均显示同一官方 Session 内按 tool call id 对齐的实际查询词。
 - 正式 App 已切换任务再返回验收：恢复到原稳定消息与行内位置，保持“回到最新”状态，不被历史重投影强制拉到底部；官方 Session 未改写。
 - 正式 Electron 设置页已只读验收：“新任务默认值”集中显示模型、推理强度、Permission、Sandbox 与 System Prompt，并明确只作用于未来任务，不修改当前官方 Session 或创建 Fork。
@@ -183,6 +186,7 @@
 - 在用户截图对应的官方 Session 中重新打开原消息：单节点显示 `E=mc²`，三节点显示 `E → mc² → E=mc²`；无字面 `$$`、无空节点，普通 Mermaid、独立 KaTeX 与 HTML 预览同时正常。
 - 在用户最新官方 Session 中重新打开 12 段 Mermaid：前两段已恢复为真实图形，整轮 11 段原样渲染；唯一保留源码的是原文未给中文标题/类目加引号的 `xychart-beta`，属于 Mermaid 源语法错误。界面中不再出现官方 interjection 包装文本。
 - 用户提供的深浅分组、黑白节点、多形状与长公式压力图已在正式 App 的昼夜主题验收：节点、分组标题与公式对比正常，公式字形与正文 KaTeX 一致，根号及上横线继承节点文字色。
+- 用户使用“Mermaid 位于开头、后续 200 行继续生成”的正式 App prompt 完成手测，确认闭合图块无需等待整轮结束即可进入渲染主链。
 - 完整预览验收后的静置状态下，核心 Electron 进程物理占用约 431 MB；三个已加载测试任务的 Grok 进程合计约 135 MB。进程 RSS 直接相加会重复计算共享页，不作为真实物理占用结论。
 - 当前源码目录已清除 `node_modules`、`dist*` 和 `release` 等可再生内容，从约 1.3 GB 收敛到约 8.8 MB；系统下载缓存与官方 Session 数据未动。
 

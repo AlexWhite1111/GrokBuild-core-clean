@@ -30,7 +30,7 @@
 - Session 已有用户消息后再更换固定设置，必须保留源 Session 并创建普通官方 Fork；Goal、Queue、Gate、未确认投递或后台工作未结束时禁止改写历史。
 - Project 新任务默认值是非对话配置，只能在创建新官方 Session 时读取；任务创建和当前 Session 的权限切换都不得反写默认值。
 - 文本 delta 可省略未变化的 Context；Renderer 只能沿用同一官方投影链最后接受的 Context，不得从旁路重建。
-- 流式富文本只可缓存经 canonical 组合等价验证的完成块；结束时必须由同一个 one-shot canonical parser 重新建立最终树，不得退回源码或增加第二渲染链。
+- 流式富文本只可缓存经 canonical 组合等价验证的完成块；闭合的静态围栏立即成为非流式段，只有未完成尾部继续流式。结束时仍由同一个 one-shot canonical parser 建立最终树；组合结构精确一致时保留已挂载段，权威链接增强不一致时由最终树接管。不得退回源码或增加第二渲染链。
 
 ## 禁止状态
 
