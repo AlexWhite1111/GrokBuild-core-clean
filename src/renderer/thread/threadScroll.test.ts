@@ -4,6 +4,7 @@ import {
   createThreadScrollAnchor,
   resolveThreadScrollAnchorIndex,
   threadAtBottom,
+  threadFollowAfterScroll,
   threadLatestControl,
   threadRowResizeAdjustsScroll,
   wheelPixels,
@@ -12,6 +13,13 @@ import {
 test("bottom means the real edge rather than a near-bottom zone", () => {
   assert.equal(threadAtBottom({ scrollHeight: 1000, scrollTop: 899, clientHeight: 100 }), true);
   assert.equal(threadAtBottom({ scrollHeight: 1000, scrollTop: 898.9, clientHeight: 100 }), false);
+});
+
+test("layout growth keeps follow intent while an upward read releases it", () => {
+  assert.equal(threadFollowAfterScroll(true, 900, 900, false), true);
+  assert.equal(threadFollowAfterScroll(true, 900, 899, false), false);
+  assert.equal(threadFollowAfterScroll(false, 500, 700, false), false);
+  assert.equal(threadFollowAfterScroll(false, 700, 900, true), true);
 });
 
 test("dynamic measurement preserves the row currently being read", () => {

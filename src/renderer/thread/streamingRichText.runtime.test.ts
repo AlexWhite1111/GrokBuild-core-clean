@@ -91,6 +91,120 @@ test("blank lines inside an unfinished fence never create a completed segment", 
   assert.equal(streamingRichTextRenderSegments(state), null);
 });
 
+test("images and closed nested inline links do not block later Mermaid segments", () => {
+  const source = [
+    "![混排图片](https://example.com/image.png)",
+    "",
+    "```mermaid",
+    "flowchart LR",
+    "  A1[第一图] --> B1[完成]",
+    "```",
+    "",
+    "资料来源：[[1]](https://example.com/report)",
+    "",
+    "```mermaid",
+    "flowchart TB",
+    "  A2[第二图] --> B2[完成]",
+    "```",
+    "",
+    "尾部继续生成",
+  ].join("\n");
+  let state = initialStreamingRichText("", POLICY);
+  for (let cursor = 1; cursor <= source.length; cursor += 1) {
+    state = updateStreamingRichText(state, source.slice(0, cursor), POLICY);
+  }
+
+  assert.match(state.committedSource, /A1\[第一图]/);
+  assert.match(state.committedSource, /A2\[第二图]/);
+  assert.equal(state.activeSource, "尾部继续生成");
+  assert.deepEqual(
+    streamingRichTextRenderSegments(state)?.map((segment) => segment.streaming),
+    [false, false, false, false, true],
+  );
+  assert.deepEqual(state.tree.children, parseRichTextDocument(source, POLICY).children);
+});
+
+test("an unresolved shortcut reference still prevents unsafe cross-block commits", () => {
+  for (const reference of [
+    "未来引用 [future]",
+    "完整引用 [文字][future]",
+    "折叠引用 [future][]",
+    "[future]: https://example.com/future",
+  ]) {
+    const source = [
+      reference,
+      "",
+      "```mermaid",
+      "flowchart LR",
+      "  A --> B",
+      "```",
+      "",
+      "尾部继续生成",
+    ].join("\n");
+    let state = initialStreamingRichText("", POLICY);
+    for (let cursor = 1; cursor <= source.length; cursor += 1) {
+      state = updateStreamingRichText(state, source.slice(0, cursor), POLICY);
+    }
+
+    assert.equal(state.committedSource, "", reference);
+    assert.equal(state.committedSegments.length, 0, reference);
+    assert.equal(streamingRichTextRenderSegments(state), null, reference);
+    assert.deepEqual(state.tree, parseRichTextDocument(source, POLICY), reference);
+  }
+});
+
+test("all canonical closed bracket forms allow the following rich block to settle", () => {
+  for (const closedSyntax of [
+    "[普通链接](https://example.com/report)",
+    "[[嵌套标签]](https://example.com/report)",
+    "[括号网址](https://example.com/a_(b))",
+    "![嵌套图片 [说明]](https://example.com/image.png)",
+    "`代码中的 [future]`",
+    String.raw`公式 \[x=[1]\]`,
+    "- [x] 已完成",
+  ]) {
+    const source = [
+      closedSyntax,
+      "",
+      "```mermaid",
+      "flowchart LR",
+      "  A[开始] --> B[完成]",
+      "```",
+      "",
+      "尾部继续生成",
+    ].join("\n");
+    let state = initialStreamingRichText("", POLICY);
+    for (let cursor = 1; cursor <= source.length; cursor += 1) {
+      state = updateStreamingRichText(state, source.slice(0, cursor), POLICY);
+    }
+
+    assert.match(state.committedSource, /flowchart LR/, closedSyntax);
+    assert.deepEqual(state.tree.children, parseRichTextDocument(source, POLICY).children, closedSyntax);
+  }
+});
+
+test("a plain long tail after a completed rich block keeps the zero-parse fast path", () => {
+  const lines = Array.from({ length: 200 }, (_, index) =>
+    `LINE ${String(index + 1).padStart(3, "0")} — TAIL STILL STREAMING`);
+  const source = [
+    "```mermaid",
+    "flowchart LR",
+    "  A[开始] --> B[完成]",
+    "```",
+    ...lines,
+  ].join("\n");
+  let state = initialStreamingRichText("", POLICY);
+  for (let frame = 1; frame <= 150; frame += 1) {
+    const cursor = Math.ceil(source.length * frame / 150);
+    state = updateStreamingRichText(state, source.slice(0, cursor), POLICY);
+  }
+
+  assert.match(state.committedSource, /flowchart LR/);
+  assert.match(state.activeSource, /LINE 200/);
+  assert.ok(state.parsedCharacters < source.length * 3, `${state.parsedCharacters} parsed for ${source.length}`);
+  assert.deepEqual(state.tree.children, parseRichTextDocument(source, POLICY).children);
+});
+
 test("completed blocks stay mounted while only the active tail remains streaming", () => {
   const source = [
     "```mermaid",

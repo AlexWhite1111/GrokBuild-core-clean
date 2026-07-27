@@ -7,6 +7,20 @@ export function threadAtBottom(element: Pick<HTMLElement, "scrollHeight" | "scro
 }
 
 /**
+ * Following is reading intent, not a transient pixel position. Content growth
+ * can move the bottom without user input; only an upward scroll releases the
+ * intent, and reaching the real end restores it.
+ */
+export function threadFollowAfterScroll(
+  following: boolean,
+  previousScrollTop: number,
+  scrollTop: number,
+  atBottom: boolean,
+): boolean {
+  return atBottom || (following && scrollTop >= previousScrollTop);
+}
+
+/**
  * Dynamic content in the row currently being read usually grows below the
  * viewport (streaming text, previews, images). Only compensate for rows that
  * are already completely above the reading position.

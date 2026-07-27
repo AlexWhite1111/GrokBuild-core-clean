@@ -104,21 +104,36 @@ export function updateStreamingRichText(
   if (
     boundary > 0
     && absoluteBoundary !== previous.lastAttemptedBoundary
-    && stableCompletedPrefix(activeSource.slice(0, boundary))
     && placementsStayInsideBoundary(policy, absoluteActiveOffset + boundary)
   ) {
     const prefixSource = activeSource.slice(0, boundary);
     const tailSource = activeSource.slice(boundary);
-    const prefixTree = parseSegment(prefixSource, absoluteActiveOffset, source, policy);
-    const tailTree = parseSegment(tailSource, absoluteActiveOffset + boundary, source, policy);
-    const proposedActive = mergeRoots(prefixTree, tailTree);
     const authoritativeActive = parseSegment(activeSource, absoluteActiveOffset, source, policy);
+    const parsedActiveCharacters = previous.parsedCharacters + activeSource.length;
+    if (!stableCompletedPrefix(prefixSource, authoritativeActive, absoluteActiveOffset)) {
+      return {
+        ...previous,
+        source,
+        activeSource,
+        activeTree: authoritativeActive,
+        tree: mergeRoots(previous.committedTree, authoritativeActive),
+        mode: previous.committedTree ? "incremental" : "full",
+        parsedCharacters: parsedActiveCharacters,
+        policyKey: nextPolicyKey,
+        lastAttemptedBoundary: absoluteBoundary,
+      };
+    }
+    const prefixTree = tailSource
+      ? parseSegment(prefixSource, absoluteActiveOffset, source, policy)
+      : authoritativeActive;
+    const tailTree = tailSource
+      ? parseSegment(tailSource, absoluteActiveOffset + boundary, source, policy)
+      : emptyRoot();
+    const proposedActive = mergeRoots(prefixTree, tailTree);
     const committedTree = mergeRoots(previous.committedTree, prefixTree);
     const proposed = mergeRoots(committedTree, tailTree);
-    const parsedCharacters = previous.parsedCharacters
-      + prefixSource.length
-      + tailSource.length
-      + activeSource.length;
+    const parsedCharacters = parsedActiveCharacters
+      + (tailSource ? prefixSource.length + tailSource.length : 0);
     if (safeCommittedTree(prefixTree) && sameChildren(proposedActive, authoritativeActive)) {
       const committedSource = previous.committedSource + prefixSource;
       return {
@@ -151,7 +166,10 @@ export function updateStreamingRichText(
   }
 
   if (previous.committedTree) {
-    const tailTree = parseSegment(activeSource, absoluteActiveOffset, source, policy);
+    const plainTail = isPlainParagraph(activeSource, policy, absoluteActiveOffset);
+    const tailTree = plainTail
+      ? shiftedPlainParagraphTree(activeSource, absoluteActiveOffset, source)
+      : parseSegment(activeSource, absoluteActiveOffset, source, policy);
     return {
       ...previous,
       source,
@@ -159,7 +177,7 @@ export function updateStreamingRichText(
       activeTree: tailTree,
       tree: mergeRoots(previous.committedTree, tailTree),
       mode: "incremental",
-      parsedCharacters: previous.parsedCharacters + activeSource.length,
+      parsedCharacters: previous.parsedCharacters + (plainTail ? 0 : activeSource.length),
       policyKey: nextPolicyKey,
       ...(absoluteBoundary >= 0 ? { lastAttemptedBoundary: absoluteBoundary } : {}),
     };
@@ -290,16 +308,58 @@ function markdownBlockBoundaries(source: string): { blank: number; fence: number
  * shortcut, or an earlier definition can rewrite a future tail. Those sources
  * deliberately remain active until finalization.
  */
-function stableCompletedPrefix(source: string): boolean {
+function stableCompletedPrefix(source: string, canonicalActiveTree: Root, absoluteOffset: number): boolean {
   const boundaries = markdownBlockBoundaries(source);
   if (boundaries.blank !== source.length && boundaries.fence !== source.length) return false;
-  const visible = markdownOutsideCode(source)
+  const visible = maskClosedInlineLinks(
+    markdownOutsideCode(source),
+    source,
+    canonicalActiveTree,
+    absoluteOffset,
+  )
     .replace(/\\\[[\s\S]*?\\\]|\\\([^\n]*?\\\)|\$\$[\s\S]*?\$\$|\$[^$\n]+\$/g, "")
-    .replace(/!?\[[^\]\n]*\]\((?:\\.|[^)\n])*\)/g, "")
     .replace(/\[(?: |x|X)\](?=[\t ])/g, "");
-  return !/^\s{0,3}\[[^\]\n]+\]:/m.test(visible)
-    && !/!?\[[^\]\n]+\]\s*\[[^\]\n]*\]/.test(visible)
-    && !/[\[\]]/.test(visible);
+  return !/[\[\]]/.test(visible);
+}
+
+/**
+ * Inline links are already closed syntax, so their label brackets cannot gain
+ * cross-block meaning later. Use the canonical tree's source ranges instead
+ * of guessing nested labels or parenthesized destinations with another regex.
+ */
+function maskClosedInlineLinks(
+  visible: string,
+  source: string,
+  tree: Root,
+  absoluteOffset: number,
+): string {
+  const masked = visible.split("");
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== "object") return;
+    const value = node as {
+      type?: string;
+      position?: { start?: Position; end?: Position };
+      children?: unknown[];
+    };
+    const start = value.position?.start?.offset;
+    const end = value.position?.end?.offset;
+    if (value.type === "element" && typeof start === "number" && typeof end === "number") {
+      const localStart = start - absoluteOffset;
+      const localEnd = end - absoluteOffset;
+      if (localStart >= 0 && localEnd <= source.length) {
+        const raw = source.slice(localStart, localEnd);
+        if ((raw.startsWith("[") || raw.startsWith("![")) && raw.includes("](") && raw.endsWith(")")) {
+          for (let index = localStart; index < localEnd; index += 1) {
+            if (masked[index] !== "\n") masked[index] = " ";
+          }
+          return;
+        }
+      }
+    }
+    value.children?.forEach(visit);
+  };
+  visit(tree);
+  return masked.join("");
 }
 
 /**
@@ -309,8 +369,10 @@ function stableCompletedPrefix(source: string): boolean {
  * Markdown, HTML, math, media, autolink, or executable-code interpretation
  * returns immediately to the canonical parser.
  */
-function isPlainParagraph(source: string, policy: RichTextPolicy): boolean {
-  if (policy.mediaPlacements?.length) return false;
+function isPlainParagraph(source: string, policy: RichTextPolicy, sourceOffset = 0): boolean {
+  const sourceEnd = sourceOffset + source.length;
+  if (policy.mediaPlacements?.some((placement) =>
+    placement.anchor.start < sourceEnd && placement.anchor.end > sourceOffset)) return false;
   if (!source) return true;
   if (/[\r\t]/.test(source) || source.includes("\n\n") || / +\n/.test(source)) return false;
   if (/[\\`*_{}\[\]()<>#$~|&@=;:/+-]/.test(source)) return false;
@@ -321,6 +383,12 @@ function isPlainParagraph(source: string, policy: RichTextPolicy): boolean {
     Boolean(line)
     && !line.startsWith(" ")
     && !/^\d+[.]\s/.test(line));
+}
+
+function shiftedPlainParagraphTree(source: string, offset: number, fullSource: string): Root {
+  const tree = plainParagraphTree(source);
+  if (offset) shiftPositions(tree, fullSource.slice(0, offset));
+  return tree;
 }
 
 /** Builds the exact canonical HAST shape for the narrow prose grammar above. */
@@ -435,18 +503,22 @@ function markdownOutsideCode(source: string): string {
     if (fence) {
       const closing = new RegExp(`^[\\t ]{0,3}${fence.marker}{${fence.length},}[\\t ]*$`);
       if (closing.test(body)) fence = null;
-      visible += line.endsWith("\n") ? "\n" : "";
+      visible += maskCodeLine(line);
       continue;
     }
     const opening = /^[\t ]{0,3}(`{3,}|~{3,})/.exec(body);
     if (opening) {
       fence = { marker: opening[1][0], length: opening[1].length };
-      visible += line.endsWith("\n") ? "\n" : "";
+      visible += maskCodeLine(line);
       continue;
     }
-    visible += line.replace(/(`+)([^`\n]*?)\1/g, "");
+    visible += line.replace(/(`+)([^`\n]*?)\1/g, (match) => " ".repeat(match.length));
   }
   return visible;
+}
+
+function maskCodeLine(line: string): string {
+  return line.replace(/[^\n]/g, " ");
 }
 
 function placementsStayInsideBoundary(policy: RichTextPolicy, boundary: number): boolean {

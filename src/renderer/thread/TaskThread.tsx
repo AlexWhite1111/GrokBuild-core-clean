@@ -18,12 +18,14 @@ import {
   createThreadScrollAnchor,
   resolveThreadScrollAnchorIndex,
   threadAtBottom,
+  threadFollowAfterScroll,
   threadLatestControl,
   threadRowResizeAdjustsScroll,
 } from "./threadScroll.js";
 
 type ContinuationItem = { id: string; kind: "continuation"; origin: TaskContinuationOrigin };
 type ThreadItem = TimelineItem | ContinuationItem;
+type SavedTaskUiState = { taskId: string; value: TaskUiState | null };
 
 export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, composerHasDraft = false, persistScroll = true }: { detail: TaskDetailProjection; bottomInset?: number; onRetry?: (message: TaskMessageBlock) => Promise<void> | void; onEdit?: (message: TaskMessageBlock) => void; onFork?: () => Promise<void> | void; composerHasDraft?: boolean; persistScroll?: boolean }) {
   const { t } = useTranslation();
@@ -33,11 +35,11 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   const parent = useRef<HTMLDivElement>(null);
   const anchorTimer = useRef<number | null>(null);
   const restoreFrame = useRef<number | null>(null);
-  const previousPaddingEnd = useRef<number | null>(null);
   const pendingAnchor = useRef<{ taskId: string; value: TaskScrollAnchor } | null>(null);
   const restoring = useRef(true);
-  const [savedState, setSavedState] = useState<TaskUiState | null>(null);
-  const [stateLoaded, setStateLoaded] = useState(false);
+  const followLatest = useRef(true);
+  const previousScrollTop = useRef(0);
+  const [savedState, setSavedState] = useState<SavedTaskUiState | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [topEdge, setTopEdge] = useState(false);
   const [expandedProcesses, setExpandedProcesses] = useState<Record<string, boolean>>({});
@@ -52,6 +54,7 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   const latestGrokItemId = useMemo(() => [...projectedItems].reverse().find((item) =>
     item.kind === "assistant" && item.turn.segments.some((segment) => segment.kind === "assistant" && segment.final && Boolean(segment.message.text.trim())))?.id,
   [projectedItems]);
+  const stateLoaded = savedState?.taskId === detail.snapshot.taskId;
   const paddingEnd = composerThreadInset(bottomInset);
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -61,59 +64,84 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     overscan: 8,
     paddingEnd,
     anchorTo: "end",
-    followOnAppend: true,
-    scrollEndThreshold: 1,
   });
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
     threadRowResizeAdjustsScroll(item, instance.scrollOffset ?? 0);
+  const totalSize = virtualizer.getTotalSize();
   const scrollToLatest = useCallback(() => {
     if (items.length) virtualizer.scrollToEnd();
   }, [items.length, virtualizer]);
+  const persistPendingAnchor = useCallback(() => {
+    if (anchorTimer.current != null) window.clearTimeout(anchorTimer.current);
+    anchorTimer.current = null;
+    const pending = pendingAnchor.current;
+    if (!pending || !persistScroll) return;
+    pendingAnchor.current = null;
+    void api.post(`/ui/tasks/${pending.taskId}`, { requestId: crypto.randomUUID(), scrollAnchor: pending.value }).catch(() => undefined);
+  }, [api, persistScroll]);
   useLayoutEffect(() => {
-    const previous = previousPaddingEnd.current;
-    previousPaddingEnd.current = paddingEnd;
-    if (previous == null || previous === paddingEnd || !stateLoaded || restoring.current || !atBottom) return;
-    scrollToLatest();
-  }, [atBottom, paddingEnd, scrollToLatest, stateLoaded]);
+    const element = parent.current;
+    if (!element || !stateLoaded || restoring.current || !items.length) return;
+    const bottom = threadAtBottom(element);
+    if (!followLatest.current) {
+      setAtBottom(bottom);
+      return;
+    }
+    if (!bottom) scrollToLatest();
+  }, [detail.snapshot.taskId, items.length, scrollToLatest, stateLoaded, totalSize]);
   useEffect(() => {
     let current = true;
     restoring.current = true;
-    setStateLoaded(false);
+    followLatest.current = true;
+    previousScrollTop.current = 0;
     setSavedState(null);
-    previousPaddingEnd.current = null;
     setAtBottom(true);
-    if (!persistScroll) { setStateLoaded(true); return () => { current = false; }; }
+    if (!persistScroll) {
+      setSavedState({ taskId: detail.snapshot.taskId, value: null });
+      return () => { current = false; };
+    }
     void api.get<TaskUiState>(`/ui/tasks/${detail.snapshot.taskId}`).then((state) => {
       if (!current) return;
-      setSavedState(state);
-      setStateLoaded(true);
+      setSavedState({ taskId: detail.snapshot.taskId, value: state });
     }).catch(() => {
       if (!current) return;
-      setStateLoaded(true);
+      setSavedState({ taskId: detail.snapshot.taskId, value: null });
     });
-    return () => { current = false; };
-  }, [api, detail.snapshot.taskId, persistScroll]);
+    return () => {
+      current = false;
+      persistPendingAnchor();
+    };
+  }, [api, detail.snapshot.taskId, persistPendingAnchor, persistScroll]);
   useEffect(() => setExpandedProcesses({}), [detail.snapshot.taskId]);
   useLayoutEffect(() => {
-    if (!stateLoaded || !items.length || !restoring.current) return;
+    if (
+      !stateLoaded
+      || !items.length
+      || !restoring.current
+    ) return;
     // Close the restoration gate before scrolling. TanStack Virtual may publish
     // a synchronous measurement update from scrollToIndex; leaving the gate
     // open lets this layout effect re-enter during rapid task switches until
     // React aborts the entire root with a maximum-update-depth error.
     restoring.current = false;
     if (restoreFrame.current != null) cancelAnimationFrame(restoreFrame.current);
-    const anchor = savedState?.scrollAnchor;
+    const anchor = savedState?.value?.scrollAnchor;
     if (!anchor || anchor.followLatest) {
+      followLatest.current = true;
       setAtBottom(true);
       scrollToLatest();
       return;
     }
     const index = resolveThreadScrollAnchorIndex(items, anchor);
+    followLatest.current = false;
     setAtBottom(false);
     restoreFrame.current = requestAnimationFrame(() => {
       restoreFrame.current = requestAnimationFrame(() => {
         const row = virtualizer.getVirtualItems().find((item) => item.index === index);
-        if (row) virtualizer.scrollToOffset(Math.max(0, row.start + anchor.offset));
+        if (row) {
+          virtualizer.scrollToOffset(Math.max(0, row.start + anchor.offset));
+          previousScrollTop.current = parent.current?.scrollTop || 0;
+        }
         restoreFrame.current = null;
       });
     });
@@ -125,14 +153,6 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
     const frame = requestAnimationFrame(() => setTopEdge(element.scrollTop > 4));
     return () => cancelAnimationFrame(frame);
   }, [items.length]);
-  const persistPendingAnchor = useCallback(() => {
-    if (anchorTimer.current != null) window.clearTimeout(anchorTimer.current);
-    anchorTimer.current = null;
-    const pending = pendingAnchor.current;
-    if (!pending || !persistScroll) return;
-    pendingAnchor.current = null;
-    void api.post(`/ui/tasks/${pending.taskId}`, { requestId: crypto.randomUUID(), scrollAnchor: pending.value }).catch(() => undefined);
-  }, [api, persistScroll]);
   useEffect(() => {
     const onVisibility = () => { if (document.visibilityState === "hidden") persistPendingAnchor(); };
     window.addEventListener("blur", persistPendingAnchor);
@@ -151,24 +171,44 @@ export function TaskThread({ detail, bottomInset = 0, onRetry, onEdit, onFork, c
   const onScroll = () => {
     const element = parent.current;
     if (!element) return;
+    const previous = previousScrollTop.current;
+    previousScrollTop.current = element.scrollTop;
     const bottom = threadAtBottom(element);
     setTopEdge(element.scrollTop > 4);
     setAtBottom(bottom);
     if (restoring.current || restoreFrame.current != null) return;
+    followLatest.current = threadFollowAfterScroll(
+      followLatest.current,
+      previous,
+      element.scrollTop,
+      bottom,
+    );
     const visible = virtualizer.getVirtualItems().find((row) => row.end > element.scrollTop + 1) || virtualizer.getVirtualItems()[0];
     if (visible) {
-      const scrollAnchor = createThreadScrollAnchor(items, visible.index, element.scrollTop, visible.start, bottom);
+      const scrollAnchor = createThreadScrollAnchor(items, visible.index, element.scrollTop, visible.start, followLatest.current);
       pendingAnchor.current = { taskId: detail.snapshot.taskId, value: scrollAnchor };
       if (anchorTimer.current != null) window.clearTimeout(anchorTimer.current);
       anchorTimer.current = window.setTimeout(persistPendingAnchor, 240);
     }
   };
-  const latest = () => { setAtBottom(true); scrollToLatest(); };
+  const latest = () => {
+    followLatest.current = true;
+    setAtBottom(true);
+    scrollToLatest();
+  };
   const latestControl = threadLatestControl(atBottom, projectTaskExecution(detail.snapshot).busy);
 
   return <div className={styles.frame} style={{ "--thread-bottom-inset": `${paddingEnd}px` } as CSSProperties}>
-    <div ref={parent} data-thread-scroll className={styles.scroller} tabIndex={0} aria-label={t("thread")} onScroll={onScroll}>
-      <div className={styles.virtual} style={{ height: `${virtualizer.getTotalSize()}px` }}>
+    <div
+      ref={parent}
+      data-thread-scroll
+      className={styles.scroller}
+      tabIndex={0}
+      aria-label={t("thread")}
+      onScroll={onScroll}
+      onWheel={(event) => { if (event.deltaY < 0) followLatest.current = false; }}
+    >
+      <div className={styles.virtual} style={{ height: `${totalSize}px` }}>
         {virtualizer.getVirtualItems().map((row) => {
           const item = items[row.index];
           const processAvailable = item.kind === "assistant" && processExecutions.has(item.turn.promptExecutionId);
